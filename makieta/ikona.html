@@ -31,8 +31,8 @@ h2{font-size:15px;font-weight:600;margin:34px 0 4px}
 </head>
 <body>
 <main>
-  <h1>Ikona Rysia — od zera</h1>
-  <p class="lead">Sześć nowych pomysłów, bez kresek z poprzednich wersji. Wspólne z rodziną: jeden prosty przedmiot albo znak, płaska czerń i biel na kolorowym tle, bez cieni i obrysów — jak kostka Modo, oko Gapy i krzyżyk Blatu.</p>
+  <h1>Ikona Rysia — na luzie</h1>
+  <p class="lead">Prościej i z przymrużeniem oka: dwa–trzy kształty na ikonę, trochę charakteru, jak oko Gapy. Tła i kolory przełączasz jak wcześniej.</p>
 
   <h2>Kolor</h2>
   <p class="lead">Limonka (Modo), fiolet (Gapa) i pomarańcz (Blat) są zajęte. Kliknij kolor — zmienią się wszystkie wersje i Dock.</p>
@@ -48,33 +48,28 @@ h2{font-size:15px;font-weight:600;margin:34px 0 4px}
 <script>
 let K = '#161616', W = '#FFFFFF';
 const COLORS = [['#FFFFFF', 'Białe'], ['#F1ECE1', 'Złamana biel'], ['#232326', 'Grafit'], ['#1D2A44', 'Granat'], ['#3D8BFF', 'Niebieski'], ['#22C3A6', 'Morski'], ['#FFD23F', 'Żółty'], ['#FF5A5F', 'Czerwony'], ['#FF8FCB', 'Różowy']];
-let color = '#3D8BFF';
+let color = '#FFD23F';
 
 const ln = (d, w, col = K, extra = '') => `<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" ${extra}/>`;
 const V = [
-  { t: 'Skalówka', d: 'Trójgraniasta linijka architekta — przedmiot, który znaczy „rysunek w skali”. Dwie ściany: biała z podziałką i czarna, jak ściany kostki Modo.', rec: true,
-    svg: () => {
-      const a = [26, 100], b = [104, 30], u = [b[0] - a[0], b[1] - a[1]], L = Math.hypot(...u), e = [u[0] / L, u[1] / L], n = [e[1], -e[0]];
-      const P = (t, k) => [a[0] + e[0] * t + n[0] * k, a[1] + e[1] * t + n[1] * k].map(v => v.toFixed(1)).join(' ');
-      // biała ściana (od krawędzi a–b w głąb), czarna ściana pod nią
-      let out = `<path d="M${P(0, 0)}L${P(L, 0)}L${P(L + 14, -22)}L${P(14, -22)}Z" fill="${W}" stroke="${K}" stroke-width="4" stroke-linejoin="round"/>`;
-      out += `<path d="M${P(14, -22)}L${P(L + 14, -22)}L${P(L + 4, -40)}L${P(4, -40)}Z" fill="${K}" stroke="${K}" stroke-width="4" stroke-linejoin="round"/>`;
-      for (let i = 1; i < 13; i++) { const t = 8 + i * (L - 12) / 13, k = i % 5 === 0 ? -13 : -7; out += `<path d="M${P(t + 1.5, -2.5)}L${P(t + 1.5 + (k / -22) * 14, k)}" stroke="${K}" stroke-width="3"/>`; }
-      return out;
-    } },
-  { t: 'Rapidograf', d: 'Pióro kreślarskie z czarnym korpusem i białym pierścieniem, kreślące cienką linię. Jeden przedmiot, jak oko Gapy.',
-    svg: () => `<g transform="rotate(40 80 80)"><rect x="66" y="10" width="28" height="78" rx="5" fill="${K}"/><rect x="66" y="58" width="28" height="12" fill="${W}" stroke="${K}" stroke-width="4"/><path d="M70 88h20l-6 16h-8z" fill="${W}" stroke="${K}" stroke-width="4" stroke-linejoin="round"/><path d="M80 104v22" stroke="${K}" stroke-width="4"/></g>` + ln('M14 136H96', 4) },
-  { t: 'Ryś ze znaczków', d: 'Mordka rysia złożona ze znaczków przyciągania: uszy to trójkąty „środek”, oczy — kwadraty „koniec”, nos — krzyżyk „przecięcie”. Gra słów i CAD naraz.',
-    svg: () => `<path d="M30 70 46 26 62 70Z" fill="${K}"/><path d="M46 26 44 12" stroke="${K}" stroke-width="5" stroke-linecap="round"/><path d="M98 70 114 26 130 70Z" fill="${K}"/><path d="M114 26 116 12" stroke="${K}" stroke-width="5" stroke-linecap="round"/>
-      <rect x="44" y="82" width="22" height="22" fill="${W}" stroke="${K}" stroke-width="5"/><rect x="94" y="82" width="22" height="22" fill="${W}" stroke="${K}" stroke-width="5"/>
-      <path d="M72 114l16 16M88 114l-16 16" stroke="${K}" stroke-width="6" stroke-linecap="round"/>` },
-  { t: 'Celownik', d: 'Kursor rysowania z kwadratem przyciągania i przerywaną linią prowadzącą — to, na co patrzy się przez cały czas pracy.',
-    svg: () => ln('M80 22V62M80 98V138M22 80H62M98 80H138', 8) + `<rect x="64" y="64" width="32" height="32" fill="${W}" stroke="${K}" stroke-width="6"/>` + ln('M18 120H142', 4, K, 'stroke-dasharray="10 8" opacity=".55"') },
-  { t: 'Cyrkiel', d: 'Cyrkiel kreślący biały łuk. Klasyczny przyrząd, prosty kształt — czytelny nawet w 16 px.',
-    svg: () => `<path d="M30 118A58 58 0 0 1 130 118" fill="none" stroke="${W}" stroke-width="9"/><path d="M80 28 52 116M80 28 108 116" stroke="${K}" stroke-width="10" stroke-linecap="round"/><circle cx="80" cy="28" r="11" fill="${W}" stroke="${K}" stroke-width="5"/><path d="M80 17V8" stroke="${K}" stroke-width="6" stroke-linecap="round"/><path d="M104 104l8 18 4-16z" fill="${K}"/>` },
-  { t: 'Arkusz z rzutem', d: 'Biała kartka z zagiętym rogiem, a na niej gruby czarny rzut z drzwiami — model i arkusz w jednym.',
-    svg: () => `<path d="M34 24H104L126 46V136H34Z" fill="${W}" stroke="${K}" stroke-width="5" stroke-linejoin="round"/><path d="M104 24V46H126" fill="none" stroke="${K}" stroke-width="5" stroke-linejoin="round"/>
-      <path d="M52 62V118H108V62H86M70 62H52" fill="none" stroke="${K}" stroke-width="9"/><path d="M70 62V80" stroke="${K}" stroke-width="3"/><path d="M70 80A18 18 0 0 0 86 62" fill="none" stroke="${K}" stroke-width="3"/>` }
+  { t: 'Uśmiechnięty wymiar', d: 'Linia wymiarowa wygięta w uśmiech, z kreseczkami na końcach, i dwoje oczu. Wymiar, który się cieszy.', rec: true,
+    svg: () => `<circle cx="58" cy="62" r="10" fill="${K}"/><circle cx="102" cy="62" r="10" fill="${K}"/>
+      <path d="M38 94Q80 132 122 94" fill="none" stroke="${K}" stroke-width="7"/><path d="M30 102 46 86M114 102 130 86" stroke="${K}" stroke-width="7" stroke-linecap="round"/>` },
+  { t: 'Kwadracik', d: 'Znaczek przyciągania „koniec” jako postać: biały kwadracik z oczami siedzi na kresce i zerka w bok.',
+    svg: () => `<path d="M18 118H142" stroke="${K}" stroke-width="9"/><rect x="50" y="48" width="60" height="60" fill="${W}" stroke="${K}" stroke-width="9"/>
+      <circle cx="78" cy="74" r="6" fill="${K}"/><circle cx="98" cy="74" r="6" fill="${K}"/>` },
+  { t: 'Ryś', d: 'Czarna główka z uszami z pędzelkami i dwoma białymi oczami. Trzy kształty i gotowe.',
+    svg: () => `<path d="M38 70 44 22 74 52ZM122 70 116 22 86 52Z" fill="${K}"/><path d="M44 22 42 8M116 22 118 8" stroke="${K}" stroke-width="6" stroke-linecap="round"/><circle cx="80" cy="92" r="46" fill="${K}"/>
+      <circle cx="62" cy="88" r="10" fill="${W}"/><circle cx="98" cy="88" r="10" fill="${W}"/>` },
+  { t: 'Bazgroł na prosto', d: 'Falująca kreska z ręki, która na końcu sama się prostuje i trafia w kwadracik — „rysujesz na luzie, wychodzi prosto”.',
+    svg: () => `<path d="M20 98C30 64 44 128 56 92S78 72 88 82H128" fill="none" stroke="${K}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="120" y="70" width="24" height="24" fill="${W}" stroke="${K}" stroke-width="7"/>` },
+  { t: 'Chodząca kreska', d: 'Gruba kreska na dwóch cienkich nóżkach, idzie gdzieś w prawo. Tak po prostu.',
+    svg: () => `<path d="M28 72H132" stroke="${K}" stroke-width="22"/><path d="M58 83 48 120H38M104 83 114 118H124" fill="none" stroke="${K}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="120" cy="72" r="5" fill="${W}"/>` },
+  { t: 'Ołówek z okiem', d: 'Krótki, gruby ołówek z jednym dużym okiem — kuzyn oka Gapy.',
+    svg: () => `<g transform="rotate(-30 80 80)"><rect x="56" y="18" width="48" height="84" fill="${W}" stroke="${K}" stroke-width="7"/><path d="M56 102 80 140 104 102Z" fill="${K}"/>
+      <circle cx="80" cy="58" r="15" fill="${W}" stroke="${K}" stroke-width="6"/><circle cx="84" cy="56" r="6" fill="${K}"/></g>` }
 ];
 const icon = (v, size, c = color) => // tło + znak
   `<svg width="${size}" height="${size}" viewBox="0 0 160 160"><rect x="1" y="1" width="158" height="158" rx="36" fill="${c}" ${c === '#FFFFFF' ? 'stroke="#d8d5ce" stroke-width="2"' : ''}/>${v.svg()}</svg>`;
