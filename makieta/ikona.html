@@ -31,15 +31,15 @@ h2{font-size:15px;font-weight:600;margin:34px 0 4px}
 </head>
 <body>
 <main>
-  <h1>Ikona Rysia — postać ze starej kreskówki</h1>
-  <p class="lead">Rysio jako postać w stylu dawnych kreskówek: oczy z wyciętym klinem, szeroki uśmiech, ręce jak gumowe rurki w białych rękawiczkach, duże buty. Mój własny rysunek w tym stylu (nie kopia referencji). Cień: jedna kreska po stronie przeciwnej do światła albo odsunięty owal. Wybierasz kolor tła i kolor ołówka.</p>
+  <h1>Ikona Rysia — spline, polilinia, zygzak</h1>
+  <p class="lead">Jedna mocna linia z rysowania: krzywa sklejana z uchwytami, polilinia z wierzchołkami albo zygzak. Linia biała albo czarna, z przesuniętym cieniem albo bez (cień działa przy białej linii). Kolor tła jak wcześniej.</p>
 
   <h2>Kolor</h2>
   <p class="lead">Limonka (Modo), fiolet (Gapa) i pomarańcz (Blat) są zajęte. Kliknij kolor — zmienią się wszystkie wersje i Dock.</p>
   <div class="colors" id="colors"></div>
 
-  <h2>Kolor ołówka</h2>
-  <div class="colors" id="bodyColors"></div>
+  <h2>Linia i cień</h2>
+  <div class="colors" id="lineOpts"></div>
   <h2>W Docku</h2>
   <div class="dock" id="dock"></div>
   <p class="lead" style="font-size:12px">Ikony Gapy i Blatu w Docku są odrysowane z Twojego zrzutu tylko dla porównania.</p>
@@ -52,58 +52,31 @@ h2{font-size:15px;font-weight:600;margin:34px 0 4px}
 <script>
 let K = '#161616', W = '#FFFFFF';
 const COLORS = [['#F1ECE1', 'Złamana biel'], ['#FFFFFF', 'Białe'], ['#BFE2FF', 'Błękit'], ['#FFC94A', 'Żółty jak w Krei'], ['#232326', 'Grafit'], ['#1D2A44', 'Granat'], ['#3D8BFF', 'Niebieski'], ['#22C3A6', 'Morski'], ['#FFD23F', 'Żółty'], ['#FF5A5F', 'Czerwony'], ['#FF8FCB', 'Różowy']];
-let color = '#22C3A6';
+let color = '#3D8BFF';
 
 const ln = (d, w, col = K, extra = '') => `<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" ${extra}/>`;
-// Rysio jako postać ze starej kreskówki: ołówek czubkiem do góry, oczy z wyciętym klinem w źrenicy, szeroki uśmiech,
-// ręce jak gumowe rurki w białych rękawiczkach, duże białe buty. Własny rysunek w tym stylu — nie kopia referencji.
-// Współrzędne lokalne: oś ołówka x = 0, czubek y = 0, dół korpusu y = 112.
-const OL = '#161616';
-let BODY = '#FFC93C';
-function rysio() {
-  const st = (w = 3.6) => `stroke="${OL}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"`;
-  const hose = d => `<path d="${d}" fill="none" stroke="${OL}" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round"/>`;
-  // bufiasta rękawiczka z mankietem; a — obrót, s — skala
-  const glove = (x, y, a = 0, s = 1) => `<g transform="translate(${x} ${y}) rotate(${a}) scale(${s})">
-    <path d="M-6 9C-11 9 -12 4 -10 0C-13 -4 -10 -10 -5 -9C-3 -13 4 -13 6 -9C11 -9 13 -3 10 1C12 6 7 10 3 9Z" fill="#fff" ${st(3.2)}/>
-    <path d="M-4 -5C-3 -2 -3 1 -5 3M2 -6C3 -3 3 0 1 2" fill="none" ${st(2.2)}/>
-    <path d="M-7 10C-6 14 6 14 7 10" fill="#fff" ${st(3)}/></g>`;
-  // but jak fasolka
-  const shoe = (x, y, a = 0, f = 1) => `<g transform="translate(${x} ${y}) rotate(${a}) scale(${f} 1)">
-    <path d="M-15 3C-17 -6 -6 -10 3 -9C13 -8 18 0 14 5C9 9 -12 10 -15 3Z" fill="#fff" ${st(3.4)}/>
-    <path d="M-6 -8C-7 -4 -6 -1 -3 1" fill="none" ${st(2.2)}/></g>`;
-  let o = '';
-  // nogi: tylna prosta, przednia w kroku
-  o += hose('M-7 112C-9 122 -12 129 -16 136') + hose('M7 112C13 117 20 118 27 120');
-  o += shoe(-20, 139, 4, -1) + shoe(33, 120, -22);
-  // ręka opuszczona (za korpusem)
-  o += hose('M19 82C29 83 36 88 40 95') + glove(44, 101, 140, 0.95);
-  // czubek: drewno z lekko wklęsłymi bokami, grafit
-  o += `<path d="M-21 44C-14 30 -7 15 -2.5 6Q0 2 2.5 6C7 15 14 30 21 44Z" fill="#F3CFA6" ${st()}/>`;
-  o += `<path d="M-7 15C-5 11 -3.5 8 -2.5 6Q0 2 2.5 6C3.5 8 5 11 7 15Q0 18 -7 15Z" fill="${OL}"/>`;
-  // korpus lekko wygięty, z ząbkami lakieru u góry
-  o += `<path d="M-21 44C-23 68 -22 92 -17 110Q0 118 17 110C22 92 23 68 21 44Q14 38 7 44Q0 38 -7 44Q-14 38 -21 44Z" fill="${BODY}" ${st()}/>`;
-  o += `<path d="M7.5 48C8.5 70 8.5 90 6.5 108" fill="none" stroke="${OL}" stroke-width="2" opacity=".35"/>`;
-  // oczy z wyciętym klinem, brwi
-  const eye = x => `<ellipse cx="${x}" cy="64" rx="7.6" ry="11.5" fill="#fff" ${st(3)}/><ellipse cx="${x + 2}" cy="68" rx="4.3" ry="6.8" fill="${OL}"/><path d="M${x + 2} 68L${x + 5.6} 62.4L${x + 6.4} 66.4Z" fill="#fff"/>`;
-  o += eye(-8) + eye(8);
-  o += `<path d="M-14 50Q-9 46.5 -4 49M4 48.5Q9 45.5 14 48.5" fill="none" ${st(2.6)}/>`;
-  // uśmiech
-  o += `<path d="M-13 83C-12 98 12 99 14 82C5 86 -5 86 -13 83Z" fill="${OL}" ${st(2.6)}/><path d="M-6 94C-2 90 4 90 7 93C4 97 -3 97 -6 94Z" fill="#FF6F7D"/>`;
-  // ręka podniesiona (przed korpusem)
-  o += hose('M-19 84C-31 84 -37 74 -36 60') + glove(-35, 52, -14, 1.05);
-  return o;
-}
-const place = (body, { x = 80, y = 12, k = 0.98, rot = 10 } = {}) => `<g transform="translate(${x} ${y}) rotate(${rot} 0 70) scale(${k})">${body}</g>`;
-// cień: jedna kreska po stronie przeciwnej do światła (światło z lewej → kreska z prawej) albo odsunięty owal jak w referencji
-const shLine = () => `<path d="M72 147H112" stroke="${OL}" stroke-width="5" stroke-linecap="round"/>`;
-const shOval = () => `<ellipse cx="82" cy="148" rx="34" ry="4.5" fill="${OL}"/>`;
-const disc = () => `<circle cx="80" cy="78" r="56" fill="${OL}" opacity=".12"/>`;
+// Ikona z jednej mocnej linii: spline, polilinia albo zygzak. LINE — kolor linii, SHADOW — przesunięty czarny cień.
+let LINE = 'white', SHADOW = true;
+const lc = () => LINE === 'white' ? '#FFFFFF' : '#161616';
+const SH = 'rgba(22,22,22,.9)';
+// linia z ewentualnym cieniem (cień = ta sama linia na czarno, przesunięta w dół w prawo)
+const bold = (d, w = 14, join = 'round', cap = 'round') => {
+  const one = (c, dx = 0) => `<path d="${d}" transform="translate(${dx} ${dx})" fill="none" stroke="${c}" stroke-width="${w}" stroke-linejoin="${join}" stroke-linecap="${cap}" stroke-miterlimit="10"/>`;
+  return (SHADOW && LINE === 'white' ? one(SH, 6) : '') + one(lc());
+};
+const sq = (x, y, r = 8) => (SHADOW && LINE === 'white' ? `<rect x="${x - r + 5}" y="${y - r + 5}" width="${2 * r}" height="${2 * r}" fill="${SH}"/>` : '') + `<rect x="${x - r}" y="${y - r}" width="${2 * r}" height="${2 * r}" fill="#fff" stroke="#161616" stroke-width="4"/>`;
+const handle = (x1, y1, x2, y2) => `<path d="M${x1} ${y1}L${x2} ${y2}" stroke="#161616" stroke-width="3"/><circle cx="${x2}" cy="${y2}" r="5.5" fill="#161616"/>`;
 const V = [
-  { g: 'Rysio', t: 'Cień kreską', d: 'Jedna kreska z prawej, przy butach — światło pada z lewej.', rec: true, svg: () => shLine() + place(rysio()) },
-  { g: 'Rysio', t: 'Cień owalem', d: 'Płaski owal odsunięty pod stopami, jak w drugiej referencji — postać jakby podskakuje.', svg: () => shOval() + place(rysio(), { y: 8 }) },
-  { g: 'Rysio', t: 'Z tarczą w tle', d: 'Jak w referencji: koło za postacią, cień kreską.', svg: () => disc() + shLine() + place(rysio()) },
-  { g: 'Rysio', t: 'Bez cienia', d: 'Sama postać — najprostsza.', svg: () => place(rysio(), { y: 10 }) }
+  { t: 'Spline z uchwytami', d: 'Gruba krzywa sklejana z kwadracikami na końcach i uchwytami stycznych — „tu się rysuje i poprawia”.', rec: true,
+    svg: () => handle(30, 112, 62, 34) + handle(130, 50, 98, 128) + bold('M30 112C62 34 98 128 130 50') + sq(30, 112) + sq(130, 50) },
+  { t: 'Spline', d: 'Sama krzywa z kwadracikami na końcach — prościej.',
+    svg: () => bold('M28 108C60 20 100 140 132 52', 15) + sq(28, 108) + sq(132, 52) },
+  { t: 'Polilinia z wierzchołkami', d: 'Łamana z białymi kwadracikami w wierzchołkach, jak zaznaczona polilinia.',
+    svg: () => bold('M26 108L58 52L92 104L132 48', 13, 'miter', 'butt') + sq(26, 108, 7) + sq(58, 52, 7) + sq(92, 104, 7) + sq(132, 48, 7) },
+  { t: 'Zygzak', d: 'Sam mocny zygzak z ostrymi narożnikami — energia i ruch.',
+    svg: () => bold('M22 104L48 56L74 104L100 56L126 104L140 78', 15, 'miter', 'butt') },
+  { t: 'Zygzak w spline', d: 'Z lewej łamana, z prawej płynna krzywa — dwa sposoby rysowania w jednej linii.',
+    svg: () => bold('M22 106L44 58L66 106C80 136 104 34 138 70', 14, 'miter', 'round') + sq(66, 106, 7) }
 ];
 const icon = (v, size, c = color) => // tło + znak
   `<svg width="${size}" height="${size}" viewBox="0 0 160 160"><rect x="1" y="1" width="158" height="158" rx="36" fill="${c}" ${c === '#FFFFFF' ? 'stroke="#d8d5ce" stroke-width="2"' : ''}/>${v.svg()}</svg>`;
@@ -112,9 +85,8 @@ const MODO0 = () => `<svg width="64" height="64" viewBox="0 0 160 160"><rect wid
 const GAPA0 = () => `<svg width="64" height="64" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="#7B3CF6"/><ellipse cx="80" cy="128" rx="38" ry="8" fill="${K}"/><path d="M80 112V124" stroke="${K}" stroke-width="6"/><circle cx="80" cy="74" r="40" fill="#CFF3E2" stroke="${K}" stroke-width="6"/><circle cx="96" cy="66" r="15" fill="#FF5A5F" stroke="${K}" stroke-width="5"/><circle cx="96" cy="66" r="5" fill="${K}"/></svg>`;
 const BLAT0 = () => `<svg width="64" height="64" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="#F2782B"/><g transform="translate(6 7)"><path d="M62 34V126M98 34V126M34 62H126M34 98H126" stroke="${K}" stroke-width="26" stroke-linecap="round"/></g><path d="M62 34V126M98 34V126M34 62H126M34 98H126" stroke="${K}" stroke-width="26" stroke-linecap="round"/><path d="M62 34V126M98 34V126M34 62H126M34 98H126" stroke="#FFF7EE" stroke-width="16" stroke-linecap="round"/></svg>`;
 
-const BODIES = [['#FFC93C', 'Żółty'], ['#8FCBEA', 'Błękitny'], ['#FFFFFF', 'Biały'], ['#FF8FA6', 'Różowy']];
 function render() {
-  document.getElementById('bodyColors').innerHTML = BODIES.map(([c, n]) => `<button data-c="${c}" class="${c === BODY ? 'on' : ''}"><i style="background:${c}"></i>${n}</button>`).join('');
+  document.getElementById('lineOpts').innerHTML = `<button data-l="white" class="${LINE === 'white' ? 'on' : ''}"><i style="background:#fff"></i>Biała linia</button><button data-l="black" class="${LINE === 'black' ? 'on' : ''}"><i style="background:#161616"></i>Czarna linia</button><span style="width:12px"></span><button data-s="1" class="${SHADOW ? 'on' : ''}">Z cieniem</button><button data-s="0" class="${!SHADOW ? 'on' : ''}">Bez cienia</button>`;
   // na białym tle „białe” części ikony stają się jasnoszare, żeby nie znikały
   const dark = ['#232326', '#1D2A44'].includes(color);
   K = dark ? '#F3F0E9' : '#161616';
@@ -123,12 +95,12 @@ function render() {
   document.getElementById('colors').innerHTML = COLORS.map(([c, n]) => `<button data-c="${c}" class="${c === color ? 'on' : ''}"><i style="background:${c}"></i>${n}</button>`).join('');
   document.getElementById('dock').innerHTML = [['Modo', MODO0], ['Gapa', GAPA0], ['Blat', BLAT0]].map(([n, f]) => { const k = K; K = '#161616'; const s = f(); K = k; return `<div class="it">${s}<span>${n}</span></div>`; }).join('') + '<div class="sp"></div>' +
     V.map((v, i) => `<div class="it">${icon(v, 64)}<span>${String.fromCharCode(65 + i)}</span></div>`).join('');
-  document.getElementById('big').innerHTML = icon(V[0], 300) + icon(V[1], 300);
+  document.getElementById('big').innerHTML = icon(V[0], 260) + icon(V[2], 260) + icon(V[3], 260);
   document.getElementById('grid').innerHTML = V.map((v, i) => `<div class="card"><div class="big">${icon(v, 140)}</div>
     <div><span class="t">${String.fromCharCode(65 + i)}. ${v.g}: ${v.t}</span>${v.rec ? '<span class="tag">polecam</span>' : ''}</div><div class="d">${v.d}</div>
     <div class="sizes">${[64, 32, 16].map(s => icon(v, s)).join('')}</div></div>`).join('');
 }
-document.getElementById('bodyColors').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; BODY = b.dataset.c; render(); });
+document.getElementById('lineOpts').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.l) LINE = b.dataset.l; if (b.dataset.s) SHADOW = b.dataset.s === '1'; render(); });
 document.getElementById('colors').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; color = b.dataset.c; render(); });
 render();
 </script>
