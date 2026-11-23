@@ -64,8 +64,22 @@ const clip = (x, y, k = 1, a = 0) => `<g transform="translate(${x} ${y}) rotate(
   <path d="M-14 0L-22 -30Q-24 -38 -16 -38H-8Q-2 -38 -4 -30L-6 0M14 0L22 -30Q24 -38 16 -38H8Q2 -38 4 -30L6 0" fill="none" stroke="#fff" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
   <path d="M-28 -4H28L34 22H-34Z" fill="${K}" stroke="${K}" stroke-width="5" stroke-linejoin="round"/>
   <path d="M-22 4H22" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".55"/></g>`;
+// spinacz-postać (własny, nie Clippy): biały drut z czarnym obrysem, dwa małe oczka; x, y — pozycja, k — skala, a — obrót
+const paperclip = (x, y, k = 1, a = 0, eyes = true) => {
+  const d = 'M-8 34V-22Q-8 -34 4 -34Q16 -34 16 -22V30Q16 46 0 46Q-16 46 -16 30V-12';
+  return `<g transform="translate(${x} ${y}) rotate(${a}) scale(${k})">
+  <path d="${d}" fill="none" stroke="${K}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="${d}" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  ${eyes ? `<circle cx="-1" cy="-8" r="5.5" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="0.5" cy="-7" r="2.4" fill="${K}"/><circle cx="12" cy="-10" r="5.5" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="13.5" cy="-9" r="2.4" fill="${K}"/>` : ''}</g>`;
+};
 const B = [
-  { t: 'Klips na stosie obrazów', d: 'Czarny klips biurowy spina stos zdjęć — referencje zebrane w jednym miejscu.', rec: true,
+  { t: 'Spinacz z oczkami', d: 'Spinacz-postać na zdjęciu: zerka zza krawędzi obrazu. Nawiązanie do pomysłu, ale własny rysunek, nie Clippy.', rec: true,
+    svg: () => shadowed(photo(70, 92, 92, 72, -5)) + paperclip(116, 66, 1.05, 12) },
+  { t: 'Sam spinacz z oczkami', d: 'Tylko spinacz — duży, biało-czarny, z oczkami.',
+    svg: () => shadowed(paperclip(76, 78, 1.55, 8, false)) + paperclip(76, 78, 1.55, 8) },
+  { t: 'Spinacz trzyma obraz', d: 'Spinacz spina róg zdjęcia i na nie patrzy.',
+    svg: () => shadowed(photo(86, 94, 90, 74, 4)) + paperclip(50, 58, 0.95, -14) },
+  { t: 'Klips na stosie obrazów', d: 'Czarny klips biurowy spina stos zdjęć — referencje zebrane w jednym miejscu.',
     svg: () => shadowed(photo(84, 92, 92, 70, 7, W, false)) + shadowed(photo(80, 90, 92, 70, -4)) + clip(80, 54, 1) },
   { t: 'Sam klips', d: 'Tylko duży klips — czarno-biały i mocny, jak kostka Modo.',
     svg: () => shadowed(`<g>${clip(80, 82, 1.9)}</g>`) },
