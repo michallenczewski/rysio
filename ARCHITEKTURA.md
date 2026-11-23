@@ -96,6 +96,7 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 | `scripts/sprawdziany.mjs` | sprawdziany geometrii i modelu (bez przeglądarki) |
 | `makieta/makieta.html` | zaakceptowana makieta wyglądu (23.11.2026) |
 | `.github/workflows/build.yml` | instalatory Windows i Mac, uruchamiane ręcznie |
+| `build/icon.svg` → `build/icon.png` | ikona programu: miękka czarna pętla z kwadracikiem na złamanej bieli (wybór 23.11.2026, `makieta/znak.html`); PNG 1024 px robi `qlmanage -t -s 1024` z SVG |
 
 ## Skopiowane z Modo
 
