@@ -35,7 +35,7 @@ h2{font-size:15px;font-weight:600;margin:28px 0 8px}
 </head>
 <body>
 <main>
-  <h1>Znak Rysia — łamana „R” i jej miękka wersja</h1>
+  <h1>Znak Rysia — pętla kanciasta i miękka</h1>
   <p class="lead">Ustaw kształt i styl przełącznikami po lewej — podgląd, rozmiary i Dock zmieniają się od razu. Niżej galeria gotowych stylizacji: kliknięcie wczytuje ją do przełączników. Na końcu jest krótki opis wybranego ustawienia — wystarczy mi go przepisać albo powiedzieć numer z galerii.</p>
   <div class="studio">
     <div class="ctrl" id="ctrl"></div>
@@ -50,15 +50,13 @@ h2{font-size:15px;font-weight:600;margin:28px 0 8px}
 </main>
 <script>
 const K = '#161616', W = '#FFFFFF';
-// punkty kształtu (siatka 160 × 160)
+// dwa kształty pętli: kanciasta (łamana z ośmiu odcinków) i miękka (pierwsza pętla z krzywej)
 const SHAPES = {
-  p5: { name: 'Łamana 5 odc.', pts: [[26, 126], [58, 38], [122, 50], [104, 104], [58, 78], [136, 128]] },
-  p4: { name: 'Łamana 4 odc.', pts: [[26, 126], [66, 34], [126, 72], [62, 92], [134, 128]] },
-  p6: { name: 'Łamana 6 odc.', pts: [[26, 126], [46, 54], [98, 32], [124, 78], [84, 104], [64, 72], [136, 128]] }
+  ang: { name: 'Kanciasta', pts: [[26, 124], [48, 54], [92, 32], [124, 64], [96, 104], [60, 92], [76, 60], [112, 66], [136, 128]] },
+  soft: { name: 'Miękka', d: 'M26 124C40 60 62 28 92 34C128 42 122 98 88 104C56 110 52 70 80 62C104 56 126 74 136 128', pts: [[26, 124], [136, 128]] }
 };
 const OPT = {
-  shape: [['p5', 'Łamana 5'], ['p4', 'Łamana 4'], ['p6', 'Łamana 6']],
-  soft: [['0', 'Ostra'], ['1', 'Miękka']],
+  shape: [['ang', 'Kanciasta'], ['soft', 'Miękka']],
   line: [['white', 'Biała'], ['black', 'Czarna'], ['red', 'Czerwona'], ['yellow', 'Żółta']],
   width: [['9', 'Cienka'], ['15', 'Średnia'], ['22', 'Gruba']],
   outline: [['0', 'Bez obrysu'], ['1', 'Czarny obrys'], ['2', 'Podwójna (ściana)']],
@@ -68,7 +66,7 @@ const OPT = {
 };
 const BGS = ['#3D8BFF', '#22C3A6', '#FFD23F', '#FF5A5F', '#FF8FCB', '#232326', '#1D2A44', '#F1ECE1', '#FFFFFF'];
 const LINE = { white: W, black: K, red: '#FF5A5F', yellow: '#FFD23F' };
-let S = { shape: 'p5', soft: '0', line: 'white', width: '15', outline: '0', shadow: '1', marks: 'start', caps: 'butt', bg: '#3D8BFF' };
+let S = { shape: 'ang', line: 'white', width: '15', outline: '0', shadow: '1', marks: 'start', caps: 'butt', bg: '#3D8BFF' };
 
 // gładka krzywa przez punkty (Catmull–Rom → krzywe Béziera)
 function smoothPath(p) {
@@ -87,8 +85,8 @@ function mark(x, y, r, col, sh) {
   return (sh ? sq(6, 'rgba(22,22,22,.9)') : '') + sq(0, col === K ? W : W, true);
 }
 function glyph(s) {
-  const pts = SHAPES[s.shape].pts, d = s.soft === '1' ? smoothPath(pts) : polyPath(pts);
-  const w = +s.width, col = LINE[s.line], join = s.soft === '1' || s.caps === 'round' ? 'round' : 'miter', cap = s.soft === '1' ? 'round' : s.caps;
+  const sh = SHAPES[s.shape], pts = sh.pts, d = sh.d || polyPath(pts), soft = s.shape === 'soft';
+  const w = +s.width, col = LINE[s.line], join = soft || s.caps === 'round' ? 'round' : 'miter', cap = s.caps;
   const path = (c, sw, dx = 0, extra = '') => `<path d="${d}" transform="translate(${dx} ${dx})" fill="none" stroke="${c}" stroke-width="${sw}" stroke-linejoin="${join}" stroke-linecap="${cap}" stroke-miterlimit="10" ${extra}/>`;
   let o = '';
   const outlineW = s.outline === '1' ? w + 8 : s.outline === '2' ? w + 10 : w;
@@ -108,20 +106,20 @@ const GAPA = `<svg width="64" height="64" viewBox="0 0 160 160"><rect width="160
 const BLAT = `<svg width="64" height="64" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="#F2782B"/><g transform="translate(6 7)"><path d="M62 34V126M98 34V126M34 62H126M34 98H126" stroke="${K}" stroke-width="26" stroke-linecap="round"/></g><path d="M62 34V126M98 34V126M34 62H126M34 98H126" stroke="${K}" stroke-width="26" stroke-linecap="round"/><path d="M62 34V126M98 34V126M34 62H126M34 98H126" stroke="#FFF7EE" stroke-width="16" stroke-linecap="round"/></svg>`;
 
 const GAL = [
-  ['Biała, ostra, cień — jak wersja B', { shape: 'p5', soft: '0', line: 'white', width: '15', outline: '0', shadow: '1', marks: 'start', caps: 'butt', bg: '#3D8BFF' }],
-  ['Biała, miękka, cień', { shape: 'p5', soft: '1', line: 'white', width: '15', outline: '0', shadow: '1', marks: 'start', caps: 'round', bg: '#3D8BFF' }],
-  ['Biała z czarnym obrysem — styl Blatu', { shape: 'p5', soft: '0', line: 'white', width: '13', outline: '1', shadow: '1', marks: 'start', caps: 'butt', bg: '#22C3A6' }],
-  ['Miękka z czarnym obrysem', { shape: 'p5', soft: '1', line: 'white', width: '13', outline: '1', shadow: '1', marks: 'ends', caps: 'round', bg: '#FFD23F' }],
-  ['Czarna, płaska, bez cienia', { shape: 'p5', soft: '0', line: 'black', width: '15', outline: '0', shadow: '0', marks: 'start', caps: 'butt', bg: '#FFD23F' }],
-  ['Podwójna linia jak ściana', { shape: 'p5', soft: '0', line: 'white', width: '20', outline: '2', shadow: '0', marks: 'none', caps: 'butt', bg: '#F1ECE1' }],
-  ['Cienka, kwadraciki w wierzchołkach', { shape: 'p6', soft: '0', line: 'white', width: '9', outline: '0', shadow: '1', marks: 'all', caps: 'butt', bg: '#232326' }],
-  ['Gruba, miękka, bez kwadracików', { shape: 'p4', soft: '1', line: 'white', width: '22', outline: '0', shadow: '1', marks: 'none', caps: 'round', bg: '#FF5A5F' }],
-  ['Czerwona z obrysem na granacie', { shape: 'p5', soft: '1', line: 'red', width: '13', outline: '1', shadow: '0', marks: 'start', caps: 'round', bg: '#1D2A44' }],
-  ['Żółta miękka na grafitowym', { shape: 'p5', soft: '1', line: 'yellow', width: '15', outline: '0', shadow: '0', marks: 'start', caps: 'round', bg: '#232326' }],
-  ['Biała miękka, cień miękki', { shape: 'p5', soft: '1', line: 'white', width: '15', outline: '0', shadow: '2', marks: 'start', caps: 'round', bg: '#22C3A6' }],
-  ['Czarna łamana na białym', { shape: 'p5', soft: '0', line: 'black', width: '15', outline: '0', shadow: '0', marks: 'start', caps: 'butt', bg: '#FFFFFF' }]
+  ['Kanciasta, biała, cień', { shape: 'ang', line: 'white', width: '15', outline: '0', shadow: '1', marks: 'start', caps: 'butt', bg: '#3D8BFF' }],
+  ['Miękka, biała, cień', { shape: 'soft', line: 'white', width: '15', outline: '0', shadow: '1', marks: 'start', caps: 'round', bg: '#3D8BFF' }],
+  ['Biała z czarnym obrysem — styl Blatu', { shape: 'ang', line: 'white', width: '13', outline: '1', shadow: '1', marks: 'start', caps: 'butt', bg: '#22C3A6' }],
+  ['Miękka z czarnym obrysem', { shape: 'soft', line: 'white', width: '13', outline: '1', shadow: '1', marks: 'ends', caps: 'round', bg: '#FFD23F' }],
+  ['Czarna, płaska, bez cienia', { shape: 'ang', line: 'black', width: '15', outline: '0', shadow: '0', marks: 'start', caps: 'butt', bg: '#FFD23F' }],
+  ['Podwójna linia jak ściana', { shape: 'ang', line: 'white', width: '20', outline: '2', shadow: '0', marks: 'none', caps: 'butt', bg: '#F1ECE1' }],
+  ['Cienka, kwadraciki w wierzchołkach', { shape: 'ang', line: 'white', width: '9', outline: '0', shadow: '1', marks: 'all', caps: 'butt', bg: '#232326' }],
+  ['Gruba, miękka, bez kwadracików', { shape: 'soft', line: 'white', width: '22', outline: '0', shadow: '1', marks: 'none', caps: 'round', bg: '#FF5A5F' }],
+  ['Czerwona z obrysem na granacie', { shape: 'soft', line: 'red', width: '13', outline: '1', shadow: '0', marks: 'start', caps: 'round', bg: '#1D2A44' }],
+  ['Żółta miękka na grafitowym', { shape: 'soft', line: 'yellow', width: '15', outline: '0', shadow: '0', marks: 'start', caps: 'round', bg: '#232326' }],
+  ['Biała miękka, cień miękki', { shape: 'soft', line: 'white', width: '15', outline: '0', shadow: '2', marks: 'start', caps: 'round', bg: '#22C3A6' }],
+  ['Czarna łamana na białym', { shape: 'ang', line: 'black', width: '15', outline: '0', shadow: '0', marks: 'start', caps: 'butt', bg: '#FFFFFF' }]
 ];
-const NAMES = { shape: 'Kształt', soft: 'Linia', line: 'Kolor linii', width: 'Grubość', outline: 'Obrys', shadow: 'Cień', marks: 'Kwadraciki', caps: 'Końce' };
+const NAMES = { shape: 'Kształt', line: 'Kolor linii', width: 'Grubość', outline: 'Obrys', shadow: 'Cień', marks: 'Kwadraciki', caps: 'Końce' };
 function render() {
   document.getElementById('ctrl').innerHTML = Object.entries(OPT).map(([k, opts]) => `<div><div class="lbl">${NAMES[k]}</div><div class="seg">${opts.map(([v, n]) => `<button data-k="${k}" data-v="${v}" class="${S[k] === v ? 'on' : ''}">${n}</button>`).join('')}</div></div>`).join('') +
     `<div><div class="lbl">Tło</div><div class="sw">${BGS.map(c => `<button data-k="bg" data-v="${c}" class="${S.bg === c ? 'on' : ''}" style="background:${c}"></button>`).join('')}</div></div>`;
