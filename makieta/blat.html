@@ -41,7 +41,9 @@ h2{font-size:15px;font-weight:600;margin:30px 0 4px}
   <h2>W Docku</h2>
   <div class="dock" id="dock"></div>
 
-  <h2>Propozycje nowej ikony Blatu</h2>
+  <h2>Sam spinacz — wersje</h2>
+  <div class="grid" id="sgrid"></div>
+  <h2>Wcześniejsze propozycje</h2>
   <div class="grid" id="grid"></div>
 </main>
 <script>
@@ -72,6 +74,22 @@ const paperclip = (x, y, k = 1, a = 0, eyes = true) => {
   <path d="${d}" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
   ${eyes ? `<circle cx="-1" cy="-8" r="5.5" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="0.5" cy="-7" r="2.4" fill="${K}"/><circle cx="12" cy="-10" r="5.5" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="13.5" cy="-9" r="2.4" fill="${K}"/>` : ''}</g>`;
 };
+// odmiany samego spinacza
+const PC = 'M-8 34V-22Q-8 -34 4 -34Q16 -34 16 -22V30Q16 46 0 46Q-16 46 -16 30V-12';
+const wire = (d, wire = '#fff', w = 5) => `<path d="${d}" fill="none" stroke="${K}" stroke-width="${w + 7}" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="${wire}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+const eyesAt = (look = [1.5, 1], r = 5.5) => `<circle cx="-1" cy="-8" r="${r}" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="${-1 + look[0]}" cy="${-8 + look[1]}" r="${r * 0.44}" fill="${K}"/><circle cx="12" cy="-10" r="${r}" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="${12 + look[0]}" cy="${-10 + look[1]}" r="${r * 0.44}" fill="${K}"/>`;
+const pcG = (inner, x = 76, y = 78, k = 1.55, a = 8) => `<g transform="translate(${x} ${y}) rotate(${a}) scale(${k})">${inner}</g>`;
+const pcShadow = (x, y, k, a, d = PC) => `<g transform="translate(6 7)">${pcG(`<path d="${d}" fill="none" stroke="${K}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>`, x, y, k, a)}</g>`;
+const S = [
+  { t: 'Z oczkami', d: 'Wybrany spinacz, lekko przechylony, patrzy w prawo.', svg: () => pcShadow(76, 78, 1.55, 8) + pcG(wire(PC) + eyesAt()) },
+  { t: 'Bez oczek', d: 'Sam spinacz — najbardziej oszczędny.', svg: () => pcShadow(80, 80, 1.6, 10) + pcG(wire(PC), 80, 80, 1.6, 10) },
+  { t: 'Większe oczy', d: 'Oczy większe i patrzą w górę — więcej charakteru.', svg: () => pcShadow(76, 80, 1.55, 6) + pcG(wire(PC) + eyesAt([0, -2], 7), 76, 80, 1.55, 6) },
+  { t: 'Puszcza oczko', d: 'Jedno oko otwarte, drugie mrugnięte.', svg: () => pcShadow(76, 78, 1.55, 8) + pcG(wire(PC) + `<circle cx="-1" cy="-8" r="5.5" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="0.5" cy="-7" r="2.4" fill="${K}"/><path d="M7 -10Q12 -14 17 -10" fill="none" stroke="${K}" stroke-width="3.2" stroke-linecap="round"/>`) },
+  { t: 'Czarny drut', d: 'Drut czarny, oczy białe — mocniejszy kontrast na kolorze.', svg: () => pcShadow(76, 78, 1.55, 8) + pcG(`<path d="${PC}" fill="none" stroke="${K}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>` + eyesAt()) },
+  { t: 'Czerwony drut', d: 'Kolorowy spinacz z czarnym obrysem — jak czerwona tęczówka Gapy.', svg: () => pcShadow(76, 78, 1.55, 8) + pcG(wire(PC, '#FF5A5F') + eyesAt()) },
+  { t: 'Poziomo, zerka', d: 'Spinacz leży na boku i zerka — szerszy kształt, lepiej wypełnia kwadrat.', svg: () => pcShadow(80, 82, 1.45, 96) + pcG(wire(PC) + eyesAt([-1.5, 1]), 80, 82, 1.45, 96) },
+  { t: 'Dwa spinacze', d: 'Para spinaczy obok siebie, jeden z oczkami.', svg: () => pcShadow(58, 82, 1.2, -8) + pcShadow(104, 78, 1.2, 12) + pcG(wire(PC), 58, 82, 1.2, -8) + pcG(wire(PC) + eyesAt(), 104, 78, 1.2, 12) }
+];
 const B = [
   { t: 'Spinacz z oczkami', d: 'Spinacz-postać na zdjęciu: zerka zza krawędzi obrazu. Nawiązanie do pomysłu, ale własny rysunek, nie Clippy.', rec: true,
     svg: () => shadowed(photo(70, 92, 92, 72, -5)) + paperclip(116, 66, 1.05, 12) },
@@ -121,7 +139,8 @@ function render() {
   document.getElementById('rc').innerHTML = btns(RC, rColor, 'r');
   document.getElementById('bc').innerHTML = btns(BC, bColor, 'b');
   document.getElementById('dock').innerHTML = [['Modo', MODO], ['Gapa', GAPA], ['Rysio', icon(HASH(), 64, rColor)]].map(([n, s]) => `<div class="it">${s}<span>${n}</span></div>`).join('') + '<div class="sp"></div>' +
-    B.map((b, i) => `<div class="it">${icon(b.svg(), 64, bColor)}<span>Blat ${String.fromCharCode(65 + i)}</span></div>`).join('');
+    S.map((b, i) => `<div class="it">${icon(b.svg(), 64, bColor)}<span>Blat ${i + 1}</span></div>`).join('');
+  document.getElementById('sgrid').innerHTML = S.map((b, i) => `<div class="card"><div class="big">${icon(b.svg(), 170, bColor)}</div><div><span class="t">${i + 1}. ${b.t}</span></div><div class="d">${b.d}</div></div>`).join('');
   document.getElementById('grid').innerHTML = B.map((b, i) => `<div class="card"><div class="big">${icon(b.svg(), 170, bColor)}</div><div><span class="t">${String.fromCharCode(65 + i)}. ${b.t}</span>${b.rec ? '<span class="tag">polecam</span>' : ''}</div><div class="d">${b.d}</div></div>`).join('');
 }
 document.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.r) rColor = b.dataset.r; if (b.dataset.b) bColor = b.dataset.b; render(); });
