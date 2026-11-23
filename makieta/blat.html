@@ -69,6 +69,16 @@ const B = [
     svg: () => shadowed(`<path d="M18 82L80 50L142 82L80 114Z" fill="${W}" ${st()}/><path d="M18 82V94L80 126V114Z" fill="${K}" ${st()}/><path d="M142 82V94L80 126V114Z" fill="${K}" ${st()}/>`) + `<path d="M46 78L72 65L94 76L68 89Z" fill="${RED}" ${st(4.5)}/><path d="M78 92L106 78L124 88L96 102Z" fill="#FFD23F" ${st(4.5)}/><path d="M66 64L86 54L102 62L82 72Z" fill="#BFE2FF" ${st(4.5)}/>` },
   { t: 'Ramka z nazwą', d: 'Ramka z etykietą, a w niej obraz i notatka — trzy rzeczy, które naprawdę leżą na Blacie.',
     svg: () => shadowed(`<rect x="22" y="34" width="116" height="102" rx="6" fill="${W}" ${st()}/>`) + `<rect x="22" y="22" width="52" height="20" rx="4" fill="${K}"/><path d="M32 32H62" stroke="#fff" stroke-width="4" stroke-linecap="round"/>` + photo(66, 88, 60, 52, -4) + `<g transform="rotate(5 112 96)"><rect x="96" y="70" width="32" height="40" fill="#FFD23F" ${st(4.5)}/><path d="M102 82H122M102 92H116" ${st(3.5)}/></g>` },
+  { t: 'Zdjęcie na taśmie', d: 'Obraz przyklejony dwoma kawałkami taśmy malarskiej — klimat moodboardu na biurku.',
+    svg: () => shadowed(photo(80, 84, 96, 78, -4)) + `<rect x="34" y="34" width="34" height="14" transform="rotate(-38 51 41)" fill="#F5E6B8" ${st(4)} opacity=".95"/><rect x="94" y="118" width="34" height="14" transform="rotate(-38 111 125)" fill="#F5E6B8" ${st(4)} opacity=".95"/>` },
+  { t: 'Stół z obrazem', d: 'Stół z boku — gruby blat na dwóch nogach, a na nim stojący obraz. Dosłownie „blat”.',
+    svg: () => shadowed(`<path d="M34 108V138M126 108V138" ${st(8)}/><rect x="18" y="94" width="124" height="16" rx="3" fill="${K}" ${st()}/>`) + shadowed(photo(80, 64, 70, 52, 0)) },
+  { t: 'Spinacz', d: 'Obraz spięty spinaczem — referencja odłożona na bok, „na później”.',
+    svg: () => shadowed(photo(84, 86, 88, 74, 6)) + `<path d="M58 30V78Q58 90 68 90Q78 90 78 78V40Q78 34 72 34Q66 34 66 40V74" fill="none" ${st(6)}/>` },
+  { t: 'Blat z góry', d: 'Widok z góry: kartki i obrazy rozłożone na blacie, w rogu ślad po kubku kawy.',
+    svg: () => shadowed(`<rect x="22" y="22" width="116" height="116" rx="8" fill="${W}" ${st()}/>`) + photo(66, 64, 50, 40, -8, W, false) + `<rect x="84" y="80" width="38" height="44" transform="rotate(7 103 102)" fill="#FFD23F" ${st(4.5)}/><rect x="40" y="96" width="34" height="26" transform="rotate(-4 57 109)" fill="${RED}" ${st(4.5)}/><circle cx="114" cy="46" r="13" fill="none" stroke="${K}" stroke-width="3.5" stroke-dasharray="20 6" opacity=".7"/>` },
+  { t: 'Przeciąganie', d: 'Obraz wjeżdżający na blat ze strzałką — tak się tu pracuje: przeciąga się pliki.',
+    svg: () => shadowed(`<rect x="44" y="44" width="96" height="92" rx="6" fill="${K}" ${st()}/>`) + shadowed(photo(62, 66, 70, 56, -10)) + `<path d="M110 128L134 104M134 104H114M134 104V124" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>` },
   { t: 'Jedno zdjęcie', d: 'Sam znak obrazka — góry i słońce w ramce. Najprostszy.',
     svg: () => shadowed(photo(80, 80, 100, 80, -6)) }
 ];
