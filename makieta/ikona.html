@@ -31,8 +31,8 @@ h2{font-size:15px;font-weight:600;margin:34px 0 4px}
 </head>
 <body>
 <main>
-  <h1>Ikona Rysia — spline, polilinia, zygzak</h1>
-  <p class="lead">Jedna gruba linia przez cały kwadrat: krzywa sklejana, polilinia z wierzchołkami albo zygzak. Linia biała albo czarna, z przesuniętym cieniem albo bez (cień działa przy białej linii). Kolor tła jak wcześniej.</p>
+  <h1>Ikona Rysia — linia wypełniająca kwadrat</h1>
+  <p class="lead">Jedna linia ułożona tak, żeby jej kształt równo wypełniał kwadrat: wąż, spirala, pętla, zygzak, meander. Linia biała albo czarna, z przesuniętym cieniem albo bez (cień działa przy białej linii). Kolor tła jak wcześniej.</p>
 
   <h2>Kolor</h2>
   <p class="lead">Limonka (Modo), fiolet (Gapa) i pomarańcz (Blat) są zajęte. Kliknij kolor — zmienią się wszystkie wersje i Dock.</p>
@@ -62,21 +62,21 @@ const SH = 'rgba(22,22,22,.9)';
 // linia z ewentualnym cieniem (cień = ta sama linia na czarno, przesunięta w dół w prawo)
 const bold = (d, w = 14, join = 'round', cap = 'round') => {
   const one = (c, dx = 0) => `<path d="${d}" transform="translate(${dx} ${dx})" fill="none" stroke="${c}" stroke-width="${w}" stroke-linejoin="${join}" stroke-linecap="${cap}" stroke-miterlimit="10"/>`;
-  return (SHADOW && LINE === 'white' ? one(SH, 8) : '') + one(lc());
+  return (SHADOW && LINE === 'white' ? one(SH, 6) : '') + one(lc());
 };
-const sq = (x, y, r = 8) => (SHADOW && LINE === 'white' ? `<rect x="${x - r + 8}" y="${y - r + 8}" width="${2 * r}" height="${2 * r}" fill="${SH}"/>` : '') + `<rect x="${x - r}" y="${y - r}" width="${2 * r}" height="${2 * r}" fill="#fff" stroke="#161616" stroke-width="5"/>`;
+const sq = (x, y, r = 8) => (SHADOW && LINE === 'white' ? `<rect x="${x - r + 6}" y="${y - r + 6}" width="${2 * r}" height="${2 * r}" fill="${SH}"/>` : '') + `<rect x="${x - r}" y="${y - r}" width="${2 * r}" height="${2 * r}" fill="#fff" stroke="#161616" stroke-width="5"/>`;
 const handle = (x1, y1, x2, y2) => `<path d="M${x1} ${y1}L${x2} ${y2}" stroke="#161616" stroke-width="3"/><circle cx="${x2}" cy="${y2}" r="5.5" fill="#161616"/>`;
 const V = [
-  { t: 'Spline', d: 'Jedna gruba krzywa od krawędzi do krawędzi, z kwadracikami na końcach.', rec: true,
-    svg: () => bold('M30 122C62 6 98 154 130 38', 22) + sq(30, 122, 12) + sq(130, 38, 12) },
-  { t: 'Sam spline', d: 'Bez kwadracików — najprostsza.',
-    svg: () => bold('M22 118C58 2 102 158 138 42', 24) },
-  { t: 'Polilinia', d: 'Trzy odcinki, kwadraciki w wierzchołkach.',
-    svg: () => bold('M30 120L66 40L100 116L132 40', 20, 'miter', 'butt') + sq(30, 120, 11) + sq(66, 40, 11) + sq(100, 116, 11) + sq(132, 40, 11) },
-  { t: 'Zygzak', d: 'Dwa mocne szczyty na całą szerokość.',
-    svg: () => bold('M18 112L52 46L86 112L120 46L144 92', 24, 'miter', 'butt') },
-  { t: 'Zygzak w spline', d: 'Łamana przechodzi w krzywą.',
-    svg: () => bold('M20 116L50 44L80 116C96 152 118 30 142 60', 22, 'miter', 'round') }
+  { t: 'Wąż', d: 'Krzywa wije się tam i z powrotem w trzech pasach — wypełnia kwadrat równo, jak wzór.', rec: true,
+    svg: () => bold('M34 38H104C134 38 134 80 104 80H56C26 80 26 122 56 122H126', 15) + sq(34, 38, 9) + sq(126, 122, 9) },
+  { t: 'Spirala z polilinii', d: 'Łamana zawija się do środka kwadratu — od razu „polilinia”, kształt zamknięty w polu.',
+    svg: () => bold('M30 130V30H130V130H54V54H106V106H78V80', 14, 'miter', 'square') + sq(78, 80, 9) },
+  { t: 'Pętla', d: 'Jedna płynna linia z pętlą w środku, sięga wszystkich czterech boków.',
+    svg: () => bold('M26 124C40 60 62 28 92 34C128 42 122 98 88 104C56 110 52 70 80 62C104 56 126 74 136 128', 15) + sq(26, 124, 9) },
+  { t: 'Zygzak WW', d: 'Równe szczyty od góry do dołu i od lewej do prawej — mocny, symetryczny znak.',
+    svg: () => bold('M24 42L52 120L80 42L108 120L136 42', 15, 'miter', 'butt') },
+  { t: 'Meander', d: 'Łamana w kształcie greckiego meandra — prostokątna, równo rozłożona.',
+    svg: () => bold('M28 120V40H62V96H98V40H132V120', 15, 'miter', 'square') + sq(28, 120, 9) + sq(132, 120, 9) }
 ];
 const icon = (v, size, c = color) => // tło + znak
   `<svg width="${size}" height="${size}" viewBox="0 0 160 160"><rect x="1" y="1" width="158" height="158" rx="36" fill="${c}" ${c === '#FFFFFF' ? 'stroke="#d8d5ce" stroke-width="2"' : ''}/>${v.svg()}</svg>`;
@@ -95,7 +95,7 @@ function render() {
   document.getElementById('colors').innerHTML = COLORS.map(([c, n]) => `<button data-c="${c}" class="${c === color ? 'on' : ''}"><i style="background:${c}"></i>${n}</button>`).join('');
   document.getElementById('dock').innerHTML = [['Modo', MODO0], ['Gapa', GAPA0], ['Blat', BLAT0]].map(([n, f]) => { const k = K; K = '#161616'; const s = f(); K = k; return `<div class="it">${s}<span>${n}</span></div>`; }).join('') + '<div class="sp"></div>' +
     V.map((v, i) => `<div class="it">${icon(v, 64)}<span>${String.fromCharCode(65 + i)}</span></div>`).join('');
-  document.getElementById('big').innerHTML = icon(V[0], 260) + icon(V[1], 260) + icon(V[3], 260);
+  document.getElementById('big').innerHTML = icon(V[0], 220) + icon(V[1], 220) + icon(V[2], 220);
   document.getElementById('grid').innerHTML = V.map((v, i) => `<div class="card"><div class="big">${icon(v, 140)}</div>
     <div><span class="t">${String.fromCharCode(65 + i)}. ${v.g}: ${v.t}</span>${v.rec ? '<span class="tag">polecam</span>' : ''}</div><div class="d">${v.d}</div>
     <div class="sizes">${[64, 32, 16].map(s => icon(v, s)).join('')}</div></div>`).join('');
