@@ -6,3 +6,7 @@ dist/
 .claude/launch.json
 # paczka startowa — źródło szkieletu, nie część programu
 mini-cad-szkielet.zip
+
+# obrazki z Krei (duże pliki) — tylko do podglądu
+makieta/krea/
+makieta/krea-przeglad.html
