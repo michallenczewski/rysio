@@ -32,7 +32,7 @@ h2{font-size:15px;font-weight:600;margin:34px 0 4px}
 <body>
 <main>
   <h1>Ikona Rysia — linia wypełniająca kwadrat</h1>
-  <p class="lead">Rozwinięcie węża i pętli. Pierwsza w każdej grupie to wersja, która Ci się podobała; pozostałe — odmiany, które nie czytają się jak litery. Linia biała albo czarna, z przesuniętym cieniem albo bez (cień działa przy białej linii). Kolor tła jak wcześniej.</p>
+  <p class="lead">Pętla E narysowana łamaną zamiast krzywej. Pierwsza karta to E do porównania. Linia biała albo czarna, z przesuniętym cieniem albo bez (cień działa przy białej linii). Kolor tła jak wcześniej.</p>
 
   <h2>Kolor</h2>
   <p class="lead">Limonka (Modo), fiolet (Gapa) i pomarańcz (Blat) są zajęte. Kliknij kolor — zmienią się wszystkie wersje i Dock.</p>
@@ -66,23 +66,19 @@ const bold = (d, w = 14, join = 'round', cap = 'round') => {
 };
 const sq = (x, y, r = 8) => (SHADOW && LINE === 'white' ? `<rect x="${x - r + 6}" y="${y - r + 6}" width="${2 * r}" height="${2 * r}" fill="${SH}"/>` : '') + `<rect x="${x - r}" y="${y - r}" width="${2 * r}" height="${2 * r}" fill="#fff" stroke="#161616" stroke-width="5"/>`;
 const handle = (x1, y1, x2, y2) => `<path d="M${x1} ${y1}L${x2} ${y2}" stroke="#161616" stroke-width="3"/><circle cx="${x2}" cy="${y2}" r="5.5" fill="#161616"/>`;
+const P1 = [[26, 124], [48, 54], [92, 32], [124, 64], [96, 104], [60, 92], [76, 60], [112, 66], [136, 128]];
+const poly = pts => 'M' + pts.map(p => p.join(' ')).join('L');
 const V = [
-  { g: 'Wąż', t: 'w trzech pasach', d: 'Wersja, która Ci się podobała — do porównania.',
-    svg: () => bold('M34 38H104C134 38 134 80 104 80H56C26 80 26 122 56 122H126', 15) + sq(34, 38, 9) + sq(126, 122, 9) },
-  { g: 'Wąż', t: 'pionowy', d: 'Ten sam wąż obrócony — idzie w górę i w dół. Nie czyta się jak „2”.', rec: true,
-    svg: () => bold('M38 32V100C38 132 80 132 80 100V60C80 28 122 28 122 60V128', 15) + sq(38, 32, 9) + sq(122, 128, 9) },
-  { g: 'Wąż', t: 'płynny', d: 'Bez prostych odcinków — sama krzywa w dwóch zakrętach, jak spline.',
-    svg: () => bold('M28 40C150 34 150 82 80 80C10 78 10 126 132 120', 15) + sq(28, 40, 9) + sq(132, 120, 9) },
-  { g: 'Wąż', t: 'w czterech pasach', d: 'Gęściej — bardziej wzór niż znak.',
-    svg: () => bold('M32 32H110C132 32 132 64 110 64H50C28 64 28 96 50 96H110C132 96 132 128 110 128H36', 13) + sq(32, 32, 8) + sq(36, 128, 8) },
-  { g: 'Pętla', t: 'jak była', d: 'Wersja, która Ci się podobała — do porównania.',
+  { t: 'Pętla — krzywa (E)', d: 'Wersja E do porównania.',
     svg: () => bold('M26 124C40 60 62 28 92 34C128 42 122 98 88 104C56 110 52 70 80 62C104 56 126 74 136 128', 15) + sq(26, 124, 9) },
-  { g: 'Pętla', t: 'po przekątnej', d: 'Wchodzi w lewym dolnym rogu, robi pętlę i wychodzi w prawym górnym — nie przypomina litery.', rec: true,
-    svg: () => bold('M24 134C28 72 62 30 98 34C130 38 128 96 94 100C62 104 58 66 86 60C112 54 128 44 136 26', 15) + sq(24, 134, 9) + sq(136, 26, 9) },
-  { g: 'Pętla', t: 'podwójna', d: 'Dwie małe pętle w jednej linii, jak pociągnięcie pióra.',
-    svg: () => bold('M18 116C30 50 70 36 70 70C70 96 44 96 48 74C54 44 98 34 104 70C108 96 84 98 88 76C94 48 136 52 142 118', 14) + sq(18, 116, 8) + sq(142, 118, 8) },
-  { g: 'Pętla', t: 'w środku', d: 'Duża pętla na środku, końce rozchodzą się do dolnych rogów.',
-    svg: () => bold('M22 132C44 104 70 92 96 78C128 60 120 26 90 28C58 30 52 66 76 84C98 100 122 112 138 132', 15) + sq(22, 132, 9) + sq(138, 132, 9) }
+  { t: 'Pętla z łamanej', d: 'Ta sama pętla z ośmiu prostych odcinków, ostre narożniki, kwadracik na początku.', rec: true,
+    svg: () => bold(poly(P1), 15, 'miter', 'butt') + sq(26, 124, 9) },
+  { t: 'Z wierzchołkami', d: 'Kwadraciki w każdym wierzchołku — jak zaznaczona polilinia.',
+    svg: () => bold(poly(P1), 13, 'miter', 'butt') + P1.map(([x, y]) => sq(x, y, 6)).join('') },
+  { t: 'Bez kwadracików', d: 'Sama łamana — najprostsza.',
+    svg: () => bold(poly(P1), 16, 'miter', 'butt') },
+  { t: 'Pod kątem prostym', d: 'Pętla tylko z poziomych i pionowych odcinków — jak rysowanie z włączonymi kątami prostymi.',
+    svg: () => bold('M28 132V34H120V102H62V66H134V132', 15, 'miter', 'square') + sq(28, 132, 9) }
 ];
 const icon = (v, size, c = color) => // tło + znak
   `<svg width="${size}" height="${size}" viewBox="0 0 160 160"><rect x="1" y="1" width="158" height="158" rx="36" fill="${c}" ${c === '#FFFFFF' ? 'stroke="#d8d5ce" stroke-width="2"' : ''}/>${v.svg()}</svg>`;
@@ -101,7 +97,7 @@ function render() {
   document.getElementById('colors').innerHTML = COLORS.map(([c, n]) => `<button data-c="${c}" class="${c === color ? 'on' : ''}"><i style="background:${c}"></i>${n}</button>`).join('');
   document.getElementById('dock').innerHTML = [['Modo', MODO0], ['Gapa', GAPA0], ['Blat', BLAT0]].map(([n, f]) => { const k = K; K = '#161616'; const s = f(); K = k; return `<div class="it">${s}<span>${n}</span></div>`; }).join('') + '<div class="sp"></div>' +
     V.map((v, i) => `<div class="it">${icon(v, 64)}<span>${String.fromCharCode(65 + i)}</span></div>`).join('');
-  document.getElementById('big').innerHTML = icon(V[1], 200) + icon(V[2], 200) + icon(V[5], 200) + icon(V[6], 200);
+  document.getElementById('big').innerHTML = icon(V[1], 200) + icon(V[2], 200) + icon(V[3], 200) + icon(V[4], 200);
   document.getElementById('grid').innerHTML = V.map((v, i) => `<div class="card"><div class="big">${icon(v, 140)}</div>
     <div><span class="t">${String.fromCharCode(65 + i)}. ${v.g ? v.g + ' ' : ''}${v.t}</span>${v.rec ? '<span class="tag">polecam</span>' : ''}</div><div class="d">${v.d}</div>
     <div class="sizes">${[64, 32, 16].map(s => icon(v, s)).join('')}</div></div>`).join('');
