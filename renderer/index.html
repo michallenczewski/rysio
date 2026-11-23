@@ -18,7 +18,7 @@
   </div>
   <div class="sep"></div>
   <button id="thinBtn" class="ib" aria-pressed="false" aria-label="Cienkie linie" data-tip="Cienkie linie — wszystkie kreski jednakowo cienkie, do precyzyjnej pracy" data-act="thin"></button>
-  <button id="pdfBtn" class="ib" aria-label="Eksport PDF" data-tip="Eksport PDF w skali — w etapie 2 (arkusze)"></button>
+  <button id="pdfBtn" class="ib" aria-label="Eksport PDF i PNG" data-tip="Eksport arkuszy: PDF w skali albo PNG" data-act="exportPdf"></button>
   <div class="sep"></div>
   <button id="setBtn" class="ib" aria-haspopup="menu" aria-label="Ustawienia" data-tip="Ustawienia: wygląd, język, skróty"></button>
 </header>
@@ -28,21 +28,23 @@
 <main id="view"></main>
 
 <footer id="status">
-  <div class="tabs" id="tabs">
-    <button class="on" id="tabModel">Model</button>
-    <button class="add" id="tabAdd" data-tip="Nowy arkusz — w etapie 2">+</button>
-  </div>
+  <div class="tabs" id="tabs"></div>
   <div class="sep" style="margin:0 2px"></div>
   <div id="hint"></div>
   <button id="snapChip" class="tb chip" data-tip="Przyciąganie do końców, środków, przecięć, okręgów i linii prowadzących" data-act="snapToggle"><i></i>Przyciąganie</button>
   <button id="orthoChip" class="tb chip off" data-tip="Tylko kąty proste — linie wyłącznie poziome i pionowe" data-act="ortho"><i></i>Kąty proste</button>
   <label id="vcbWrap"><span id="vcbLabel" class="lbl">Długość</span><span id="vcb" class="num"></span></label>
+ <button id="fmtChip" class="tb chip" hidden data-tip="Format i układ arkusza"></button>
+  <button id="titleChip" class="tb chip" hidden data-tip="Wypełnij tabelkę rysunkową">Tabelka</button>
   <button id="unitBtn" class="tb unit" aria-haspopup="menu" data-tip="Jednostka wymiarów"></button>
   <button id="scaleBtn" class="tb unit" aria-haspopup="menu" data-tip="Skala rysunku — od niej zależą grubości kresek na ekranie i na wydruku"></button>
 </footer>
 
 <section id="layersPop" class="pop" role="dialog" aria-label="Warstwy" hidden></section>
 <section id="strokePop" class="pop" role="dialog" aria-label="Kreska" hidden></section>
+<section id="sheetPop" class="pop" role="dialog" aria-label="Arkusz" hidden></section>
+<section id="titlePop" class="pop" role="dialog" aria-label="Tabelka rysunkowa" hidden></section>
+<section id="exportPop" class="pop" role="dialog" aria-label="Eksport" hidden></section>
 <div id="menu" class="menu" role="menu" hidden></div>
 
 <div id="keysModal" hidden>

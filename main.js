@@ -124,6 +124,16 @@ ipcMain.handle('file-save', async (e, p, text, suggested) => {
 ipcMain.handle('recent-list', () => (settings.recent || []).filter(p => { try { return fs.statSync(p).isFile(); } catch (e) { return false; } })
   .map(p => ({ path: p, name: path.basename(p, '.rysio'), dir: path.basename(path.dirname(p)) })));
 
+// PDF i PNG z arkuszy
+ipcMain.handle('binary-save', async (e, data, suggested, ext) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const filters = { pdf: [{ name: 'PDF', extensions: ['pdf'] }], png: [{ name: 'PNG', extensions: ['png'] }] }[ext] || [];
+  const r = await dialog.showSaveDialog(win, { filters, defaultPath: path.join(app.getPath('documents'), (suggested || _t('Rysunek')).replace(/[\\/:*?"<>|]/g, '-') + '.' + ext) });
+  if (r.canceled || !r.filePath) return null;
+  await fsp.writeFile(r.filePath, Buffer.from(data));
+  return r.filePath;
+});
+
 /* ---------- autozapis ---------- */
 // Każde okno zapisuje niezapisany rysunek do własnego pliku w folderze ustawień. Plik znika przy zapisie
 // i przy zwykłym zamknięciu okna, więc to, co tu zostaje po starcie programu, pochodzi z awarii.

@@ -14,6 +14,8 @@ const M = await import(R + 'model.js');
 const { Snapper } = await import(R + 'snap.js');
 const D = await import(R + 'draw.js');
 const U = await import(R + 'units.js');
+const SH = await import(R + 'sheet.js');
+const PDF = await import(R + 'pdf.js');
 const { V } = G;
 
 const P = [];
@@ -189,6 +191,82 @@ przypadek('wymiary z klawiatury', 'jednostka cm: „600;400” = 6 × 4 m, „3,
   U.setUnit('cm', false);
   const r = { '600;400': [U.parseLengths('600;400'), [6, 4]], '3,5m': [U.parseLength('3,5m'), 3.5], '35mm': [U.parseLength('35mm'), 0.035], 'bzdura': [U.parseLength('abc'), null] };
   U.setUnit('m', false); return r;
+});
+
+/* ---------- arkusze, tekst, wymiar, PDF (etap 2) ---------- */
+// rysunek z arkuszem A3 poziomo i jednym oknem 1:100 pokazującym odcinek 1 m
+function arkusz() {
+  const d = M.newDoc(), h = new M.History(d);
+  h.edit('Linia', tx => tx.add(L([0, 0], [1, 0])));
+  h.edit('Arkusz', tx => tx.setDoc({ sheets: [M.newSheet(50, 1)] }));
+  h.edit('Okno', tx => tx.add({ t: 'vp', sp: 50, a: [0.05, 0.05], b: [0.25, 0.15], scale: 100, c: [0.5, 0], hidden: [] }));
+  return { d, h, sh: d.sheets[0] };
+}
+przypadek('okno: 1 m w 1:100 = 10 mm na arkuszu', 'początek i koniec odcinka przeliczone na arkusz', () => {
+  const { d } = arkusz(), vp = d.ents.find(e => e.t === 'vp'), m = SH.vpMap(vp);
+  const a = m.toSheet([0, 0]), b = m.toSheet([1, 0]);
+  return { 'długość na arkuszu (mm)': [G.V.dist(a, b) * 1000, 10], 'środek okna = środek widoku modelu': [m.toSheet([0.5, 0]), [0.15, 0.1]], 'i z powrotem': [m.toModel(b), [1, 0]] };
+});
+przypadek('PDF: odcinek 1 m w oknie 1:100 ma 10 mm', 'w wygenerowanym PDF-ie szukamy odcinka i mierzymy go w punktach', () => {
+  const { d, sh } = arkusz();
+  const pdf = new TextDecoder('latin1').decode(PDF.makePdf(d, [sh], { fmtModel: v => v.toFixed(2), fmtSheet: v => String(Math.round(v * 1000)) }));
+  // odcinek w oknie: pierwsze „x y m x y l S” po przycięciu (q … re W n)
+  const after = pdf.slice(pdf.indexOf(' re W n'));
+  const m = /([\d.]+) ([\d.]+) m ([\d.]+) ([\d.]+) l S/.exec(after);
+  const len = m ? Math.hypot(+m[3] - +m[1], +m[4] - +m[2]) * 25.4 / 72 : null;
+  const media = /\/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]/.exec(pdf);
+  return { 'długość (mm, pomiar co 0,001 mm)': [len === null ? null : +len.toFixed(3), 10], 'A3 poziomo (mm)': [media ? [Math.round(+media[1] * 25.4 / 72), Math.round(+media[2] * 25.4 / 72)] : null, [420, 297]], 'koniec pliku': [pdf.trimEnd().endsWith('%%EOF'), true] };
+});
+przypadek('PDF: polskie litery', '„Łódź, żółć” trafia do PDF-u przez własną tablicę znaków', () => {
+  const d = M.newDoc(), h = new M.History(d);
+  h.edit('Arkusz', tx => tx.setDoc({ sheets: [M.newSheet(50, 1)] }));
+  h.edit('Tekst', tx => tx.add({ t: 'text', sp: 50, p: [0.05, 0.2], s: 'Łódź, żółć', h: 5, align: 'l' }));
+  const pdf = new TextDecoder('latin1').decode(PDF.makePdf(d, d.sheets, {}));
+  return { 'tekst w PDF': [pdf.includes('(\\007\\363d\\016, \\020\\363\\010\\004)'), true], 'tablica znaków': [pdf.includes('/Differences [1 /Aogonek'), true] };
+});
+przypadek('tekst: wysokość w mm wydruku', 'tekst 2,5 mm w modelu 1:50 ma 0,125 m, na arkuszu 2,5 mm', () => {
+  const t = { t: 'text', p: [0, 0], s: 'Ab', h: 2.5, align: 'l' };
+  G.setAnno(0.05); const bm = G.textBox(t); G.setAnno(0.001); const bs = G.textBox(t); G.setAnno(0.05);
+  return { 'wysokość w modelu 1:50 (m)': [bm[3], 0.125], 'wysokość na arkuszu (m)': [bs[3], 0.0025] };
+});
+przypadek('wymiar poziomy, pionowy i równoległy', 'odcinek (0,0)–(3,4): poziomo 3, pionowo 4, równolegle 5', () => {
+  const w = dir => G.dimGeom({ t: 'dim', a: [0, 0], b: [3, 4], o: [-1, 6], dir }).value;
+  return { 'poziomo': [w('h'), 3], 'pionowo': [w('v'), 4], 'równolegle': [w('a'), 5] };
+});
+przypadek('przesunięcie okna', 'okno przesunięte po arkuszu pokazuje ten sam fragment modelu', () => {
+  const { d, h } = arkusz(), vp = d.ents.find(e => e.t === 'vp');
+  h.edit('Przesuń', tx => tx.set(vp.id, G.moved(vp, [0.1, 0])));
+  return { 'środek widoku modelu': [d.ents.find(e => e.t === 'vp').c, [0.5, 0]], 'okno przesunięte': [d.ents.find(e => e.t === 'vp').a, [0.15, 0.05]] };
+});
+przypadek('nowy element trafia na bieżący arkusz', 'gdy pracuje się na arkuszu, linia dostaje jego numer', () => {
+  const { d, h } = arkusz();
+  Object.defineProperty(d, '_space', { value: 50, writable: true, enumerable: false, configurable: true });
+  const e = h.edit('Linia', tx => tx.add(L([0, 0], [0.1, 0])));
+  return { 'przestrzeń': [e.sp, 50], 'nie trafia do pliku': [JSON.stringify(d).includes('_space'), false] };
+});
+przypadek('otwieranie: elementy usuniętego arkusza znikają', 'element z arkusza, którego nie ma w pliku, nie zostaje sierotą', () => {
+  const d = M.fixDoc({ format: 'rysio', version: 1, sheets: [{ id: 7, name: 'A' }], ents: [{ t: 'line', a: [0, 0], b: [1, 0], sp: 9 }, { t: 'line', a: [0, 0], b: [1, 0], sp: 7 }, { t: 'vp', a: [0, 0], b: [1, 1], c: [0, 0], scale: 50 }] });
+  return { 'elementy': [d.ents.length, 1], 'arkusz ma domyślne pola': [d.sheets[0].size, 'A3'] };
+});
+przypadek('skale do tabelki', 'dwa okna 1:100 i 1:20 → „1:100, 1:20”', () => {
+  const { d, h, sh } = arkusz();
+  h.edit('Okno', tx => tx.add({ t: 'vp', sp: 50, a: [0.3, 0.05], b: [0.4, 0.15], scale: 20, c: [0, 0], hidden: [] }));
+  return { 'tabelka': [SH.titleScales(d, sh), '1:100, 1:20'] };
+});
+
+przypadek('PDF nie zostawia skali tekstu arkusza', 'po eksporcie skala tekstu wraca do skali modelu (inaczej teksty w modelu źle się zaznaczają)', () => {
+  const { d, sh } = arkusz(); G.setAnno(0.05);
+  PDF.makePdf(d, [sh], {});
+  return { 'ANNO po eksporcie': [G.ANNO, 0.05] };
+});
+przypadek('okno nie znika z ukrytą warstwą', 'ukrycie bieżącej warstwy w modelu nie chowa okna na arkuszu', () => {
+  const { d } = arkusz(), vp = d.ents.find(e => e.t === 'vp');
+  d.layers[0].visible = false; d.layers[0].locked = true;
+  return { 'okno widoczne': [M.isShown(d, vp), true], 'okno da się zaznaczyć': [M.isLive(d, vp), true] };
+});
+przypadek('numer po arkuszu', 'plik z zaniżonym „next” nie daje elementu o numerze arkusza', () => {
+  const d = M.fixDoc({ format: 'rysio', version: 1, next: 2, sheets: [{ id: 40, name: 'A' }], ents: [] });
+  return { 'następny numer większy od arkusza': [d.next > 40, true] };
 });
 
 /* ---------- uruchomienie ---------- */

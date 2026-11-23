@@ -11,8 +11,9 @@ export const ACTIONS = [
   { group: _t('Rysowanie'), id: 'circle', name: _t('Okrąg'), keys: ['V'] },
   { group: _t('Rysowanie'), id: 'arc', name: _t('Łuk przez trzy punkty'), keys: ['B'] },
   { group: _t('Rysowanie'), id: 'arcC', name: _t('Łuk ze środka'), keys: ['Shift+B'] },
-  { group: _t('Rysowanie'), id: 'text', name: _t('Tekst'), keys: ['Y'], later: true },
-  { group: _t('Rysowanie'), id: 'dim', name: _t('Wymiar'), keys: ['U'], later: true },
+  { group: _t('Rysowanie'), id: 'text', name: _t('Tekst'), keys: ['Y'] },
+  { group: _t('Rysowanie'), id: 'dim', name: _t('Wymiar'), keys: ['U'] },
+  { group: _t('Rysowanie'), id: 'viewport', name: _t('Okno na arkuszu'), keys: ['O'] },
   { group: _t('Rysowanie'), id: 'hatch', name: _t('Kreskowanie'), keys: ['H'], later: true },
   { group: _t('Rysowanie'), id: 'block', name: _t('Bloki'), keys: ['K'], later: true },
   { group: _t('Edycja'), id: 'select', name: _t('Zaznacz'), keys: ['Q'] },
@@ -39,6 +40,8 @@ export const ACTIONS = [
   { group: _t('Plik'), id: 'open', name: _t('Otwórz'), keys: ['Mod+O'] },
   { group: _t('Plik'), id: 'save', name: _t('Zapisz'), keys: ['Mod+S'] },
   { group: _t('Plik'), id: 'saveAs', name: _t('Zapisz jako'), keys: ['Mod+Shift+S'] },
+  { group: _t('Plik'), id: 'exportPdf', name: _t('Eksport PDF / PNG'), keys: ['Mod+P'] },
+  { group: _t('Plik'), id: 'newSheet', name: _t('Nowy arkusz'), keys: [] },
   { group: _t('Plik'), id: 'keys', name: _t('Lista skrótów'), keys: ['Shift+Slash'] }
 ];
 

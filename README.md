@@ -15,7 +15,14 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 - Skala rysunku (1:1 … 1:1000 albo własna).
 - Zapis i otwieranie plików `.rysio`, autozapis i przywracanie po awarii, tryb jasny i ciemny, skróty do zmiany w oknie skrótów (`?`).
 
-Następne etapy: arkusze i PDF, zmienianie (offset, fillet, trim, extend, obrót, odbicie, skalowanie), bloki i kreskowanie, wymiana DXF/DWG — patrz `OPIS.md`.
+## Arkusze (etap 2)
+
+- Zakładki na dole: Model i dowolna liczba arkuszy (+). Arkusz ma format A4–A0, poziomo albo pionowo, i ramkę z tabelką; nazwę, format i ramkę zmienia przycisk formatu na dole, a pola tabelki — przycisk „Tabelka” (projekt, projektant i data są wspólne dla wszystkich arkuszy, rysunek i numer — osobne).
+- Okno (O) pokazuje fragment modelu w swojej skali; pasek nad zaznaczonym oknem zmienia skalę, ukrywa warstwy tylko w tym oknie i blokuje widok. Dwuklik w okno pozwala przesunąć w nim model.
+- Tekst (Y) i wymiar (U) w modelu i na arkuszu; wysokość w milimetrach wydruku, taka sama w każdym oknie i skali. Wymiar: dwa punkty i miejsce linii, potem łańcuch; Tab — poziomo, pionowo albo równolegle.
+- Eksport (⌘P / Ctrl+P): wektorowy PDF w skali (ten arkusz albo wszystkie w jednym pliku, czarno-biały albo w kolorach warstw) i PNG 200 dpi.
+
+Następne etapy: zmienianie (offset, fillet, trim, extend, obrót, odbicie, skalowanie), bloki i kreskowanie, wymiana DXF/DWG — patrz `OPIS.md`.
 
 ## Nawigacja
 

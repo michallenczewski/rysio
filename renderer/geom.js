@@ -56,6 +56,38 @@ export function arcCSE(c, s, e, cw = false) {
   return { c: [...c], r, a0, a1 };
 }
 
+/* ---------- tekst, wymiar, okno (etap 2) ---------- */
+// Wysokości tekstu i wymiarów są w milimetrach wydruku. ANNO — ile metrów przestrzeni wypada na milimetr papieru
+// w przestrzeni, w której właśnie się liczy (model 1:50 → 0,05; arkusz → 0,001). Ustawia je program przed rysowaniem,
+// przyciąganiem i zaznaczaniem w danej przestrzeni.
+export let ANNO = 0.05;
+export const setAnno = k => { ANNO = k; };
+export const TEXT_W = 0.56;      // średnia szerokość znaku względem wysokości (Helvetica)
+export const LINE_GAP = 1.4;     // odstęp wierszy względem wysokości
+export const DIM_H = 2.5;        // wysokość liczby wymiaru (mm)
+export const DIM_TICK = 1.6;     // pół długości ukośnej kreseczki (mm)
+export const DIM_EXT = 2;        // wysunięcie linii pomocniczej za linię wymiarową (mm)
+// prostokąt tekstu: p — początek linii bazowej pierwszego wiersza
+export function textBox(e, k = ANNO) {
+  const h = e.h * k, lines = String(e.s || '').split('\n'), n = lines.length;
+  const w = Math.max(1, ...lines.map(l => l.length)) * TEXT_W * h;
+  const x0 = e.p[0] - (e.align === 'c' ? w / 2 : e.align === 'r' ? w : 0);
+  return [x0, e.p[1] - (n - 1) * LINE_GAP * h - 0.25 * h, x0 + w, e.p[1] + h];
+}
+// wymiar liniowy: a, b — mierzone punkty, o — punkt na linii wymiarowej, dir — 'h' poziomo, 'v' pionowo, 'a' równolegle
+export function dimGeom(e) {
+  let d1, d2, n;
+  if (e.dir === 'v') { d1 = [e.o[0], e.a[1]]; d2 = [e.o[0], e.b[1]]; }
+  else if (e.dir === 'a') {
+    const u = V.norm(V.sub(e.b, e.a)); n = V.perp(u);
+    const off = V.dot(V.sub(e.o, e.a), n); d1 = V.add(e.a, V.mul(n, off)); d2 = V.add(e.b, V.mul(n, off));
+  } else { d1 = [e.a[0], e.o[1]]; d2 = [e.b[0], e.o[1]]; }
+  return { d1, d2, value: V.dist(d1, d2), mid: V.lerp(d1, d2, 0.5) };
+}
+const rectSegs = b => { const c = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]]; return c.map((p, i) => ({ k: 'seg', a: p, b: c[(i + 1) % 4] })); };
+const vpBox = e => [Math.min(e.a[0], e.b[0]), Math.min(e.a[1], e.b[1]), Math.max(e.a[0], e.b[0]), Math.max(e.a[1], e.b[1])];
+export { vpBox };
+
 /* ---------- części elementów ---------- */
 // odcinki prostych elementów (linia, polilinia)
 export function segsOf(e) {
@@ -70,17 +102,26 @@ export function segsOf(e) {
 }
 // „krzywe” elementu: odcinki i łuki w jednej postaci
 export function partsOf(e) {
+  if (e.t === 'text') return rectSegs(textBox(e));
+  if (e.t === 'vp') return rectSegs(vpBox(e));
+  if (e.t === 'dim') { const g = dimGeom(e); return [{ k: 'seg', a: g.d1, b: g.d2 }, { k: 'seg', a: e.a, b: g.d1 }, { k: 'seg', a: e.b, b: g.d2 }]; }
   if (e.t === 'circle') return [{ k: 'arc', c: e.c, r: e.r, a0: 0, a1: TAU, full: true }];
   if (e.t === 'arc') return [{ k: 'arc', c: e.c, r: e.r, a0: e.a0, a1: e.a1 }];
   return segsOf(e).map(([a, b]) => ({ k: 'seg', a, b }));
 }
 export function endpoints(e) {
+  if (e.t === 'text') return [e.p];
+  if (e.t === 'vp') { const b = vpBox(e); return [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]]; }
+  if (e.t === 'dim') { const g = dimGeom(e); return [e.a, e.b, g.d1, g.d2]; }
   if (e.t === 'line') return [e.a, e.b];
   if (e.t === 'pline') return e.pts;
   if (e.t === 'arc') return [arcStart(e), arcEnd(e)];
   return [];
 }
 export function midpoints(e) {
+  if (e.t === 'text') return [];
+  if (e.t === 'dim') return [dimGeom(e).mid];
+  if (e.t === 'vp') return rectSegs(vpBox(e)).map(q => V.lerp(q.a, q.b, 0.5));
   if (e.t === 'arc') return [arcMid(e)];
   return segsOf(e).map(([a, b]) => V.lerp(a, b, 0.5));
 }
@@ -88,6 +129,9 @@ export const centerOf = e => (e.t === 'circle' || e.t === 'arc') ? e.c : null;
 
 // prostokąt obrysu [minX, minY, maxX, maxY]
 export function bbox(e) {
+  if (e.t === 'text') return textBox(e);
+  if (e.t === 'vp') return vpBox(e);
+  if (e.t === 'dim') { const g = dimGeom(e), m = DIM_H * 1.6 * ANNO; return boxGrow(boxOf([e.a, e.b, g.d1, g.d2]), m); }
   if (e.t === 'circle') return [e.c[0] - e.r, e.c[1] - e.r, e.c[0] + e.r, e.c[1] + e.r];
   if (e.t === 'arc') {
     const pts = [arcStart(e), arcEnd(e)];
@@ -122,6 +166,8 @@ export function closestOnArc(p, part) {
   return V.dist(p, s) <= V.dist(p, e) ? s : e;
 }
 export function nearestOn(e, p) {
+  // w środek tekstu też się trafia
+  if (e.t === 'text') { const b = textBox(e); if (p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3]) return { p: [...p], d: 0 }; }
   let best = null, bd = Infinity;
   for (const q of partsOf(e)) {
     const c = q.k === 'seg' ? closestOnSeg(p, q.a, q.b).p : closestOnArc(p, q);
@@ -219,6 +265,9 @@ export function touchesRect(e, r) {
 // pola elementu po przesunięciu o d (do tx.set albo nowego elementu)
 export function moved(e, d) {
   const m = p => V.add(p, d);
+  if (e.t === 'text') return { p: m(e.p) };
+  if (e.t === 'dim') return { a: m(e.a), b: m(e.b), o: m(e.o) };
+  if (e.t === 'vp') return { a: m(e.a), b: m(e.b) };     // okno przesuwa się po arkuszu, widok modelu w nim zostaje
   if (e.t === 'line') return { a: m(e.a), b: m(e.b) };
   if (e.t === 'pline') return { pts: e.pts.map(m) };
   return { c: m(e.c) };

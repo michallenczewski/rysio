@@ -1,7 +1,8 @@
 // Płótno rysunku: przesuwanie, przybliżanie, przeliczanie metry ↔ piksele i rysowanie całości z nakładkami.
 import { V, bbox, boxHit, boxUnion } from './geom.js';
-import { isShown } from './model.js';
+import { isShown, sheetSize } from './model.js';
 import { CanvasPen, drawEnt, traceEnt, strokePx } from './draw.js';
+import { drawViewports, drawFrame } from './sheet.js';
 import { GUIDE_COLOR } from './snap.js';
 
 export class View {
@@ -12,7 +13,7 @@ export class View {
     this.ctx = this.canvas.getContext('2d');
     this.cx = 0; this.cy = 0; this.ppm = 60;   // środek widoku (m) i piksele na metr
     this.w = 1; this.h = 1; this.dpr = 1;
-    this.theme = { bg: '#fff', ink: '#1a1a19', sel: '#3f63a8', snap: '#b0489e', muted: '#8f8e89' };
+    this.theme = { bg: '#fff', desk: '#efeeea', ink: '#1a1a19', sel: '#3f63a8', snap: '#b0489e', muted: '#8f8e89' };
     this.needs = true;
     new ResizeObserver(() => this.resize()).observe(el);
     this.resize();
@@ -43,24 +44,36 @@ export class View {
     this.ppm = Math.min((this.w - 2 * margin) / w, (this.h - 2 * margin) / h);
     this.cx = (b[0] + b[2]) / 2; this.cy = (b[1] + b[3]) / 2; this.needs = true;
   }
-  fitDoc(doc) { let b = null; for (const e of doc.ents) if (isShown(doc, e)) b = boxUnion(b, bbox(e)); this.fit(b); }
+  fitDoc(doc, ents = doc.ents) { let b = null; for (const e of ents) if (isShown(doc, e)) b = boxUnion(b, bbox(e)); this.fit(b); }
 
-  // s: { doc, sel:Set, hover, preview:[ent], previewDoc, guides, snap, box, thin, marks:[p], path }
+  // s: { doc, ents (elementy bieżącej przestrzeni), scale (skala przestrzeni), fmt, sheet (arkusz albo null),
+  //      sel:Set, hover, preview:[ent], guides, snap, box, thin, marks:[p], path, vpEdit }
   render(s) {
     const c = this.ctx, t = this.theme, d = s.doc;
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    c.globalAlpha = 1; c.fillStyle = t.bg; c.fillRect(0, 0, this.w, this.h);
-    const pen = new CanvasPen(c, this), vr = this.rect, o = { ppm: this.ppm, ink: t.ink, thin: s.thin };
-    // 1) rysunek
-    for (const e of d.ents) {
+    c.globalAlpha = 1; c.fillStyle = s.sheet ? t.desk : t.bg; c.fillRect(0, 0, this.w, this.h);
+    const pen = new CanvasPen(c, this), vr = this.rect, o = { ppm: this.ppm, ink: t.ink, thin: s.thin, scale: s.scale, fmt: s.fmt };
+    // 0) arkusz: papier, zawartość okien, ramka z tabelką (papier zawsze jasny — to wydruk)
+    if (s.sheet) {
+      const [W, H] = sheetSize(s.sheet), a = this.toScreen([0, H]), b = this.toScreen([W, 0]);
+      c.save(); c.shadowColor = 'rgba(0,0,0,.18)'; c.shadowBlur = 8; c.shadowOffsetY = 1; c.fillStyle = '#ffffff'; c.fillRect(a[0], a[1], b[0] - a[0], b[1] - a[1]); c.restore();
+      const po = { ...o, ink: '#1a1a19', muted: '#8f8e89', fmtModel: s.fmtModel, fmtSheet: s.fmt };
+      drawViewports(pen, d, s.sheet, po);
+      drawFrame(pen, d, s.sheet, po);
+      o.ink = '#1a1a19';
+    }
+    // 1) rysunek (bieżąca przestrzeń)
+    for (const e of s.ents) {
       if (!isShown(d, e) || !boxHit(bbox(e), vr)) continue;
       if (s.sel.has(e.id)) continue;
+      if (e.t === 'vp') { pen.style({ width: 1, dash: [4, 3], color: e.id === s.vpEdit ? t.sel : '#b9b7b0' }); traceEnt(pen, e); continue; }
       drawEnt(pen, d, e, o);
     }
     // 2) zaznaczenie i element pod kursorem
-    for (const e of d.ents) {
+    for (const e of s.ents) {
       if (!s.sel.has(e.id) || !isShown(d, e)) continue;
-      pen.style({ width: strokePx(0.5, this.ppm, d.scale, s.thin) + 5, color: t.sel, alpha: 0.18, cap: 'round' }); traceEnt(pen, e);
+      pen.style({ width: strokePx(0.5, this.ppm, s.scale, s.thin) + 5, color: t.sel, alpha: 0.18, cap: 'round' }); traceEnt(pen, e);
+      if (e.t === 'vp') { pen.style({ width: 1.4, color: t.sel }); traceEnt(pen, e); continue; }
       drawEnt(pen, d, e, { ...o, color: t.sel });
     }
     for (const h of [].concat(s.hover || [])) { pen.style({ width: 6, color: s.hoverColor || t.sel, alpha: 0.18, cap: 'round' }); traceEnt(pen, h); }
@@ -73,7 +86,7 @@ export class View {
     // punkty śledzenia
     for (const p of s.marks || []) { const q = this.toScreen(p); c.globalAlpha = 0.9; c.strokeStyle = t.snap; c.lineWidth = 1; c.setLineDash([]); c.beginPath(); c.moveTo(q[0] - 4, q[1]); c.lineTo(q[0] + 4, q[1]); c.moveTo(q[0], q[1] - 4); c.lineTo(q[0], q[1] + 4); c.stroke(); }
     // 4) podgląd narzędzia
-    for (const e of s.preview || []) drawEnt(pen, s.previewDoc || d, e, { ...o, alpha: e._ghost ? 0.45 : 1 });
+    for (const e of s.preview || []) { if (e.t === 'vp') { pen.style({ width: 1, dash: [4, 3], color: t.sel }); traceEnt(pen, e); continue; } drawEnt(pen, d, e, { ...o, alpha: e._ghost ? 0.45 : 1 }); }
     if (s.path) { pen.style({ width: 9, color: t.snap, alpha: 0.3, cap: 'round' }); this.ctx.lineJoin = 'round'; pen.poly(s.path, false); }
     // 5) ramka zaznaczania: w prawo ciągła (całe w ramce), w lewo przerywana (dotknięte)
     if (s.box) {

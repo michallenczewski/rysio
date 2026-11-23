@@ -42,7 +42,19 @@ Elementy (współrzędne w metrach, oś Y w górę jak w DXF):
 
 Każdy element ma też `id`, `layer` (id warstwy) oraz `w` i `lt`: `null` znaczy „jak warstwa”, liczba / nazwa — kreska ustawiona na elemencie. Rodzaje linii: `solid`, `dash`, `center`, `dot`.
 
-Kolejne etapy dopiszą: `text`, `dim` (etap 2), `hatch`, `insert` + `blocks` (etap 4) i `sheets` z oknami (etap 2). Polilinia dostanie wtedy łuki w wierzchołkach (`bulge` jak w DXF) — potrzebne do offsetu i filletu.
+Etap 2 dodał:
+
+| `t` | pola |
+|---|---|
+| `text` | `p` (początek linii bazowej), `s` (tekst, wiersze przez `\n`), `h` — wysokość w **mm wydruku**, `align` l/c/r |
+| `dim` | `a`, `b` — mierzone punkty, `o` — punkt na linii wymiarowej, `dir` h/v/a (poziomo, pionowo, równolegle) |
+| `vp` | okno na arkuszu: `a`, `b` — narożniki na arkuszu, `scale`, `c` — punkt modelu w środku okna, `hidden` — warstwy ukryte w tym oknie, `locked` |
+
+**Arkusze.** `doc.sheets = [{ id, name, size: 'A4'…'A0', land, frame, title: { rysunek, nr } }]`, `doc.project = { projekt, projektant, data }` (wspólne pola tabelki). Elementy arkusza leżą w tym samym `doc.ents` z polem `sp` = numer arkusza; elementy modelu nie mają `sp`. Dzięki temu zaznaczanie, przesuwanie, kopiowanie, usuwanie i cofanie działają na arkuszu bez osobnego kodu. Współrzędne arkusza to metry papieru (1 mm = 0,001), początek w lewym dolnym rogu; arkusz ma skalę 1:1. Program trzyma bieżącą przestrzeń w `doc._space` (niewidoczne dla zapisu) — z niego `tx.add` bierze `sp` nowych elementów.
+
+**Tekst i wymiary w każdej skali.** Wysokość tekstu i liczby wymiaru jest w milimetrach wydruku i przelicza się według skali przestrzeni: w modelu 1:50 napis 3,5 mm ma 0,175 m, w oknie 1:100 ma na papierze nadal 3,5 mm. Geometria liczy to przez `ANNO` z `geom.js` (metry na mm papieru), które program ustawia przy zmianie przestrzeni, a rysowanie okna — na czas rysowania zawartości.
+
+Polilinia dostanie łuki w wierzchołkach (`bulge` jak w DXF) w etapie 3 razem z offsetem i filletem; `hatch`, `insert` + `blocks` — etap 4.
 
 ### Jednostki i skala
 
@@ -61,9 +73,11 @@ Zmiany widoku (przesunięcie, przybliżenie, zaznaczenie) nie są cofane.
 
 Plik `.rysio` to JSON: `{ format: 'rysio', version: 1, … }` jak wyżej. Otwieranie przechodzi przez `fixDoc()`: uzupełnia brakujące pola i podnosi starsze wersje formatu krok po kroku (`version` 1 → 2 → …). Nowa wersja formatu = nowy krok w `fixDoc()`, nigdy zmiana starego.
 
-### PDF (etap 2)
+### PDF
 
-Wektorowy PDF złoży pióro PDF z `draw.js` przy pomocy biblioteki **pdf-lib** (MIT, zgodna z GPL-3) z osadzoną czcionką z polskimi znakami. Skala jest sprawdzana pomiarem: sprawdzian liczy położenie odcinka 1 m w skali 1:100 w wygenerowanym pliku (ma mieć 10 mm), a test w przeglądarce mierzy to samo w PDF-ie.
+PDF składa `renderer/pdf.js` bez zewnętrznych bibliotek (zmiana względem planu z pdf-lib, zatwierdzona 23.11.2026). `PdfPen` ma te same polecenia co pióro ekranowe, a `sheet.js` rysuje arkusz jednym kodem dla ekranu, PNG i PDF. 1 mm papieru = 72/25,4 pt; grubości kresek i wzory w milimetrach bez ekranowych ograniczeń. Tekst używa wbudowanej czcionki Helvetica (każdy czytnik PDF ją ma); polskie litery spoza WinAnsi dostają kody 1–16 przez `/Differences` z nazwami glifów (`Aogonek`, `lslash`…). Ograniczenie: jedna czcionka. Okna przycina `re W n`. Domyślnie wydruk czarno-biały, na życzenie w kolorach warstw.
+
+Skala jest sprawdzana pomiarem: sprawdzian szuka w wygenerowanym PDF-ie odcinka 1 m z okna 1:100 i mierzy go w punktach (10 mm), drugi — wymiary strony A3. PNG to ten sam rysunek na płótnie w 200 dpi.
 
 ### Duże współrzędne (podkłady geodezyjne)
 
@@ -83,10 +97,12 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 | `renderer/app.js` | stan programu, klawiatura i mysz, paski, okienka (warstwy, kreska, skala, ustawienia, skróty), zapis |
 | `renderer/model.js` | rysunek, warstwy, kreski, `edit()` i historia cofania, `fixDoc()` |
 | `renderer/geom.js` | geometria bez okna: odległości, przecięcia, rzuty, styczne, łuk przez trzy punkty, obrysy, trafienia |
-| `renderer/draw.js` | rysowanie elementów przez „pióro” (dziś płótno, w etapie 2 także PDF) |
+| `renderer/draw.js` | rysowanie elementów przez „pióro” (płótno albo PDF): kreski, tekst, wymiar |
+| `renderer/sheet.js` | arkusz: okna z modelem w skali (przeliczanie arkusz ↔ model), ramka z tabelką, skale do tabelki |
+| `renderer/pdf.js` | wektorowy PDF arkuszy (`PdfPen`, `makePdf`) |
 | `renderer/view.js` | płótno, przesuwanie i przybliżanie, przeliczanie metry ↔ piksele, kreski w skali |
 | `renderer/snap.js` | przyciąganie (koniec, środek, przecięcie, prostopadle, środek okręgu, styczna, najbliższy) i kierunki (poziom, pion, wzdłuż i prostopadle do linii, śledzenie od punktów) |
-| `renderer/tools.js` | narzędzia: zaznacz, usuń, pędzel, linia, polilinia, prostokąt, okrąg, łuk, przesuń, kopiuj |
+| `renderer/tools.js` | narzędzia: zaznacz, usuń, pędzel, linia, polilinia, prostokąt, okrąg, łuk, przesuń, kopiuj, tekst, wymiar, okno na arkuszu |
 | `renderer/units.js` | wpisywanie i pokazywanie wymiarów w jednostce rysunku |
 | `renderer/keys.js` | skróty klawiszowe i ich zmiana |
 | `renderer/i18n.js`, `lang/en.js` | tłumaczenie napisów (`_t`) |
@@ -118,11 +134,15 @@ W etapie 5 dojdą `renderer/dxf.js`, `renderer/dwg.js` i `renderer/vendor/libred
 
 ## Biblioteki zewnętrzne
 
-Na razie żadnych. Plan: `renderer/vendor/pdf-lib` (MIT) w etapie 2, `renderer/vendor/libredwg` (GPL-3) w etapie 5 — każda z plikiem licencji i notatką tutaj.
+Na razie żadnych (PDF powstaje bez biblioteki, zob. wyżej). Plan: `renderer/vendor/libredwg` (GPL-3) w etapie 5 — z plikiem licencji i notatką tutaj.
 
 ## Sygnały, że trzeba wrócić do tematu
 
 - **Przerysowanie całości przy każdym ruchu myszy** — wystarczy do kilkunastu tysięcy elementów. Przy podkładach (etap 5) trzeba będzie rysować rysunek do bufora, a na wierzch tylko kursor i podgląd, oraz dodać indeks przestrzenny.
 - **Polilinia bez łuków** — dojdą w etapie 3 razem z offsetem i filletem.
 - **Uchwyty (przeciąganie końców zaznaczonych linii)** jeszcze nie istnieją; zmiana kształtu odbywa się narzędziami.
-- **Kolory warstw na wydruku** — do ustalenia w etapie 2 (czarno-białe czy w kolorach warstw).
+- **Okno na arkuszu pokazuje model tylko do oglądania** — rysuje się w zakładce Model; w oknie można tylko przesunąć widok (dwuklik). Zmiana skali okna przez przybliżanie celowo nie istnieje.
+- **Tekst stoi poziomo** (może mieć kilka wierszy; obrót `rot` jest w modelu danych, ale nie ma jeszcze narzędzia do obracania); szerokość tekstu do zaznaczania jest szacowana (0,56 wysokości na znak).
+- **Cofanie przełącza zakładkę**: cofnięcie zmiany z innej przestrzeni (model / arkusz) pokazuje tę przestrzeń, żeby było widać, co się cofnęło.
+- **Wymiar to pojedynczy odcinek**; łańcuch to kilka wymiarów na jednej linii (tak też trafią do DXF w etapie 5).
+- **PDF ma jedną czcionkę** (Helvetica); inna wymagałaby osadzania pliku czcionki.

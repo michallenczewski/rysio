@@ -1,7 +1,10 @@
 // Rysio — okno programu: stan, mysz i klawiatura, paski, okienka warstw i kreski, zapis. Opis: ARCHITEKTURA.md.
 import { _t, translateDom, lang, LANGS, setLang } from './i18n.js';
-import { newDoc, fixDoc, History, serialize, strokeOf, layerOf, isLive, isShown, WEIGHTS, LTYPES, LTYPE_IDS, LAYER_COLORS, SCALES } from './model.js';
-import { V, bbox, boxHit, boxGrow, nearestOn } from './geom.js';
+import { newDoc, fixDoc, History, serialize, strokeOf, layerOf, isLive, isShown, WEIGHTS, LTYPES, LTYPE_IDS, LAYER_COLORS, SCALES, spaceOf, newSheet, sheetSize, PAPER } from './model.js';
+import { V, bbox, boxHit, boxGrow, boxUnion, nearestOn, setAnno, vpBox, textBox } from './geom.js';
+import { vpMap, titleScales, drawSheet } from './sheet.js';
+import { makePdf } from './pdf.js';
+import { CanvasPen } from './draw.js';
 import { View } from './view.js';
 import { Snapper } from './snap.js';
 import { makeTools } from './tools.js';
@@ -48,6 +51,8 @@ const IC = {
   eyeOff: '<path d="M2.5 2.5l11 11M6.6 4A6.3 6.3 0 0 1 8 3.8c4 0 6.2 4.2 6.2 4.2a11 11 0 0 1-1.8 2.3M10.6 11.6A5.8 5.8 0 0 1 8 12.2C4 12.2 1.8 8 1.8 8a11 11 0 0 1 2.4-2.8"/>',
   lock: '<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>',
   unlock: '<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 4.8-1"/>',
+  alignL: '<path d="M2.5 4h11M2.5 8h7M2.5 12h9"/>', alignC: '<path d="M2.5 4h11M4.5 8h7M3.5 12h9"/>', alignR: '<path d="M2.5 4h11M6.5 8h7M4.5 12h9"/>',
+  viewport: '<rect x="2" y="3" width="12" height="10" rx="1"/><path d="M4.5 10.5 7 7.5l2 2 1.5-1.5 1.5 2.5"/>',
   trash: '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 9h5.8l.6-9"/>'
 };
 const ic = (n, s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
@@ -62,12 +67,15 @@ const app = {
   isMac, altName: isMac ? '⌥' : 'Ctrl', shiftName: isMac ? '⇧' : 'Shift', bsName: isMac ? '⌫' : 'Backspace',
   doc: newDoc(), sel: new Set(),
   thin: false, ortho: false,
+  space: 0,                       // 0 — model, liczba — numer arkusza
+  textH: 3.5, textAlign: 'l',     // wysokość (mm wydruku) i wyrównanie nowego tekstu
+  vpEdit: null, lastVpScale: null, // okno, w którym przesuwa się widok modelu; ostatnio ustawiona skala okna
   file: { path: null, name: _t('Bez nazwy'), dirty: false },
   keys: loadKeys()
 };
 // klawisz „kopii” i „pobierz z linii”: ⌥ na Macu, Ctrl w Windows (jak w Modo — Alt w Windows otwiera menu okna)
 app.altKey = e => !!e && (isMac ? e.altKey : e.ctrlKey);
-app.hist = new History(app.doc, () => afterChange());
+app.hist = new History(app.doc, info => afterChange(info));
 app.view = new View($('#view'));
 app.snapper = new Snapper();
 app.tools = makeTools(app);
@@ -75,13 +83,28 @@ let tool = app.tools.select;
 let snapRes = null, cursorModel = null, cursorScreen = null, hoverEnt = null, lockDir = null;
 
 app.edit = (label, fn) => app.hist.edit(label, fn);
+// elementy bieżącej przestrzeni i jej skala (arkusz zawsze 1:1)
+app.ents = () => app.doc.ents.filter(e => spaceOf(e) === app.space);
+app.sheet = () => app.space ? app.doc.sheets.find(sh => sh.id === app.space) || null : null;
+app.spaceScale = () => app.space ? 1 : app.doc.scale;
+const UNITF = { m: [1, 2], cm: [0.01, 1], mm: [0.001, 0] };
+const fmtU = (v, u) => (v / UNITF[u][0]).toFixed(UNITF[u][1]).replace('.', ',');
+app.fmtModel = v => fmtU(v, app.doc.units);
+app.fmtSheet = v => fmtU(v, 'mm');
+// przestrzeń, w której się pracuje: wysokość tekstu, jednostka wymiarów i to, gdzie trafiają nowe elementy
+function syncSpace() {
+  setAnno(app.spaceScale() / 1000);
+  Object.defineProperty(app.doc, '_space', { value: app.space || 0, writable: true, configurable: true, enumerable: false });
+  setUnit(app.space ? 'mm' : app.doc.units, false);
+}
+app.modelCenter = () => { setAnno(app.doc.scale / 1000); let b = null; for (const e of app.doc.ents) if (!spaceOf(e) && isShown(app.doc, e)) b = boxUnion(b, bbox(e)); syncSpace(); return b ? [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2] : [0, 0]; };
 app.tol = () => 9 / app.view.ppm;
 app.newStroke = () => ({ layer: app.doc.cur.layer, w: app.doc.cur.w, lt: app.doc.cur.lt });
 // element pod punktem: tylko widoczne i niezablokowane warstwy
 app.pick = (p, { locked = false } = {}) => {
   const tol = app.tol(), probe = [p[0] - tol, p[1] - tol, p[0] + tol, p[1] + tol];
   let best = null, bd = Infinity;
-  for (const e of app.doc.ents) {
+  for (const e of app.ents()) {
     if (!(locked ? isShown(app.doc, e) : isLive(app.doc, e)) || !boxHit(boxGrow(bbox(e), tol), probe)) continue;
     const n = nearestOn(e, p); if (n && n.d <= tol && n.d < bd) { bd = n.d; best = e; }
   }
@@ -91,15 +114,27 @@ app.selectionChanged = () => { refreshUi(); redraw(); };
 // opis skrótu polecenia w bieżącym układzie (do podpowiedzi)
 app.keyName = id => { const k = keysFor(id, app.keys.over)[0]; return k ? prettyCombo(k, isMac) : ''; };
 app.refreshUi = () => refreshUi();
-function afterChange() {
+// przestrzeń, której dotyczyła zmiana (pierwszy element w zapisie); null — zmiana nie dotyczyła elementów
+function spaceOfOps(ops = []) {
+  for (const o of ops) {
+    if (o.ent) return spaceOf(o.ent);
+    if (o.op === 'set') { const e = app.doc.ents.find(x => x.id === o.id); if (e) return spaceOf(e); }
+  }
+  return null;
+}
+function afterChange(info) {
   // zaznaczenie bez usuniętych elementów
-  for (const id of [...app.sel]) { const e = app.doc.ents.find(x => x.id === id); if (!e || !isLive(app.doc, e)) app.sel.delete(id); }
-  setUnit(app.doc.units, false);
+  for (const id of [...app.sel]) { const e = app.doc.ents.find(x => x.id === id); if (!e || !isLive(app.doc, e) || spaceOf(e) !== app.space) app.sel.delete(id); }
+  // arkusz mógł zniknąć (usunięcie, cofnięcie dodania arkusza) — pełne przejście do modelu
+  if (app.space && !app.sheet()) setSpace(0, true);
+  // cofnięcie albo ponowienie zmiany z innej przestrzeni pokazuje tę przestrzeń
+  else if (info && (info.undo || info.redo)) { const sp = spaceOfOps(info.ops); if (sp !== null && sp !== app.space && (sp === 0 || app.doc.sheets.some(x => x.id === sp))) setSpace(sp); }
+  syncSpace(); renderTabs();
   markDirty(true); refreshUi(); redraw();
 }
 
 /* ---------- lewy pasek ---------- */
-const TOOLBAR = ['select', 'eraser', 'brush', null, 'line', 'pline', 'rect', 'circle', 'arc', null, 'move', 'copy', 'rotate', 'mirror', 'scale', null, 'offset', 'fillet', 'trim', null, 'hatch', 'block', 'text', 'dim', 'grow', 'extents'];
+const TOOLBAR = ['select', 'eraser', 'brush', null, 'line', 'pline', 'rect', 'circle', 'arc', null, 'move', 'copy', 'rotate', 'mirror', 'scale', null, 'offset', 'fillet', 'trim', null, 'hatch', 'block', 'text', 'dim', 'viewport', 'grow', 'extents'];
 const toolsEl = $('#tools');
 for (const id of TOOLBAR) {
   if (id === null) { toolsEl.insertAdjacentHTML('beforeend', '<div class="hsep"></div>'); continue; }
@@ -121,6 +156,7 @@ function setTool(id, opts = {}) {
   tool.start?.();
   if (id === 'arc') { tool.pts = []; tool.mode = opts.arcMode || '3p'; }
   if (id !== 'brush') hideBrushBar();
+  if (textEd) finishText();
   lockDir = null; typing = null; app.snapper.clearRefs(); snapRes = null; hoverEnt = null;
   if (cursorScreen) updateCursor(...cursorScreen);
   toolsEl.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === id));
@@ -139,8 +175,8 @@ function runAction(id) {
     case 'undo': { if (tool.undoInTool?.()) { refreshUi(); redraw(); return; } const l = app.hist.undo(); if (l) toast(_t`Cofnięto: ${l}`, 1200); return; }
     case 'redo': { const l = app.hist.redo(); if (l) toast(_t`Ponowiono: ${l}`, 1200); return; }
     case 'delete': if (app.sel.size) { const ids = [...app.sel].filter(id => { const e = app.doc.ents.find(x => x.id === id); return e && isLive(app.doc, e); }); app.edit(_t('Usuń'), tx => ids.forEach(i => tx.del(i))); } return;
-    case 'selectAll': setTool('select'); app.sel = new Set(app.doc.ents.filter(e => isLive(app.doc, e)).map(e => e.id)); app.selectionChanged(); return;
-    case 'extents': app.view.fitDoc(app.doc); redraw(); return;
+    case 'selectAll': setTool('select'); app.sel = new Set(app.ents().filter(e => isLive(app.doc, e)).map(e => e.id)); app.selectionChanged(); return;
+    case 'extents': fitSpace(); redraw(); return;
     case 'thin': app.thin = !app.thin; $('#thinBtn').setAttribute('aria-pressed', app.thin); redraw(); return;
     case 'ortho': app.ortho = !app.ortho; refreshUi(); return;
     case 'snapToggle': app.snapper.enabled = !app.snapper.enabled; refreshUi(); return;
@@ -150,6 +186,8 @@ function runAction(id) {
     case 'save': return fileSave(false);
     case 'saveAs': return fileSave(true);
     case 'keys': return openKeys();
+    case 'exportPdf': return openExport();
+    case 'newSheet': return addSheet();
   }
 }
 app.run = runAction;
@@ -157,12 +195,12 @@ app.run = runAction;
 /* ---------- mysz ---------- */
 const view = $('#view');
 const xy = e => { const r = view.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-let panning = null, spaceDown = false, downBtn = -1;
+let panning = null, spaceDown = false, downBtn = -1, vpPan = null;
 function updateCursor(sx, sy, e) {
   cursorScreen = [sx, sy];
   const raw = app.view.toModel(sx, sy);
   if (tool.draw) {
-    const shown = app.doc.ents.filter(x => isShown(app.doc, x));
+    const shown = app.ents().filter(x => isShown(app.doc, x) && x.t !== 'text');
     snapRes = app.snapper.find(raw, { tol: app.tol(), ents: shown, base: tool.base(), lockDir, ortho: app.ortho, noSnap: false });
     cursorModel = snapRes.p; hoverEnt = null;
   } else {
@@ -171,12 +209,19 @@ function updateCursor(sx, sy, e) {
   }
 }
 view.addEventListener('pointerdown', e => {
+  if (e.target.closest('.textEd, .toolbar')) return;   // pole pisanego tekstu i paski narzędzi obsługują się same
   if (closePops() && e.button === 0) return;
   view.setPointerCapture(e.pointerId); downBtn = e.button;
   const [x, y] = xy(e);
   if (e.button === 1 || (e.button === 0 && spaceDown)) { panning = [x, y]; view.classList.add('c-grabbing'); e.preventDefault(); return; }
   if (e.button === 2) { if (!tool.enter()) tool.cancel(); refreshUi(); redraw(); return; }
   if (e.button !== 0) return;
+  // w trybie „widok w oknie” przeciąganie przesuwa model w oknie (skala okna się nie zmienia)
+  if (app.vpEdit) {
+    const vp = app.doc.ents.find(v => v.id === app.vpEdit);
+    if (vp && pointInBox(app.view.toModel(x, y), vpBox(vp))) { vpPan = { x, y, c0: [...vp.c], vp }; view.classList.add('c-grabbing'); return; }
+    app.vpEdit = null; refreshUi();
+  }
   updateCursor(x, y, e);
   if (typing !== null) { typing = null; }
   tool.down(cursorModel, e); updateCursor(x, y, e);
@@ -185,6 +230,7 @@ view.addEventListener('pointerdown', e => {
 view.addEventListener('pointermove', e => {
   const [x, y] = xy(e);
   if (panning) { app.view.pan(x - panning[0], y - panning[1]); panning = [x, y]; redraw(); return; }
+  if (vpPan) { const k = vpPan.vp.scale / app.view.ppm; vpPan.vp.c = [vpPan.c0[0] - (x - vpPan.x) * k, vpPan.c0[1] + (y - vpPan.y) * k]; redraw(); return; }
   updateCursor(x, y, e);
   tool.move(cursorModel, e);
   showReading(); redraw();
@@ -192,10 +238,23 @@ view.addEventListener('pointermove', e => {
 view.addEventListener('pointerup', e => {
   const [x, y] = xy(e);
   if (panning) { panning = null; view.classList.remove('c-grabbing'); return; }
+  if (vpPan) { const { vp, c0 } = vpPan, c = vp.c; vp.c = c0; vpPan = null; view.classList.remove('c-grabbing'); if (V.dist(c, c0) > 0) app.edit(_t('Widok w oknie'), tx => tx.set(vp.id, { c })); downBtn = -1; return; }
   if (e.button === 0 && downBtn === 0) { tool.up?.(cursorModel || app.view.toModel(x, y), e); refreshUi(); redraw(); }
   downBtn = -1;
 });
 view.addEventListener('pointerleave', () => { cursorScreen = null; snapRes = null; hoverEnt = null; $('#snapLbl')?.remove(); $('#reading')?.remove(); redraw(); });
+const pointInBox = (p, b) => p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3];
+// dwuklik: w tekst — poprawka tekstu; w okno na arkuszu — przesuwanie modelu w oknie
+view.addEventListener('dblclick', e => {
+  if (e.target.closest('.textEd, .toolbar') || !['select', 'text'].includes(tool.id)) return;
+  const [x, y] = xy(e), p = app.view.toModel(x, y), hit = app.pick(p);
+  if (hit && hit.t === 'text') return app.editText(hit);
+  const vp = app.space && app.ents().filter(v => v.t === 'vp' && isLive(app.doc, v)).reverse().find(v => pointInBox(p, vpBox(v)));
+  if (vp) {
+    if (vp.locked) return toast(_t('Widok w tym oknie jest zablokowany — odblokuj go na pasku okna.'));
+    app.vpEdit = vp.id; app.sel.clear(); refreshUi(); redraw();
+  }
+});
 view.addEventListener('contextmenu', e => e.preventDefault());
 view.addEventListener('auxclick', e => e.preventDefault());
 // kółko myszy: przybliżanie do kursora; gładzik: dwa palce przesuwają, szczypanie przybliża (jak w Modo)
@@ -238,10 +297,12 @@ window.addEventListener('keydown', e => {
   if (plain && tool.label() && tool.base() && /^[0-9.,\-]$/.test(e.key)) { e.preventDefault(); typing = e.key; return refreshUi(); }
   if (e.key === 'Escape') {
     if (closePops()) return;
+    if (app.vpEdit) { app.vpEdit = null; refreshUi(); redraw(); return; }
     if (!tool.cancel()) { if (tool.id !== 'select') setTool('select'); else if (app.sel.size) { app.sel.clear(); app.selectionChanged(); } }
     refreshUi(); redraw(); return;
   }
   if (e.key === 'Enter') { if (tool.enter()) { refreshUi(); redraw(); } return; }
+  if (e.key === 'Tab' && tool.id === 'dim') { e.preventDefault(); tool.toggle(); refreshUi(); redraw(); return; }
   if (e.key === 'Tab' && tool.id === 'arc') { e.preventDefault(); tool.toggle(); refreshUi(); redraw(); return; }
   if (e.key === 'Backspace' && plain && tool.backspace?.()) { e.preventDefault(); refreshUi(); redraw(); return; }
   if (e.key === ' ' && plain) { spaceDown = true; view.classList.add('c-grab'); e.preventDefault(); return; }
@@ -268,12 +329,13 @@ function frame() {
   rafPending = false;
   const hi = tool.highlight ? [...tool.highlight()].map(id => app.doc.ents.find(e => e.id === id)).filter(Boolean) : [];
   app.view.render({
-    doc: app.doc, sel: app.sel, thin: app.thin,
+    doc: app.doc, sel: app.sel, thin: app.thin, ents: app.hideEnt ? app.ents().filter(e => e.id !== app.hideEnt) : app.ents(), scale: app.spaceScale(), sheet: app.sheet(), vpEdit: app.vpEdit,
+    fmt: app.space ? app.fmtSheet : app.fmtModel, fmtModel: app.fmtModel,
     hover: [...hi, ...(hoverEnt && !app.sel.has(hoverEnt.id) ? [hoverEnt] : [])], hoverColor: tool.id === 'eraser' ? '#c0533f' : null,
     guides: snapRes ? snapRes.guides : [], snap: snapRes, marks: tool.draw ? app.snapper.refPts : [],
     preview: cursorScreen || !tool.draw ? tool.preview() : [], box: tool.box, path: tool.path && tool.path.length > 1 ? tool.path : null
   });
-  showSnapLabel();
+  showSnapLabel(); showVpBar(); placeTextEd();
 }
 function showSnapLabel() {
   let el = $('#snapLbl');
@@ -306,8 +368,12 @@ function refreshUi() {
   $('#undoBtn').disabled = !app.hist.canUndo; $('#redoBtn').disabled = !app.hist.canRedo;
   $('#snapChip').classList.toggle('off', !app.snapper.enabled);
   $('#orthoChip').classList.toggle('off', !app.ortho);
-  $('#unitBtn').textContent = app.doc.units;
-  $('#scaleBtn').innerHTML = '1:' + app.doc.scale + ' ' + chev;
+  const sh = app.sheet();
+  $('#unitBtn').textContent = sh ? 'mm' : app.doc.units; $('#unitBtn').disabled = !!sh;
+  $('#scaleBtn').innerHTML = '1:' + app.doc.scale + ' ' + chev; $('#scaleBtn').hidden = !!sh;
+  $('#fmtChip').hidden = $('#titleChip').hidden = !sh;
+  if (sh) $('#fmtChip').innerHTML = `${sh.size} ${sh.land ? _t('poziomo') : _t('pionowo')} ${chev}`;
+  showVpBar(); showTextBar();
   renderPills();
   if (tool.id === 'brush') showBrushBar();
   if (!$('#layersPop').hidden) renderLayersPop();
@@ -346,7 +412,7 @@ function placePop(pop, anchor) {
 }
 function closePops() {
   let any = false;
-  for (const id of ['#layersPop', '#strokePop', '#menu']) if (!$(id).hidden) { $(id).hidden = true; any = true; }
+  for (const id of ['#layersPop', '#strokePop', '#menu', '#sheetPop', '#titlePop', '#exportPop']) if (!$(id).hidden) { $(id).hidden = true; any = true; }
   document.querySelectorAll('.pill.open, .tb.open').forEach(b => b.classList.remove('open'));
   colorFor = null; renaming = null; strokeTarget = 'auto';
   return any;
@@ -443,7 +509,7 @@ $('#strokePop').addEventListener('click', e => {
   else if (s.kind === 'sel') { const ids = s.si.ents.map(e => e.id); app.edit(_t('Kreska'), tx => ids.forEach(id => tx.set(id, patch))); }
   else { app.edit(_t('Kreska'), tx => tx.setDoc({ cur: { ...d.cur, ...patch } })); app.tools.brush.carry = null; refreshUi(); }
 });
-document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop, .menu, .pill, #status .unit, #fileBtn, #setBtn')) closePops(); });
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop, .menu, .pill, #status .unit, #status .chip, #fileBtn, #setBtn, #pdfBtn, .toolbar')) closePops(); });
 
 /* ---------- pasek pędzla ---------- */
 function showBrushBar() {
@@ -495,9 +561,10 @@ function markDirty(v) {
 }
 function setFile(path, name) { app.file.path = path; app.file.name = name || _t('Bez nazwy'); $('#fileName').textContent = app.file.name; document.title = app.file.name + ' — Rysio'; }
 function loadDoc(doc, { path = null, name = null, dirty = false } = {}) {
-  app.doc = doc; app.hist.reset(doc); app.sel.clear(); setUnit(doc.units, false); app.tools.brush.carry = null;
+  app.doc = doc; app.hist.reset(doc); app.sel.clear(); app.tools.brush.carry = null;
+  app.space = 0; app.vpEdit = null; for (const k of Object.keys(viewMemo)) delete viewMemo[k]; syncSpace(); renderTabs();
   setFile(path, name); markDirty(dirty);
-  setTool('select'); app.view.fitDoc(doc); refreshUi(); redraw();
+  setTool('select'); fitSpace(); refreshUi(); redraw();
 }
 function confirmDiscard() { return !app.file.dirty || confirm(_t('Rysunek ma niezapisane zmiany. Porzucić je?')); }
 function fileNew() { if (!confirmDiscard()) return; loadDoc(newDoc()); api.autosaveClear(autoKey); }
@@ -549,7 +616,7 @@ function applyTheme() {
   const dark = themePref === 'dark' || (themePref === 'auto' && mq.matches);
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue(n).trim();
-  app.view.theme = { bg: v('--paper'), ink: v('--ink'), sel: v('--sel'), snap: v('--snap'), muted: v('--muted2') };
+  app.view.theme = { bg: v('--paper'), desk: v('--soft'), ink: v('--ink'), sel: v('--sel'), snap: v('--snap'), muted: v('--muted2') };
   api.setTheme(dark); redraw();
 }
 function setTheme(p) { themePref = p; try { localStorage.setItem('rysio.theme', p); } catch (e) {} applyTheme(); }
@@ -564,8 +631,6 @@ $('#setBtn').addEventListener('click', e => {
     ...(api.web ? [] : [{ label: _t('Sprawdź aktualizacje'), act: async () => { const s = await api.updateCheck(); showUpdate(s); if (s.state === 'none') toast(_t`Masz najnowszą wersję (${s.current}).`); else if (s.state === 'error') toast(_t`Nie udało się sprawdzić: ${esc(s.error)}`); } }])
   ]);
 });
-$('#pdfBtn').addEventListener('click', () => toast(_t('Eksport PDF powstanie razem z arkuszami (etap 2).')));
-$('#tabAdd').addEventListener('click', () => toast(_t('Arkusze powstaną w etapie 2.')));
 $('#thinBtn').addEventListener('click', () => runAction('thin'));
 $('#undoBtn').addEventListener('click', () => runAction('undo'));
 $('#redoBtn').addEventListener('click', () => runAction('redo'));
@@ -642,6 +707,276 @@ function bindTips(root) {
 }
 bindTips(document.body);
 
+/* ---------- arkusze: zakładki, przełączanie przestrzeni ---------- */
+const viewMemo = {};   // zapamiętany widok każdej przestrzeni
+function fitSpace() {
+  const sh = app.sheet();
+  if (sh) { const [W, H] = sheetSize(sh); app.view.fit([0, 0, W, H], 24); }
+  else app.view.fitDoc(app.doc, app.ents());
+}
+function setSpace(id, force = false) {
+  if (id === app.space && !force) return;
+  viewMemo[app.space] = { cx: app.view.cx, cy: app.view.cy, ppm: app.view.ppm };
+  if (tool.cancel) for (let i = 0; i < 3 && tool.cancel(); i++);
+  app.space = id; app.sel.clear(); app.vpEdit = null; app.snapper.clearRefs();
+  syncSpace();
+  const m = viewMemo[id]; if (m) Object.assign(app.view, m); else fitSpace();
+  app.view.needs = true;
+  if (tool.id === 'viewport' && !id) setTool('select');
+  renderTabs(); refreshUi(); redraw();
+}
+app.setSpace = setSpace;
+function renderTabs() {
+  const box = $('#tabs');
+  box.innerHTML = `<button data-sp="0" class="${app.space ? '' : 'on'}">${_t('Model')}</button>` +
+    app.doc.sheets.map(sh => `<button data-sp="${sh.id}" class="${app.space === sh.id ? 'on' : ''}" translate="no">${esc(sh.name)}</button>`).join('') +
+    `<button class="add" id="tabAdd" data-tip="${_t('Nowy arkusz')}">+</button>`;
+  bindTips(box);
+  toolsEl.querySelector('[data-tool=viewport]')?.toggleAttribute('hidden', !app.space);
+}
+$('#tabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'tabAdd') return addSheet();
+  setSpace(+b.dataset.sp);
+});
+$('#tabs').addEventListener('dblclick', e => { const b = e.target.closest('[data-sp]'); if (b && +b.dataset.sp) openSheetPop(); });
+function addSheet() {
+  const id = app.doc.next, n = app.doc.sheets.length + 1;
+  app.edit(_t('Nowy arkusz'), tx => { tx.setDoc({ sheets: [...app.doc.sheets, newSheet(id, n)], next: id + 1 }); });
+  setSpace(id);
+  toast(_t('Nowy arkusz. Narysuj na nim okno (O), żeby pokazać fragment modelu w skali.'), 4000);
+}
+function patchSheet(patch, label = _t('Arkusz')) {
+  const sh = app.sheet(); if (!sh) return;
+  app.edit(label, tx => tx.setDoc({ sheets: app.doc.sheets.map(x => x.id === sh.id ? { ...x, ...patch, title: { ...x.title, ...(patch.title || {}) } } : x) }));
+}
+
+/* ---------- okienka arkusza: format i tabelka ---------- */
+const fld = (id, v, ph = '') => `<input class="fld grow" data-f="${id}" value="${esc(v || '')}" placeholder="${esc(ph)}" spellcheck="false">`;
+function openSheetPop() {
+  const sh = app.sheet(); if (!sh) return;
+  closePops();
+  const pop = $('#sheetPop');
+  pop.innerHTML = `<div class="row"><span class="ttl grow">${_t('Arkusz')}</span></div>
+    <div class="row"><span class="lbl w72">${_t('Format')}</span><div class="seg stretch grow">${Object.keys(PAPER).reverse().map(k => `<button data-size="${k}" class="${sh.size === k ? 'on' : ''}">${k}</button>`).join('')}</div></div>
+    <div class="row"><span class="lbl w72">${_t('Układ')}</span><div class="seg stretch grow"><button data-land="1" class="${sh.land ? 'on' : ''}">${_t('Poziomo')}</button><button data-land="0" class="${sh.land ? '' : 'on'}">${_t('Pionowo')}</button></div></div>
+    <div class="row"><span class="lbl w72">${_t('Ramka')}</span><span class="grow">${_t('z tabelką rysunkową')}</span><button class="tgl${sh.frame ? ' on' : ''}" data-frame role="switch" aria-checked="${sh.frame}" aria-label="${_t('Ramka z tabelką')}"></button></div>
+    <div class="row"><span class="lbl w72">${_t('Nazwa')}</span>${fld('name', sh.name)}</div>
+    <div class="hr"></div>
+    <div class="row"><p class="note grow">${_t('Ramka ma margines 20 mm z lewej do wpięcia i 10 mm z pozostałych stron.')}</p></div>
+    <div class="row"><span class="grow"></span><button class="tbs" data-delsheet>${_t('Usuń arkusz')}</button></div>`;
+  placePopUp(pop, $('#fmtChip'));
+}
+$('#sheetPop').addEventListener('click', e => {
+  e.stopPropagation();
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.size) patchSheet({ size: b.dataset.size }, _t('Format arkusza'));
+  else if (b.dataset.land) patchSheet({ land: b.dataset.land === '1' }, _t('Układ arkusza'));
+  else if (b.hasAttribute('data-frame')) patchSheet({ frame: !app.sheet().frame }, _t('Ramka'));
+  else if (b.hasAttribute('data-delsheet')) {
+    const sh = app.sheet();
+    if (!confirm(_t`Usunąć arkusz „${sh.name}” razem z jego oknami i opisami? Można to cofnąć.`)) return;
+    const ids = app.doc.ents.filter(x => x.sp === sh.id).map(x => x.id);
+    app.edit(_t('Usuń arkusz'), tx => { ids.forEach(i => tx.del(i)); tx.setDoc({ sheets: app.doc.sheets.filter(x => x.id !== sh.id) }); });
+    closePops(); setSpace(0); return;
+  }
+  openSheetPop();
+});
+function openTitlePop() {
+  const sh = app.sheet(); if (!sh) return;
+  closePops();
+  const p = app.doc.project, t = sh.title;
+  $('#titlePop').innerHTML = `<div class="row"><span class="ttl grow">${_t('Tabelka rysunkowa')}</span></div>
+    <div class="lbl" style="padding:2px 4px 0">${_t('Wspólne dla wszystkich arkuszy')}</div>
+    <div class="row"><span class="lbl w72">${_t('Projekt')}</span>${fld('p.projekt', p.projekt)}</div>
+    <div class="row"><span class="lbl w72">${_t('Projektant')}</span>${fld('p.projektant', p.projektant, _t('imię i nazwisko'))}</div>
+    <div class="row"><span class="lbl w72">${_t('Data')}</span>${fld('p.data', p.data, new Date().toLocaleDateString('pl-PL'))}</div>
+    <div class="hr"></div>
+    <div class="lbl" style="padding:0 4px">${_t('Tylko ten arkusz')}</div>
+    <div class="row"><span class="lbl w72">${_t('Rysunek')}</span>${fld('t.rysunek', t.rysunek, sh.name)}</div>
+    <div class="row"><span class="lbl w72">${_t('Nr')}</span>${fld('t.nr', t.nr, 'A-01')}</div>
+    <div class="row"><span class="lbl w72">${_t('Skala')}</span><span class="grow">${titleScales(app.doc, sh) || '—'}</span><span class="lbl">${_t('z okien')}</span></div>`;
+  placePopUp($('#titlePop'), $('#titleChip'));
+}
+// pola okienek zapisują się po zatwierdzeniu (Enter albo wyjście z pola)
+for (const id of ['#sheetPop', '#titlePop']) {
+  $(id).addEventListener('keydown', e => { if (e.target.dataset.f) { e.stopPropagation(); if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') closePops(); } });
+  $(id).addEventListener('change', e => {
+    const f = e.target.dataset.f; if (!f) return;
+    const v = e.target.value.trim();
+    if (f === 'name') { if (v) patchSheet({ name: v }, _t('Nazwa arkusza')); }
+    else if (f.startsWith('p.')) app.edit(_t('Tabelka'), tx => tx.setDoc({ project: { ...app.doc.project, [f.slice(2)]: v } }));
+    else if (f.startsWith('t.')) patchSheet({ title: { [f.slice(2)]: v } }, _t('Tabelka'));
+  });
+}
+$('#fmtChip').addEventListener('click', e => { e.stopPropagation(); if (!$('#sheetPop').hidden) return closePops(); openSheetPop(); });
+$('#titleChip').addEventListener('click', e => { e.stopPropagation(); if (!$('#titlePop').hidden) return closePops(); openTitlePop(); });
+function placePopUp(pop, anchor) {
+  pop.hidden = false;
+  const r = anchor.getBoundingClientRect();
+  pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + 'px';
+  pop.style.top = Math.max(8, r.top - pop.offsetHeight - 8) + 'px';
+  anchor.classList.add('open');
+}
+
+/* ---------- pasek okna na arkuszu: skala, warstwy, blokada ---------- */
+function selectedVp() {
+  if (!app.space || app.sel.size !== 1) return null;
+  const e = app.doc.ents.find(x => app.sel.has(x.id)); return e && e.t === 'vp' ? e : null;
+}
+function showVpBar() {
+  let el = $('#vpBar');
+  const vp = app.vpEdit ? app.doc.ents.find(x => x.id === app.vpEdit) : selectedVp();
+  if (!vp) { el?.remove(); return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'vpBar'; el.className = 'toolbar'; view.append(el);
+    el.addEventListener('pointerdown', e => e.stopPropagation());
+    el.addEventListener('click', onVpBar);
+  }
+  const shown = app.doc.layers.filter(L => !vp.hidden.includes(L.id)).length;
+  const html = app.vpEdit
+    ? `<span class="t">${_t('Widok w oknie')}</span><span class="lbl">${_t('przeciągnij, żeby przesunąć model; Esc kończy')}</span><button class="tbs" data-vp="done">${_t('Gotowe')}</button>`
+    : `<span class="t">${_t('Okno')}</span>
+      <button class="tbs" data-vp="scale">${_t('Skala')} 1:${String(+vp.scale.toFixed(3)).replace('.', ',')} ${chev}</button>
+      <button class="tbs" data-vp="layers">${_t`Warstwy ${shown} z ${app.doc.layers.length}`} ${chev}</button>
+      <button class="tbs" data-vp="lock">${ic(vp.locked ? 'lock' : 'unlock', 14)} ${vp.locked ? _t('Widok zablokowany') : _t('Zablokuj widok')}</button>
+      <button class="tbs" data-vp="edit">${_t('Przesuń widok')}</button>`;
+  if (el._html !== html) { el.innerHTML = html; el._html = html; }
+  const b = vpBox(vp), a = app.view.toScreen([b[0], b[3]]);
+  el.style.left = Math.max(8, Math.min(a[0], view.clientWidth - el.offsetWidth - 8)) + 'px';
+  el.style.top = Math.max(8, a[1] - 48) + 'px';
+}
+function onVpBar(e) {
+  e.stopPropagation();
+  const b = e.target.closest('[data-vp]'); if (!b) return;
+  const vp = app.vpEdit ? app.doc.ents.find(x => x.id === app.vpEdit) : selectedVp(); if (!vp) return;
+  const act = b.dataset.vp;
+  if (act === 'done') { app.vpEdit = null; refreshUi(); redraw(); return; }
+  if (act === 'edit') { if (vp.locked) return toast(_t('Widok w tym oknie jest zablokowany.')); app.vpEdit = vp.id; app.sel.clear(); refreshUi(); redraw(); return; }
+  if (act === 'lock') { app.edit(vp.locked ? _t('Odblokuj widok') : _t('Zablokuj widok'), tx => tx.set(vp.id, { locked: !vp.locked })); return; }
+  if (act === 'scale') {
+    showMenu(b, [{ lbl: _t('Skala okna') }, ...SCALES.map(k => ({ label: '1:' + k, on: vp.scale === k, act: () => setVpScale(vp, k) })),
+      'sep', { html: `<input class="fld grow" id="vpScaleOwn" placeholder="${_t('własna, np. 1:25')}" spellcheck="false">`, bind: d => { const i = d.querySelector('input'); i.addEventListener('keydown', ev => { ev.stopPropagation(); if (ev.key === 'Enter') { const m = /^\s*(?:1\s*:\s*)?(\d+(?:[.,]\d+)?)\s*$/.exec(i.value); if (m && +m[1].replace(',', '.') > 0) { closePops(); setVpScale(vp, +m[1].replace(',', '.')); } else toast(_t('Wpisz skalę jak 1:25.')); } if (ev.key === 'Escape') closePops(); }); } }]);
+    return;
+  }
+  if (act === 'layers') {
+    showMenu(b, [{ lbl: _t('Warstwy w tym oknie') }, ...app.doc.layers.map(L => ({
+      label: `<i class="sw" style="display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:8px;background:${L.color === '#1a1a19' ? 'var(--ink)' : L.color}"></i>${esc(L.name)}${L.visible ? '' : ` <span class="lbl">(${_t('ukryta w rysunku')})</span>`}`,
+      on: !vp.hidden.includes(L.id), act: () => app.edit(_t('Warstwy okna'), tx => tx.set(vp.id, { hidden: vp.hidden.includes(L.id) ? vp.hidden.filter(i => i !== L.id) : [...vp.hidden, L.id] }))
+    }))]);
+  }
+}
+function setVpScale(vp, k) { app.lastVpScale = k; app.edit(_t('Skala okna'), tx => tx.set(vp.id, { scale: k })); }
+
+/* ---------- tekst: pisanie wprost na rysunku ---------- */
+let textEd = null;   // { el, ent (poprawiany) albo null, p }
+app.editText = (ent, p) => {
+  finishText();
+  const h = ent ? ent.h : app.textH, align = ent ? ent.align || 'l' : app.textAlign, at = ent ? ent.p : p;
+  if (ent) { app.textH = ent.h; app.textAlign = align; }
+  const el = document.createElement('textarea'); el.className = 'textEd' + (app.space ? ' onPaper' : ''); el.spellcheck = false; el.value = ent ? ent.s : '';
+  view.append(el);
+  textEd = { el, ent, p: [...at] };
+  placeTextEd();
+  el.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finishText(); }
+    if (e.key === 'Escape') { e.preventDefault(); finishText(true); }
+  });
+  el.addEventListener('input', placeTextEd);
+  el.addEventListener('blur', () => setTimeout(() => { if (textEd && textEd.el === el && document.activeElement !== el && !document.activeElement?.closest('#textBar')) finishText(); }, 0));
+  setTimeout(() => { el.focus(); el.select(); }, 0);
+  if (ent) app.hideEnt = ent.id;
+  showTextBar(); redraw();
+};
+function placeTextEd() {
+  if (!textEd) return;
+  const k = app.spaceScale() / 1000, px = app.textH * k * app.view.ppm / 0.72, s = app.view.toScreen(textEd.p), el = textEd.el;
+  el.style.fontSize = Math.max(9, px) + 'px'; el.style.lineHeight = (1.4 * 0.72) + '';
+  el.style.textAlign = { l: 'left', c: 'center', r: 'right' }[app.textAlign];
+  el.style.height = 'auto'; el.style.width = 'auto';
+  el.rows = Math.max(1, el.value.split('\n').length);
+  const w = Math.max(60, Math.max(...el.value.split('\n').map(l => l.length), 4) * Math.max(9, px) * 0.6 + 16);
+  el.style.width = w + 'px';
+  const left = s[0] - (app.textAlign === 'c' ? w / 2 : app.textAlign === 'r' ? w : 0) - 4;
+  el.style.left = left + 'px'; el.style.top = (s[1] - Math.max(9, px) * 0.95) + 'px';
+}
+function finishText(cancel = false) {
+  if (!textEd) return;
+  const { el, ent, p } = textEd, v = el.value.replace(/\s+$/, '');
+  textEd = null; el.remove(); app.hideEnt = null;
+  if (!cancel) {
+    if (ent && !v) app.edit(_t('Usuń tekst'), tx => tx.del(ent.id));
+    else if (ent) app.edit(_t('Tekst'), tx => tx.set(ent.id, { s: v, h: app.textH, align: app.textAlign }));
+    else if (v) app.edit(_t('Tekst'), tx => tx.add({ t: 'text', p, s: v, h: app.textH, align: app.textAlign }));
+  }
+  showTextBar(); refreshUi(); redraw();
+}
+function showTextBar() {
+  let el = $('#textBar');
+  if (tool.id !== 'text' && !textEd) { el?.remove(); return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'textBar'; el.className = 'toolbar'; view.append(el);
+    el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });
+    el.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.h) app.textH = +b.dataset.h; if (b.dataset.al) app.textAlign = b.dataset.al;
+      showTextBar(); placeTextEd(); textEd?.el.focus();
+    });
+  }
+  el.innerHTML = `<span class="t">${_t('Tekst')}</span><span class="lbl">${_t('Wysokość')}</span>
+    <div class="seg">${[1.8, 2.5, 3.5, 5, 7].map(h => `<button data-h="${h}" class="${app.textH === h ? 'on' : ''}">${String(h).replace('.', ',')}</button>`).join('')}</div><span class="lbl">${_t('mm na wydruku')}</span>
+    <div class="seg">${[['l', _t('Do lewej')], ['c', _t('Do środka')], ['r', _t('Do prawej')]].map(([a, n]) => `<button data-al="${a}" class="${app.textAlign === a ? 'on' : ''}" aria-label="${n}">${ic('align' + a.toUpperCase(), 14)}</button>`).join('')}</div>`;
+}
+
+/* ---------- eksport: PDF w skali i PNG ---------- */
+let exp = { kind: 'pdf', all: false, mono: true };
+function openExport() {
+  closePops();
+  if (!app.doc.sheets.length) return toast(_t('Najpierw dodaj arkusz (+ na dole) — PDF powstaje z arkuszy.'), 4000);
+  const pop = $('#exportPop'), cur = app.sheet(), all = exp.kind === 'pdf' && (exp.all || !cur), pngSheet = cur || app.doc.sheets[0];
+  pop.innerHTML = `<div class="row"><span class="ttl grow">${_t('Eksport')}</span></div>
+    <div class="seg stretch"><button data-k="pdf" class="${exp.kind === 'pdf' ? 'on' : ''}">${_t('PDF wektorowy')}</button><button data-k="png" class="${exp.kind === 'png' ? 'on' : ''}">PNG</button></div>
+    <div class="row"><span class="lbl w72">${_t('Arkusze')}</span><div class="seg stretch grow"><button data-all="0" class="${all ? '' : 'on'}" ${cur ? '' : 'disabled'}>${_t('Ten')}</button><button data-all="1" class="${all ? 'on' : ''}" ${exp.kind === 'png' ? 'disabled' : ''}>${_t`Wszystkie (${app.doc.sheets.length})`}</button></div></div>
+    <div class="row"><span class="lbl w72">${_t('Kolory')}</span><div class="seg stretch grow"><button data-mono="0" class="${exp.mono ? '' : 'on'}">${_t('Warstw')}</button><button data-mono="1" class="${exp.mono ? 'on' : ''}">${_t('Czarno-białe')}</button></div></div>
+    <div class="hr"></div><p class="note">${exp.kind === 'pdf' ? _t('Kreski w milimetrach jak w pasku kreski, okna w swoich skalach. Wszystkie arkusze trafiają do jednego pliku, każdy na osobnej stronie.') : _t`Obraz arkusza „${esc(pngSheet.name)}” w 200 dpi.`}</p>
+    <div class="row" style="justify-content:flex-end"><button class="primary" id="expGo">${exp.kind === 'pdf' ? _t('Zapisz PDF…') : _t('Zapisz PNG…')}</button></div>`;
+  pop.hidden = false;
+  const r = $('#pdfBtn').getBoundingClientRect();
+  pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 8)) + 'px'; pop.style.top = (r.bottom + 6) + 'px';
+}
+$('#exportPop').addEventListener('click', async e => {
+  e.stopPropagation();
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.k) exp.kind = b.dataset.k; else if (b.dataset.all) exp.all = b.dataset.all === '1'; else if (b.dataset.mono) exp.mono = b.dataset.mono === '1';
+  else if (b.id === 'expGo') { closePops(); return runExport(); }
+  openExport();
+});
+async function runExport() {
+  const sheets = exp.kind === 'pdf' && (exp.all || !app.sheet()) ? app.doc.sheets : [app.sheet() || app.doc.sheets[0]];
+  const name = app.file.name + (sheets.length === 1 ? ' — ' + sheets[0].name : '');
+  try {
+    if (exp.kind === 'pdf') {
+      const bytes = makePdf(app.doc, sheets, { mono: exp.mono, fmtModel: app.fmtModel, fmtSheet: app.fmtSheet });
+      const r = await api.saveBinary(bytes, name, 'pdf'); if (r) toast(_t('Zapisano PDF'), 1500);
+    } else {
+      const blob = await sheetPng(sheets[0], 200, exp.mono);
+      const r = await api.saveBinary(new Uint8Array(await blob.arrayBuffer()), name, 'png'); if (r) toast(_t('Zapisano PNG'), 1500);
+    }
+  } catch (err) { toast(_t`Nie udało się zapisać: ${esc(err.message)}`, 5000); }
+  finally { syncSpace(); }
+}
+// arkusz jako obraz: te same polecenia rysowania co ekran i PDF
+function sheetPng(sh, dpi, mono) {
+  const [W, H] = sheetSize(sh), ppm = dpi / 0.0254, cw = Math.round(W * ppm), ch = Math.round(H * ppm);
+  const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+  const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cw, ch);
+  const v = { ppm, toScreen: p => [p[0] * ppm, (H - p[1]) * ppm] };
+  drawSheet(new CanvasPen(c, v), app.doc, sh, { exact: true, mono, ink: '#1a1a19', muted: '#8f8e89', fmtModel: app.fmtModel, fmtSheet: app.fmtSheet });
+  return new Promise(res => cv.toBlob(res, 'image/png'));
+}
+$('#pdfBtn').addEventListener('click', e => { e.stopPropagation(); if (!$('#exportPop').hidden) return closePops(); openExport(); });
+
 /* ---------- komunikat ---------- */
 let toastTimer = null;
 function toast(msg, ms = 2600, action = null) {
@@ -652,8 +987,9 @@ function toast(msg, ms = 2600, action = null) {
 app.toast = toast;
 
 /* ---------- start ---------- */
-installTestApi(app, { loadDoc, frame: () => frame(), getSnap: () => snapRes, getTool: () => tool, updateCursor, setTyping: v => { typing = v; refreshUi(); }, submitTyping });
+installTestApi(app, { loadDoc, setSpace, frame: () => frame(), getSnap: () => snapRes, getTool: () => tool, updateCursor, setTyping: v => { typing = v; refreshUi(); }, submitTyping });
 setFile(null, null);
+syncSpace(); renderTabs();
 setTool('select');
 refreshUi();
 app.view.fit(null);

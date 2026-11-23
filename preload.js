@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('api', {
   openFile: p => ipcRenderer.invoke('file-open', p || null),
   saveFile: (p, text, suggested) => ipcRenderer.invoke('file-save', p || null, text, suggested),
   recentList: () => ipcRenderer.invoke('recent-list'),
+  saveBinary: (data, suggested, ext) => ipcRenderer.invoke('binary-save', data, suggested, ext),
   autosave: (key, rec) => ipcRenderer.invoke('autosave', key, rec),
   autosaveClear: key => ipcRenderer.invoke('autosave-clear', key),
   autosaveRead: key => ipcRenderer.invoke('autosave-read', key),

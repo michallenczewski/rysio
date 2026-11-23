@@ -40,10 +40,13 @@ export function installTestApi(app, h) {
     // wpisanie wymiaru z klawiatury i Enter
     type(s) { for (const ch of String(s)) key(ch); key('Enter'); h.frame(); return api.state(); },
     run(id) { app.run(id); h.frame(); return api.state(); },
+    // przestrzeń: 0 — model, numer — arkusz; addSheet() dodaje arkusz i na niego przechodzi
+    space(id) { h.setSpace(id); h.frame(); return app.space; },
+    addSheet() { app.run('newSheet'); h.frame(); return app.space; },
     // stan: narzędzie, przyciąganie, podpowiedź, pole wymiaru
     state() {
       const sn = h.getSnap();
-      return { tool: h.getTool().id, ents: app.doc.ents.length, sel: app.sel.size, snap: sn ? { kind: sn.kind, label: sn.label, p: sn.p.map(v => +v.toFixed(6)), guides: sn.guides.map(g => g.kind) } : null,
+      return { tool: h.getTool().id, space: app.space, ents: app.doc.ents.length, sel: app.sel.size, snap: sn ? { kind: sn.kind, label: sn.label, p: sn.p.map(v => +v.toFixed(6)), guides: sn.guides.map(g => g.kind) } : null,
         hint: document.querySelector('#hint').textContent, vcb: document.querySelector('#vcb').textContent, undo: app.hist.undoStack.length, errors: errors.length };
     },
     stats() { return { ents: app.doc.ents.length, layers: app.doc.layers.length, undo: app.hist.undoStack.length, scale: app.doc.scale, units: app.doc.units, ppm: +app.view.ppm.toFixed(3), errors: errors.length }; },

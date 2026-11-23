@@ -5,7 +5,7 @@
 //             hint() podpowiedź · down/move/up(p, e) · typed(tekst) → true, gdy zrozumiało · enter() / cancel() → true, gdy coś zrobiło
 //             preview() elementy podglądu · path / box — ślad pędzla i gumki, ramka zaznaczania
 import { _t } from './i18n.js';
-import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, lengthOf } from './geom.js';
+import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, lengthOf, dimGeom } from './geom.js';
 import { parseLength, parseLengths, fmtLength, fmtNum } from './units.js';
 import { isLive } from './model.js';
 
@@ -29,7 +29,7 @@ export function makeTools(app) {
         const a = this.box.a, b = this.box.b, r = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
         const test = b[0] < a[0] ? touchesRect : insideRect;
         if (!this._shift) app.sel.clear();
-        for (const e of app.doc.ents) if (isLive(app.doc, e) && test(e, r)) app.sel.add(e.id);
+        for (const e of app.ents()) if (isLive(app.doc, e) && test(e, r)) app.sel.add(e.id);
       } else {
         const e = app.pick(p);
         if (!this._shift) app.sel.clear();
@@ -50,7 +50,7 @@ export function makeTools(app) {
     move(p) {
       if (!this.path) return;
       const last = this.path[this.path.length - 1]; this.path.push(p);
-      for (const e of app.doc.ents) if (!this.marked.has(e.id) && isLive(app.doc, e) && crossesSeg(e, last, p)) this.marked.add(e.id);
+      for (const e of app.ents()) if (!this.marked.has(e.id) && isLive(app.doc, e) && crossesSeg(e, last, p)) this.marked.add(e.id);
     },
     up() {
       const ids = [...this.marked]; this.path = null; this.marked = new Set();
@@ -77,7 +77,7 @@ export function makeTools(app) {
     move(p) {
       if (!this.path) return;
       const last = this.path[this.path.length - 1]; this.path.push(p);
-      for (const e of app.doc.ents) if (!this.done.has(e.id) && isLive(app.doc, e) && crossesSeg(e, last, p)) this.done.add(e.id);
+      for (const e of app.ents()) if (!this.done.has(e.id) && isLive(app.doc, e) && crossesSeg(e, last, p)) this.done.add(e.id);
     },
     up() {
       const ids = [...this.done]; this.path = null; this.done = new Set();
@@ -249,7 +249,7 @@ export function makeTools(app) {
     },
     apply(d, copy) {
       if (V.len(d) < 1e-12) return;
-      const ents = app.doc.ents.filter(e => app.sel.has(e.id) && isLive(app.doc, e));
+      const ents = app.ents().filter(e => app.sel.has(e.id) && isLive(app.doc, e));
       if (copy) {
         const made = app.edit(_t('Kopiuj'), tx => ents.map(e => { const n = { ...e, ...moved(e, d) }; delete n.id; return tx.add(n); }));
         this.count++;
@@ -265,7 +265,7 @@ export function makeTools(app) {
       if (!this.from || !this.cur) return [];
       const d = V.sub(this.cur, this.from);
       return [{ t: 'line', a: this.from, b: this.cur, w: 0.13, lt: 'dash', layer: app.doc.cur.layer, _ghost: true },
-        ...app.doc.ents.filter(e => app.sel.has(e.id)).slice(0, 2000).map(e => ({ ...e, ...moved(e, d), _ghost: true }))];
+        ...app.ents().filter(e => app.sel.has(e.id)).slice(0, 2000).map(e => ({ ...e, ...moved(e, d), _ghost: true }))];
     },
     enter() { if (this.from) { this.from = null; return true; } return false; },
     undoInTool() { return this.cancel(); },
@@ -273,6 +273,78 @@ export function makeTools(app) {
   });
   T.move = mover('move', false);
   T.copy = mover('copy', true);
+
+  /* ---------- tekst (Y): klik i pisanie wprost na rysunku ---------- */
+  T.text = {
+    id: 'text', draw: true,
+    base: () => null, label: () => null, reading: () => null,
+    hint() { return _t`<b>Tekst:</b> kliknij miejsce i pisz. Enter kończy, ${app.shiftName} + Enter — nowy wiersz. Wysokość jest w milimetrach wydruku.`; },
+    down(p) { const hit = app.pick(p); if (hit && hit.t === 'text') app.editText(hit); else app.editText(null, p); },
+    move() {}, typed: () => false, preview: () => [], enter: () => false, cancel: () => false
+  };
+
+  /* ---------- wymiar (U): dwa punkty i miejsce linii, potem łańcuch ---------- */
+  // kierunek: 'auto' wybiera poziomo / pionowo po położeniu kursora; Tab przełącza auto → poziomo → pionowo → równolegle
+  T.dim = {
+    id: 'dim', draw: true, a: null, b: null, chain: null, cur: null, mode: 'auto',
+    base() { return this.chain ? this.chain.b : this.b || this.a; },
+    label: () => null, reading() { const e = this.previewDim(); return e ? fmtLength(dimGeom(e).value) : null; },
+    hint() {
+      const m = { auto: _t('sam'), h: _t('poziomo'), v: _t('pionowo'), a: _t('równolegle') }[this.mode];
+      if (this.chain) return _t`<b>Wymiar:</b> kliknij kolejny punkt — łańcuch ciągnie się dalej. Esc kończy. Kierunek: ${m} (Tab).`;
+      if (this.b) return _t`<b>Wymiar:</b> kliknij miejsce linii wymiarowej. Kierunek: ${m} (Tab).`;
+      return this.a ? _t('<b>Wymiar:</b> kliknij drugi punkt.') : _t('<b>Wymiar:</b> kliknij pierwszy punkt.');
+    },
+    dirFor(a, b, o) {
+      if (this.mode !== 'auto') return this.mode;
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
+      const outY = o[1] > y1 || o[1] < y0, outX = o[0] > x1 || o[0] < x0;
+      if (outY && !outX) return 'h'; if (outX && !outY) return 'v';
+      return Math.abs(o[1] - my) >= Math.abs(o[0] - mx) ? 'h' : 'v';
+    },
+    toggle() { const o = ['auto', 'h', 'v', 'a']; this.mode = o[(o.indexOf(this.mode) + 1) % 4]; },
+    previewDim() {
+      if (!this.cur) return null;
+      if (this.chain) return { t: 'dim', a: this.chain.b, b: this.cur, o: this.chain.o, dir: this.chain.dir };
+      if (this.b) return { t: 'dim', a: this.a, b: this.b, o: this.cur, dir: this.dirFor(this.a, this.b, this.cur) };
+      return null;
+    },
+    down(p) {
+      if (this.chain) { if (V.dist(p, this.chain.b) < 1e-9) return; const e = { t: 'dim', a: this.chain.b, b: [...p], o: this.chain.o, dir: this.chain.dir }; app.edit(_t('Wymiar'), tx => tx.add(e)); this.chain = { ...this.chain, b: [...p] }; return; }
+      if (!this.a) { this.a = [...p]; return; }
+      if (!this.b) { if (V.dist(p, this.a) < 1e-9) return; this.b = [...p]; return; }
+      const e = { t: 'dim', a: this.a, b: this.b, o: [...p], dir: this.dirFor(this.a, this.b, p) };
+      app.edit(_t('Wymiar'), tx => tx.add(e));
+      this.chain = { b: this.b, o: e.o, dir: e.dir }; this.a = this.b = null;
+    },
+    move(p) { this.cur = p; },
+    typed: () => false,
+    preview() { const e = this.previewDim(); if (e) return [{ ...e, ...app.newStroke() }]; return this.a && this.cur ? [{ t: 'line', a: this.a, b: this.cur, ...app.newStroke(), _ghost: true }] : []; },
+    enter() { if (this.chain || this.a) { this.chain = null; this.a = this.b = null; return true; } return false; },
+    cancel() { return this.enter(); },
+    undoInTool() { if (this.b && !this.chain) { this.b = null; return true; } if (this.a && !this.chain) { this.a = null; return true; } this.chain = null; return false; }
+  };
+
+  /* ---------- okno na arkuszu (O): dwa narożniki ---------- */
+  T.viewport = {
+    id: 'viewport', draw: true, a: null, cur: null,
+    base() { return this.a; }, label: () => null, reading: () => null,
+    hint() { if (!app.space) return _t('<b>Okno:</b> działa na arkuszu — wybierz zakładkę arkusza na dole.'); return this.a ? _t('<b>Okno:</b> kliknij drugi narożnik okna.') : _t('<b>Okno:</b> kliknij pierwszy narożnik okna na arkuszu.'); },
+    down(p) {
+      if (!app.space) return;
+      if (!this.a) { this.a = [...p]; return; }
+      const a = this.a; this.a = null;
+      if (Math.abs(p[0] - a[0]) < 0.005 || Math.abs(p[1] - a[1]) < 0.005) return;   // okno mniejsze niż 5 mm — pomyłka
+      const scale = app.lastVpScale || app.doc.scale, c = app.modelCenter();
+      const e = app.edit(_t('Okno'), tx => tx.add({ t: 'vp', a, b: [...p], scale, c, hidden: [] }));
+      app.sel.clear(); app.sel.add(e.id); app.selectionChanged();
+    },
+    move(p) { this.cur = p; },
+    typed: () => false,
+    preview() { return this.a && this.cur ? [{ t: 'pline', pts: [this.a, [this.cur[0], this.a[1]], this.cur, [this.a[0], this.cur[1]]], closed: true, layer: app.doc.cur.layer, w: 0.18, lt: 'dash' }] : []; },
+    enter: () => false,
+    cancel() { if (this.a) { this.a = null; return true; } return false; }
+  };
 
   return T;
 }
