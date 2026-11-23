@@ -1,0 +1,10 @@
+Zaczynamy nowy program: lekki CAD 2D, czwarty w rodzinie obok Modo, Gapy i Blatu.
+
+Przeczytaj OPIS.md (co budujemy), CLAUDE.md (zasady) i ARCHITEKTURA.md (szablon do wypełnienia), a potem zajrzyj do repozytorium michallenczewski/modo — stamtąd bierzemy wygląd, sposób organizacji projektu i gotowe części (czytnik DXF i DWG, jednostki, skróty, aktualizacje, budowanie instalatorów).
+
+Zrób po kolei, zatrzymując się po każdym punkcie na moją odpowiedź:
+1. Zaproponuj kilka nazw programu.
+2. Pokaż makietę wyglądu: okno modelu i okno arkusza. Bez kodu programu.
+3. Po mojej akceptacji wypełnij ARCHITEKTURA.md, załóż repozytorium na GitHubie (prywatne czy publiczne — zapytaj), załóż skrypty sprawdzianów i wersję przeglądarkową, i zbuduj etap 1 z OPIS.md.
+
+Jeśli coś w OPIS.md wydaje Ci się sprzeczne albo zbyt duże na pierwszą wersję, powiedz to przed rozpoczęciem.

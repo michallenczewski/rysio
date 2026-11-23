@@ -1,0 +1,215 @@
+// Sprawdziany rysowania: geometria, przyciąganie, kierunki, cofanie i skala — na samym modelu, bez okna programu.
+//
+//   node scripts/sprawdziany.mjs            — wszystkie przypadki, kod wyjścia 1 przy błędzie
+//   node scripts/sprawdziany.mjs łuk        — tylko przypadki, których nazwa zawiera „łuk”
+//   node scripts/sprawdziany.mjs -v         — także szczegóły udanych przypadków
+//
+// Jeden przypadek = krótki scenariusz i dokładny oczekiwany wynik (liczby, współrzędne). Zasady: .claude/skills/sprawdziany-rysowania.
+// Bez Node: ELECTRON_RUN_AS_NODE=1 <Electron> scripts/sprawdziany.mjs (Electron z node_modules działa jak Node).
+
+globalThis.localStorage ??= { getItem: () => null, setItem: () => {} };
+const R = new URL('../renderer/', import.meta.url).href;
+const G = await import(R + 'geom.js');
+const M = await import(R + 'model.js');
+const { Snapper } = await import(R + 'snap.js');
+const D = await import(R + 'draw.js');
+const U = await import(R + 'units.js');
+const { V } = G;
+
+const P = [];
+const przypadek = (nazwa, opis, fn) => P.push({ nazwa, opis, fn });
+const pt = (p, d = 6) => p ? `(${p.map(v => +v.toFixed(d)).join('; ')})` : 'brak';
+const near = (got, want, tol = 1e-6) => {
+  if (typeof want === 'number') return typeof got === 'number' && Math.abs(got - want) <= tol;
+  if (Array.isArray(want) && want.length && want.every(v => typeof v === 'number')) return Array.isArray(got) && got.length === want.length && got.every((v, i) => Math.abs(v - want[i]) <= tol);
+  return JSON.stringify(got) === JSON.stringify(want);
+};
+const sortPts = a => [...a].sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+const L = (a, b) => ({ t: 'line', a, b });
+
+/* ---------- geometria ---------- */
+przypadek('przecięcie dwóch linii', 'krzyż: (0,0)–(2,0) i (1,−1)–(1,1)', () => {
+  const x = G.intersect(L([0, 0], [2, 0]), L([1, -1], [1, 1]));
+  return { 'liczba punktów': [x.length, 1], 'punkt': [x[0], [1, 0]] };
+});
+przypadek('przecięcie: linie równoległe', 'dwie poziome linie nie mają punktu wspólnego', () => ({ 'liczba punktów': [G.intersect(L([0, 0], [2, 0]), L([0, 1], [2, 1])).length, 0] }));
+przypadek('przecięcie: linie stykające się końcami', 'L-ka: wspólny narożnik liczy się jako przecięcie', () => {
+  const x = G.intersect(L([0, 0], [2, 0]), L([2, 0], [2, 2]));
+  return { 'liczba punktów': [x.length, 1], 'punkt': [x[0], [2, 0]] };
+});
+przypadek('przecięcie: linie nie sięgają się', 'odcinki leżą na przecinających się prostych, ale same się nie stykają', () => ({ 'liczba punktów': [G.intersect(L([0, 0], [1, 0]), L([2, -1], [2, 1])).length, 0] }));
+przypadek('przecięcie linii z okręgiem', 'linia przez środek okręgu r = 1 daje dwa punkty', () => {
+  const x = sortPts(G.intersect(L([-2, 0], [2, 0]), { t: 'circle', c: [0, 0], r: 1 }));
+  return { 'liczba punktów': [x.length, 2], 'lewy': [x[0], [-1, 0]], 'prawy': [x[1], [1, 0]] };
+});
+przypadek('przecięcie linii z łukiem — poza łukiem', 'górny półłuk i linia pod środkiem: brak przecięcia', () => ({ 'liczba punktów': [G.intersect(L([-2, -0.5], [2, -0.5]), { t: 'arc', c: [0, 0], r: 1, a0: 0, a1: Math.PI }).length, 0] }));
+przypadek('przecięcie dwóch okręgów', 'okręgi r = 1 o środkach (0,0) i (1,0)', () => {
+  const x = sortPts(G.intersect({ t: 'circle', c: [0, 0], r: 1 }, { t: 'circle', c: [1, 0], r: 1 }));
+  const h = Math.sqrt(3) / 2;
+  return { 'liczba punktów': [x.length, 2], 'dolny': [x[0], [0.5, -h]], 'górny': [x[1], [0.5, h]] };
+});
+przypadek('łuk przez trzy punkty', '(1,0) → (0,1) → (−1,0): górny półokrąg', () => {
+  const a = G.arc3([1, 0], [0, 1], [-1, 0]);
+  return { 'środek': [a.c, [0, 0]], 'promień': [a.r, 1], 'rozpiętość (°)': [G.sweep(a.a0, a.a1) * 180 / Math.PI, 180], 'środek łuku': [G.arcMid(a), [0, 1]] };
+});
+przypadek('łuk przez trzy punkty — w drugą stronę', '(−1,0) → (0,−1) → (1,0): dolny półokrąg', () => {
+  const a = G.arc3([-1, 0], [0, -1], [1, 0]);
+  return { 'środek łuku': [G.arcMid(a), [0, -1]], 'rozpiętość (°)': [G.sweep(a.a0, a.a1) * 180 / Math.PI, 180] };
+});
+przypadek('łuk przez trzy punkty na prostej', 'trzy punkty w linii nie tworzą łuku', () => ({ 'łuk': [G.arc3([0, 0], [1, 0], [2, 0]), null] }));
+przypadek('łuk ze środka', 'środek (0,0), początek (2,0), koniec w kierunku (0,5): ćwiartka r = 2', () => {
+  const a = G.arcCSE([0, 0], [2, 0], [0, 5]);
+  return { 'promień': [a.r, 2], 'koniec': [G.arcEnd(a), [0, 2]], 'rozpiętość (°)': [G.sweep(a.a0, a.a1) * 180 / Math.PI, 90] };
+});
+przypadek('obrys łuku', 'górny półokrąg r = 1: obrys sięga y = 1, nie y = −1', () => ({ 'obrys': [G.bbox({ t: 'arc', c: [0, 0], r: 1, a0: 0, a1: Math.PI }), [-1, 0, 1, 1]] }));
+przypadek('prostopadle do linii', 'z punktu (1,3) na linię (0,0)–(4,0)', () => ({ 'spodek': [G.perpFeet(L([0, 0], [4, 0]), [1, 3])[0], [1, 0]] }));
+przypadek('prostopadle — poza odcinkiem', 'z punktu (6,3) na linię (0,0)–(4,0): spodek poza odcinkiem się nie liczy', () => ({ 'liczba': [G.perpFeet(L([0, 0], [4, 0]), [6, 3]).length, 0] }));
+przypadek('styczne do okręgu', 'z punktu (2,0) do okręgu r = 1 w (0,0)', () => {
+  const x = sortPts(G.tangentPts({ t: 'circle', c: [0, 0], r: 1 }, [2, 0]));
+  const h = Math.sqrt(3) / 2;
+  return { 'liczba': [x.length, 2], 'dolna': [x[0], [0.5, -h]], 'górna': [x[1], [0.5, h]] };
+});
+przypadek('styczne — punkt w okręgu', 'z wnętrza okręgu nie ma stycznych', () => ({ 'liczba': [G.tangentPts({ t: 'circle', c: [0, 0], r: 1 }, [0.2, 0]).length, 0] }));
+przypadek('ramka w prawo', 'linia (1,1)–(2,2): w ramce (0,0)–(3,3) cała, w ramce (0,0)–(1.5,3) nie cała', () => ({
+  'cała w ramce': [G.insideRect(L([1, 1], [2, 2]), [0, 0, 3, 3]), true], 'częściowo': [G.insideRect(L([1, 1], [2, 2]), [0, 0, 1.5, 3]), false]
+}));
+przypadek('ramka w lewo', 'linia przechodząca przez ramkę bez końców w środku jest „dotknięta”', () => ({
+  'przecina ramkę': [G.touchesRect(L([-1, 1], [5, 1]), [0, 0, 2, 2]), true], 'obok ramki': [G.touchesRect(L([-1, 3], [5, 3]), [0, 0, 2, 2]), false],
+  'okrąg otaczający ramkę': [G.touchesRect({ t: 'circle', c: [1, 1], r: 10 }, [0, 0, 2, 2]), false]
+}));
+przypadek('linia zerowej długości', 'punkt jako linia: najbliższy punkt i brak przecięcia z samą sobą nie wywracają programu', () => ({
+  'odległość': [G.distTo(L([1, 1], [1, 1]), [4, 5]), 5], 'przecięcia z linią obok': [G.intersect(L([1, 1], [1, 1]), L([0, 0], [2, 0])).length, 0]
+}));
+
+/* ---------- model i cofanie ---------- */
+przypadek('cofanie i ponawianie', 'dwie linie, cofnij jedną, ponów', () => {
+  const d = M.newDoc(), h = new M.History(d);
+  h.edit('Linia', tx => tx.add(L([0, 0], [1, 0])));
+  const e2 = h.edit('Linia', tx => tx.add(L([0, 0], [0, 1])));
+  const po = d.ents.length; h.undo(); const cof = d.ents.length; h.redo();
+  return { 'po narysowaniu': [po, 2], 'po cofnięciu': [cof, 1], 'po ponowieniu': [d.ents.length, 2], 'ten sam numer': [d.ents[1].id, e2.id], 'następny numer': [d.next, e2.id + 1] };
+});
+przypadek('cofanie zmiany kreski i warstwy', 'linia dostaje 0,5 i inną warstwę, potem cofnięcie', () => {
+  const d = M.newDoc(), h = new M.History(d);
+  const e = h.edit('Linia', tx => tx.add(L([0, 0], [1, 0])));
+  const lay = h.edit('Warstwa', tx => tx.addLayer({ name: 'Ściany', w: 0.5 }));
+  h.edit('Kreska', tx => tx.set(e.id, { w: 0.7, layer: lay.id }));
+  const po = [e.w, d.ents[0].layer === lay.id];
+  h.undo();
+  return { 'grubość po zmianie': [po[0], 0.7], 'na nowej warstwie': [po[1], true], 'grubość po cofnięciu': [d.ents[0].w, null], 'warstwa po cofnięciu': [d.ents[0].layer, 1] };
+});
+przypadek('pusta zmiana nie trafia do historii', 'ustawienie tej samej wartości nie tworzy kroku cofania', () => {
+  const d = M.newDoc(), h = new M.History(d);
+  const e = h.edit('Linia', tx => tx.add(L([0, 0], [1, 0])));
+  h.edit('Nic', tx => tx.set(e.id, { a: [0, 0] }));
+  return { 'kroki cofania': [h.undoStack.length, 1] };
+});
+przypadek('błąd w trakcie zmiany', 'zmiana przerwana błędem nie zostawia połowy w rysunku', () => {
+  const d = M.newDoc(), h = new M.History(d);
+  try { h.edit('Zepsuta', tx => { tx.add(L([0, 0], [1, 0])); throw new Error('x'); }); } catch (e) {}
+  return { 'elementy': [d.ents.length, 0], 'kroki cofania': [h.undoStack.length, 0], 'następny numer': [d.next, 2] };
+});
+przypadek('usuwanie warstwy', 'warstwy z elementami i bieżącej nie da się usunąć; pustą tak', () => {
+  const d = M.newDoc(), h = new M.History(d);
+  const a = h.edit('W', tx => tx.addLayer({ name: 'A' })), b = h.edit('W', tx => tx.addLayer({ name: 'B' }));
+  h.edit('Linia', tx => tx.add({ ...L([0, 0], [1, 0]), layer: a.id }));
+  const zA = h.edit('Usuń', tx => tx.delLayer(a.id)), zBiez = h.edit('Usuń', tx => tx.delLayer(1)), zB = h.edit('Usuń', tx => tx.delLayer(b.id));
+  return { 'z elementami': [zA, false], 'bieżąca': [zBiez, false], 'pusta': [zB, true], 'warstwy': [d.layers.length, 2] };
+});
+przypadek('kreska jak warstwa', 'element bez własnej kreski bierze ją z warstwy; własna wygrywa', () => {
+  const d = M.newDoc();
+  d.layers[0].w = 0.5; d.layers[0].lt = 'dash';
+  const a = { ...L([0, 0], [1, 0]), layer: 1, w: null, lt: null }, b = { ...a, w: 0.18, lt: 'center' };
+  return { 'jak warstwa': [[M.strokeOf(d, a).w, M.strokeOf(d, a).lt], [0.5, 'dash']], 'własna': [[M.strokeOf(d, b).w, M.strokeOf(d, b).lt], [0.18, 'center']] };
+});
+przypadek('otwieranie starego pliku', 'plik bez warstw i z nieznanym elementem otwiera się z warstwą domyślną', () => {
+  const d = M.fixDoc({ format: 'rysio', version: 1, ents: [{ t: 'line', a: [0, 0], b: [1, 0] }, { t: 'kosmita' }] });
+  return { 'elementy': [d.ents.length, 1], 'warstwy': [d.layers.length, 1], 'numer elementu': [d.ents[0].id > 0, true], 'skala': [d.scale, 50] };
+});
+przypadek('plik z nowszej wersji', 'rysunek z przyszłej wersji formatu nie otwiera się po cichu', () => {
+  let msg = null; try { M.fixDoc({ format: 'rysio', version: 99 }); } catch (e) { msg = e.message; }
+  return { 'odmowa': [!!msg, true] };
+});
+
+/* ---------- przyciąganie i kierunki ---------- */
+const sn = () => new Snapper();
+przypadek('przyciąganie: koniec przed środkiem', 'krótka linia — kursor bliżej środka, ale w zasięgu końca: wygrywa koniec', () => {
+  const r = sn().find([0.04, 0.01], { tol: 0.1, ents: [L([0, 0], [0.1, 0])] });
+  return { 'rodzaj': [r.kind, 'end'], 'punkt': [r.p, [0, 0]] };
+});
+przypadek('przyciąganie: środek', 'kursor przy połowie linii 4 m', () => { const r = sn().find([2.03, 0.02], { tol: 0.1, ents: [L([0, 0], [4, 0])] }); return { 'rodzaj': [r.kind, 'mid'], 'punkt': [r.p, [2, 0]] }; });
+przypadek('przyciąganie: przecięcie', 'kursor przy skrzyżowaniu dwóch linii', () => {
+  const r = sn().find([1.05, 0.04], { tol: 0.1, ents: [L([0, 0], [4, 0]), L([1, -2], [1, 2])] });
+  return { 'rodzaj': [r.kind, 'int'], 'punkt': [r.p, [1, 0]] };
+});
+przypadek('przyciąganie: środek okręgu', 'kursor przy środku okręgu r = 2 (daleko od obwodu)', () => { const r = sn().find([0.05, 0.05], { tol: 0.1, ents: [{ t: 'circle', c: [0, 0], r: 2 }] }); return { 'rodzaj': [r.kind, 'center'], 'punkt': [r.p, [0, 0]] }; });
+przypadek('przyciąganie: prostopadle', 'linia od (1,3) w dół do ściany (0,0)–(4,0)', () => {
+  const r = sn().find([1.06, 0.03], { tol: 0.1, base: [1, 3], ents: [L([0, 0], [4, 0])] });
+  return { 'rodzaj': [r.kind, 'perp'], 'punkt': [r.p, [1, 0]] };
+});
+przypadek('przyciąganie: styczna', 'od (2,0) do okręgu r = 1', () => {
+  const r = sn().find([0.52, 0.84], { tol: 0.1, base: [2, 0], ents: [{ t: 'circle', c: [0, 0], r: 1 }] });
+  return { 'rodzaj': [r.kind, 'tan'], 'punkt': [r.p, [0.5, Math.sqrt(3) / 2]] };
+});
+przypadek('przyciąganie: najbliższy', 'kursor przy linii, z dala od jej punktów', () => { const r = sn().find([2.7, 0.05], { tol: 0.1, ents: [L([0, 0], [4, 0])] }); return { 'rodzaj': [r.kind, 'near'], 'punkt': [r.p, [2.7, 0]] }; });
+przypadek('przyciąganie: nic w pobliżu', 'kursor w pustym miejscu zostaje tam, gdzie jest', () => { const r = sn().find([10, 10], { tol: 0.1, ents: [L([0, 0], [4, 0])] }); return { 'rodzaj': [r.kind, null], 'punkt': [r.p, [10, 10]] }; });
+przypadek('kierunek: poziomo od punktu', 'kursor lekko nad poziomem od bazy (0,0)', () => {
+  const r = sn().find([3, 0.05], { tol: 0.1, base: [0, 0], ents: [] });
+  return { 'punkt': [r.p, [3, 0]], 'kierunek': [r.guides[0]?.kind, 'h'] };
+});
+przypadek('kierunek: tylko kąty proste', 'kursor pod kątem ~30° — punkt ląduje na poziomie', () => {
+  const r = sn().find([3, 1.7], { tol: 0.1, base: [0, 0], ents: [], ortho: true });
+  return { 'punkt': [r.p, [3, 0]] };
+});
+przypadek('kierunek: równolegle do linii', 'po najechaniu na skośną linię kierunek od bazy biegnie równolegle do niej', () => {
+  const s = sn(), skos = L([0, 0], [4, 3]);
+  s.find([2, 1.5], { tol: 0.1, ents: [skos] });            // kursor przejeżdża po linii
+  // kursor 4 cm obok kierunku (prostopadle do niego), 4 m od bazy
+  const r = s.find([10 + 4 * 0.8 - 0.04 * 0.6, 4 * 0.6 + 0.04 * 0.8], { tol: 0.1, base: [10, 0], ents: [skos] });
+  return { 'rodzaj kierunku': [r.guides[0]?.kind, 'par'], 'punkt': [r.p, [10 + 3.2, 2.4]] };
+});
+przypadek('śledzenie od dwóch punktów', 'pion od końca jednej linii i poziom od bazy — punkt na ich przecięciu', () => {
+  const s = sn(), a = L([0, 0], [2, 0]);
+  s.find([2.02, 0.01], { tol: 0.1, ents: [a] });           // kursor przy końcu (2,0) — punkt śledzenia
+  const r = s.find([2.04, 5.03], { tol: 0.1, base: [-3, 5], ents: [a] });
+  return { 'rodzaj': [r.kind, 'track'], 'punkt': [r.p, [2, 5]] };
+});
+przypadek('blokada kierunku', 'z ⇧ punkt zostaje na zablokowanym kierunku, nawet przy końcu innej linii obok', () => {
+  const r = sn().find([2.06, 1.04], { tol: 0.1, base: [0, 0], lockDir: [1, 0], ents: [L([2, 1], [3, 1])] });
+  return { 'punkt': [r.p, [2, 0]] };
+});
+
+/* ---------- skala i kreski ---------- */
+przypadek('skala: 1 m w 1:100', 'odcinek 1 m w skali 1:100 to na papierze 10 mm', () => ({ 'mm papieru': [1000 / 100, 10], 'px na mm przy 100 px/m i 1:100': [D.pxPerPaperMM(100, 100), 10] }));
+przypadek('grubość kreski na ekranie', '0,5 mm w 1:50 przy powiększeniu „papier 1:1” (189 px/m) ≈ 1,89 px', () => {
+  const ppm = 1000 / 50 * D.PX_PER_MM;   // 1 mm papieru = 3,78 px
+  return { '0,5 mm': [D.strokePx(0.5, ppm, 50), 0.5 * D.PX_PER_MM], 'przy dużym oddaleniu nie znika': [D.strokePx(0.13, 1, 50), 0.6], 'przy dużym zbliżeniu ma granicę': [D.strokePx(0.5, 1e5, 50), 0.5 * D.PX_PER_MM * 3], 'cienkie linie': [D.strokePx(0.7, ppm, 50, true), 1] };
+});
+przypadek('wymiary z klawiatury', 'jednostka cm: „600;400” = 6 × 4 m, „3,5m” = 3,5 m, „35mm” = 0,035 m', () => {
+  U.setUnit('cm', false);
+  const r = { '600;400': [U.parseLengths('600;400'), [6, 4]], '3,5m': [U.parseLength('3,5m'), 3.5], '35mm': [U.parseLength('35mm'), 0.035], 'bzdura': [U.parseLength('abc'), null] };
+  U.setUnit('m', false); return r;
+});
+
+/* ---------- uruchomienie ---------- */
+const args = process.argv.slice(2), verbose = args.includes('-v'), filt = args.find(a => a !== '-v')?.toLowerCase();
+const fmt = x => typeof x === 'number' ? (Number.isInteger(x) ? String(x) : x.toFixed(6)) : Array.isArray(x) && x.length && x.every(v => typeof v === 'number') ? pt(x) : JSON.stringify(x);
+let bad = 0, n = 0;
+for (const c of P) {
+  if (filt && !c.nazwa.toLowerCase().includes(filt)) continue;
+  n++;
+  let res, err = null;
+  try { res = c.fn(); } catch (e) { err = e; }
+  const fails = err ? [] : Object.entries(res).filter(([, [got, want]]) => !near(got, want));
+  if (err || fails.length) {
+    bad++;
+    console.log(`✗ ${c.nazwa} — ${c.opis}`);
+    if (err) console.log(`    błąd: ${err.stack || err.message}`);
+    for (const [k, [got, want]] of fails) console.log(`    ${k}: jest ${fmt(got)}, powinno być ${fmt(want)}`);
+  } else {
+    console.log(`✓ ${c.nazwa}`);
+    if (verbose) for (const [k, [got]] of Object.entries(res)) console.log(`    ${k}: ${fmt(got)}`);
+  }
+}
+console.log(`\n${n - bad} z ${n} przypadków.`);
+process.exit(bad ? 1 : 0);

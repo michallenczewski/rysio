@@ -1,0 +1,4 @@
+{
+  "//": "Pliki w renderer/ to moduły ES — dzięki temu skrypty w scripts/ i testy w Node wczytują je bez ostrzeżeń.",
+  "type": "module"
+}

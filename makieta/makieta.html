@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rysio — makieta</title>
+<style>
+/* Makieta Rysia: kolory, czcionki i ikony jak w Modo 0.4.2 (renderer/style.css, renderer/app.js) */
+:root{
+  --bg:#f7f7f5; --text:#1a1a19; --text2:#4a4945; --muted:#706f6a; --muted2:#8f8e89;
+  --soft:#efeeea; --hover:#ecebe7; --line:#e6e5e1; --card:#fff; --pill:#fff; --pillsh:0 1px 2px rgba(0,0,0,.08);
+  --menush:0 0 0 1px rgba(0,0,0,.06),0 10px 30px rgba(0,0,0,.10); --kbd:#f3f2ef; --tip:#1a1a19; --tiptext:#f7f7f5;
+  --paper:#fff; --ink:#1a1a19; --ink2:#6f6e69; --axis:#c0533f; --dimc:#4d6597; --sel:#3f63a8; --trace:#c0533f; --snap:#b0489e;
+  color-scheme:light;
+}
+[data-theme=dark]{
+  --bg:#161616; --text:#e9e9e7; --text2:#c4c4c1; --muted:#8d8d89; --muted2:#6f6f6c;
+  --soft:#222221; --hover:#242423; --line:#2a2a29; --card:#1d1d1c; --pill:#363635; --pillsh:0 1px 2px rgba(0,0,0,.4);
+  --menush:0 0 0 1px rgba(255,255,255,.07),0 12px 36px rgba(0,0,0,.5); --kbd:#2e2e2d; --tip:#e9e9e7; --tiptext:#161616;
+  --paper:#1d1d1c; --ink:#e4e4e1; --ink2:#9a9a96; --axis:#d9826f; --dimc:#8fa6d6; --sel:#7d9ad6; --trace:#d9826f; --snap:#d48bc6;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;display:grid;grid-template-columns:56px minmax(0,1fr);grid-template-rows:52px minmax(0,1fr) 40px;height:100vh;overflow:hidden;user-select:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+svg{display:block}
+.num{font-variant-numeric:tabular-nums}
+kbd{font:500 11px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:var(--kbd);border-radius:4px;padding:2px 5px;color:var(--text2);box-shadow:0 0 0 1px rgba(0,0,0,.05) inset;white-space:nowrap}
+
+/* pasek górny */
+header{grid-column:1/-1;grid-row:1;display:flex;align-items:center;gap:6px;padding:0 12px 0 88px;min-width:0}
+.win header{padding:0 150px 0 18px}
+.lights{position:fixed;left:18px;top:19px;display:flex;gap:8px}
+.lights i{width:12px;height:12px;border-radius:50%;background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.winbtns{position:fixed;right:0;top:0;display:flex;height:40px}
+.winbtns span{width:46px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.win .lights,.mac .winbtns{display:none}
+#crumbs{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+#fileName{font-weight:500}
+#saved{color:var(--muted2);font-size:12px}
+.gap{flex:1 1 0;min-width:8px}
+.ib{width:32px;height:32px;border-radius:7px;color:var(--muted);display:flex;align-items:center;justify-content:center;flex:none;position:relative}
+.ib:hover{background:var(--hover);color:var(--text)}
+.ib.on{background:var(--pill);box-shadow:var(--pillsh);color:var(--text)}
+.tb{height:30px;padding:0 10px;border-radius:7px;color:var(--text2);display:flex;align-items:center;gap:7px;white-space:nowrap;flex:none}
+.tb:hover,.tb.open{background:var(--hover);color:var(--text)}
+.tb svg{color:var(--muted)}
+.seg{display:flex;gap:2px;padding:2px;border-radius:8px;background:var(--soft);flex:none}
+.seg button{height:26px;padding:0 10px;border-radius:6px;color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px}
+.seg button:hover{color:var(--text)}
+.seg button.on{background:var(--pill);box-shadow:var(--pillsh);color:var(--text)}
+.sep{width:1px;height:16px;background:var(--line);margin:0 6px;flex:none}
+
+/* pasek kresek */
+#lineBar{display:flex;align-items:center;gap:6px}
+.layerPill{height:30px;padding:0 10px 0 9px;border-radius:7px;background:var(--soft);display:flex;align-items:center;gap:8px;color:var(--text)}
+.layerPill:hover,.layerPill.open{background:var(--hover)}
+.layerPill i{width:9px;height:9px;border-radius:2px;flex:none}
+.wt{width:38px;height:30px;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--text)}
+.wt:hover{background:var(--hover)}
+.wt b{display:block;width:22px;background:currentColor;border-radius:1px}
+.wt span{font-size:10px;line-height:1;color:var(--muted)}
+.wt.on{background:var(--pill);box-shadow:var(--pillsh)}
+.wt.layer{box-shadow:0 0 0 1.2px var(--muted2) inset}
+.lt{width:40px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--text)}
+.lt:hover{background:var(--hover)}
+.lt.on{background:var(--pill);box-shadow:var(--pillsh)}
+.lt.layer{box-shadow:0 0 0 1.2px var(--muted2) inset}
+.bylayer{font-size:12px}
+
+.kpill{height:30px;padding:0 10px;border-radius:7px;background:var(--soft);display:flex;align-items:center;gap:9px;color:var(--text);white-space:nowrap}
+.kpill:hover,.kpill.open{background:var(--hover)}
+.kpill .sub{color:var(--muted);font-size:12px}
+.kpill .sel{color:var(--sel);font-size:12px}
+.kpop{width:400px;gap:6px}
+.kcols{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px}
+.kcol{display:flex;flex-direction:column;gap:1px}
+.kcol .h{font-size:11px;color:var(--muted2);padding:2px 8px 4px}
+.krow{height:30px;border-radius:7px;display:flex;align-items:center;gap:10px;padding:0 8px;color:var(--text)}
+.krow:hover{background:var(--hover)}
+.krow.on{background:var(--pill);box-shadow:var(--pillsh),0 0 0 1px var(--line)}
+.krow span{font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums}
+.krow.on span{color:var(--text);font-weight:500}
+.tgl{width:28px;height:16px;border-radius:8px;background:var(--line);position:relative;flex:none}
+.tgl::after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.tgl.on{background:var(--text)}.tgl.on::after{left:14px}
+[data-theme=dark] .tgl.on::after{background:#161616}
+.brushbar{position:absolute;display:flex;align-items:center;gap:8px;height:40px;padding:0 6px 0 12px;border-radius:10px;background:var(--card);box-shadow:var(--menush);font-size:12px;white-space:nowrap}
+.brushbar .t{font-weight:500}
+.brushbar .smp{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-radius:7px;background:var(--soft);color:var(--text)}
+.brushbar .smp i{width:8px;height:8px;border-radius:2px}
+.layer .mv{height:22px;padding:0 8px;border-radius:6px;background:var(--text);color:var(--bg);font-size:11.5px;font-weight:500;white-space:nowrap}
+.layer.target{background:var(--hover)}
+#stateSeg button{padding:0 8px}
+
+/* narzędzia */
+#tools{grid-column:1;grid-row:2/4;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0 12px}
+#tools .hsep{height:1px;width:18px;background:var(--line);margin:5px 0;flex:none}
+#tools .grow{flex:1}
+
+/* widok */
+#view{grid-column:2;grid-row:2;margin-right:12px;border-radius:10px;overflow:hidden;position:relative;box-shadow:0 0 0 1px var(--line);background:var(--paper)}
+#view.sheet{background:var(--soft)}
+#view svg.dwg{position:absolute;inset:0;width:100%;height:100%}
+
+/* pasek stanu */
+#status{grid-column:2;grid-row:3;display:flex;align-items:center;gap:10px;padding:0 12px 0 0;min-width:0}
+.tabs{display:flex;gap:2px;flex:none}
+.tabs button{height:28px;padding:0 11px;border-radius:7px;color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px}
+.tabs button:hover{background:var(--hover);color:var(--text)}
+.tabs button.on{background:var(--pill);box-shadow:var(--pillsh);color:var(--text)}
+.tabs .add{width:28px;padding:0;justify-content:center;font-size:15px}
+#hint{flex:1;min-width:0;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hint b{color:var(--text2);font-weight:500}
+.chip{height:26px;font-size:12px;background:var(--soft);color:var(--text2);padding:0 9px}
+.chip.off{background:none;color:var(--muted)}
+.chip.off:hover{background:var(--hover)}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--text2)}
+.chip.off i{background:none;box-shadow:0 0 0 1.2px var(--muted2) inset}
+#vcbWrap{display:flex;align-items:center;gap:8px;flex:none}
+#vcb{width:96px;height:26px;border-radius:7px;background:var(--card);box-shadow:0 0 0 1.5px var(--text) inset;padding:0 10px;font-variant-numeric:tabular-nums;text-align:right;color:var(--text);display:flex;align-items:center;justify-content:flex-end}
+#vcb::after{content:"";width:1px;height:14px;background:var(--text);margin-left:2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.lbl{font-size:11.5px;color:var(--muted)}
+.unit{height:26px;min-width:34px;justify-content:center;padding:0 8px;font-size:12px;color:var(--muted);background:var(--soft)}
+
+/* okienko warstw */
+.pop{position:absolute;z-index:30;background:var(--card);border-radius:12px;box-shadow:var(--menush);padding:12px 12px 10px;display:flex;flex-direction:column;gap:4px;width:318px}
+.pop .row{display:flex;align-items:center;gap:10px;padding:0 4px}
+.ttl{font-weight:500}
+.grow{flex:1;min-width:0}
+.layer{display:flex;align-items:center;gap:8px;height:30px;padding:0 4px 0 8px;border-radius:7px}
+.layer:hover{background:var(--hover)}
+.layer.cur{background:var(--soft)}
+.layer i{width:9px;height:9px;border-radius:2px;flex:none}
+.layer .nm{flex:1;min-width:0;font-size:12.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.layer.cur .nm{color:var(--text);font-weight:500}
+.layer.off .nm,.layer.off .ls{opacity:.45}
+.layer .ls{width:44px;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--text)}
+.layer .ls span{font-size:9.5px;line-height:1;color:var(--muted)}
+.layer .ic{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--muted2)}
+.layer .ic.act{color:var(--text2)}
+.hr{height:1px;background:var(--line);margin:6px -12px;flex:none}
+.note{font-size:11.5px;color:var(--muted);line-height:1.45;padding:0 4px}
+.tbs{height:26px;padding:0 9px;border-radius:7px;background:var(--soft);font-size:12px;color:var(--text2)}
+
+/* wskazówka */
+.tip{position:fixed;z-index:70;display:flex;align-items:center;gap:8px;height:28px;padding:0 6px 0 10px;border-radius:7px;background:var(--tip);color:var(--tiptext);font-size:12px;white-space:nowrap;pointer-events:none}
+.tip kbd{background:#3a3a38;color:#f7f7f5;box-shadow:none}
+[data-theme=dark] .tip kbd{background:#d6d6d3;color:#161616}
+
+/* rysunek: znaczki */
+.snapLbl{position:absolute;height:22px;padding:0 8px;border-radius:6px;background:var(--snap);color:#fff;font-size:11.5px;display:flex;align-items:center;pointer-events:none;white-space:nowrap}
+[data-theme=dark] .snapLbl{color:#161616}
+.reading{position:absolute;height:20px;padding:0 6px;border-radius:5px;background:var(--card);box-shadow:var(--pillsh),0 0 0 1px var(--line);font-size:11px;color:var(--text);display:flex;align-items:center;font-variant-numeric:tabular-nums;pointer-events:none}
+
+/* okno (rzutnia) na arkuszu */
+.vpbar{position:absolute;display:flex;align-items:center;gap:4px;height:32px;padding:0 4px 0 10px;border-radius:9px;background:var(--card);box-shadow:var(--menush);font-size:12px;white-space:nowrap}
+.vpbar .t{color:var(--muted);margin-right:4px}
+.vpbar .tb{height:26px;padding:0 8px;font-size:12px}
+
+/* przełącznik makiety */
+#mock{position:fixed;left:72px;bottom:52px;z-index:80;display:flex;align-items:center;gap:8px;padding:6px 6px 6px 12px;border-radius:10px;background:var(--card);box-shadow:var(--menush);font-size:12px}
+#mock .lbl{margin-right:2px}
+</style>
+</head>
+<body class="mac">
+<div class="lights"><i></i><i></i><i></i></div>
+<div class="winbtns"><span>&#x2013;</span><span>&#x25A1;</span><span>&#x2715;</span></div>
+
+<header>
+  <div id="crumbs"><button class="tb" data-tip="Plik: nowy, otwórz, zapisz, eksport PDF / PNG / DXF"><span>Plik</span><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button><span id="fileName">Dom w Lesznie</span><span id="saved">zapisano</span></div>
+  <button class="ib" data-ic="undo" data-tip="Cofnij" data-key="mod+Z"></button><button class="ib" data-ic="redo" data-tip="Ponów" data-key="mod+shift+Z"></button>
+  <div class="gap"></div>
+  <div id="lineBar"></div>
+  <div class="gap"></div>
+  <button class="ib" data-ic="thin" data-tip="Cienkie linie — wszystkie kreski jednakowo cienkie, do precyzyjnej pracy"></button>
+  <button class="ib" data-ic="pdf" data-tip="Eksport PDF w skali" data-key="mod+P"></button>
+  <div class="sep"></div>
+  <button class="ib" data-ic="gear" data-tip="Ustawienia: wygląd, język, jednostki, skróty"></button>
+</header>
+
+<nav id="tools"></nav>
+
+<main id="view"></main>
+
+<footer id="status">
+  <div class="tabs" id="tabs">
+    <button data-tab="model" class="on">Model</button>
+    <button data-tab="sheet">Rzut parteru</button>
+    <button data-tab="sheet2">Detale</button>
+    <button class="add" data-tip="Nowy arkusz">+</button>
+  </div>
+  <div class="sep" style="margin:0 2px"></div>
+  <div id="hint"></div>
+  <span id="statusRight" style="display:flex;align-items:center;gap:10px"></span>
+</footer>
+
+<div id="mock"><span class="lbl">Makieta</span>
+  <div class="seg" id="stateSeg"><button data-v="draw" class="on">Rysowanie</button><button data-v="pick">Wybór kreski</button><button data-v="brush">Pędzel</button><button data-v="layer">Na warstwę</button></div>
+  <div class="seg" id="themeSeg"><button data-v="light" class="on">Jasny</button><button data-v="dark">Ciemny</button></div>
+  <div class="seg" id="osSeg"><button data-v="mac" class="on">Mac</button><button data-v="win">Windows</button></div>
+</div>
+
+<script>
+/* ---------- ikony (jak w Modo: 16×16, kreska 1,4) ---------- */
+const IC = {
+  select:'<path d="M4 2.5v10.2l2.9-2.5 1.9 4.1 1.7-.8-1.9-4h3.9z"/>',
+  eraser:'<path d="M9.6 2.6 13.4 6.4 7 12.8H4.2L2.6 11.2z"/><path d="M6 6.2l3.8 3.8M7 12.8h6.5"/>',
+  brush:'<path d="M13.5 2.5 8 9.2 6.8 8 13.5 2.5z"/><path d="M6.6 8.4c-1.6-.4-3 .5-3.2 2.2-.1 1.2-.6 2-1.4 2.6 2.2.5 4.5.1 5.3-1.6.4-.9.3-1.8-.7-3.2z"/>',
+  line:'<path d="M4 12 12 4"/><circle cx="3.2" cy="12.8" r="1.2"/><circle cx="12.8" cy="3.2" r="1.2"/>',
+  pline:'<path d="M3 12.5 5.5 5.5l4.5 4.5 3-6.5"/><circle cx="3" cy="12.5" r="1.1"/><circle cx="13" cy="3.5" r="1.1"/>',
+  rect:'<rect x="2.5" y="4" width="11" height="8" rx=".5"/>',
+  circle:'<circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r=".6"/>',
+  arc:'<path d="M2.5 12.5a6.5 6.5 0 0 1 11 0"/><circle cx="2.5" cy="12.5" r="1"/><circle cx="13.5" cy="12.5" r="1"/><circle cx="8" cy="6" r="1"/>',
+  move:'<path d="M8 2v12M2 8h12M6.2 3.8 8 2l1.8 1.8M6.2 12.2 8 14l1.8-1.8M3.8 6.2 2 8l1.8 1.8M12.2 6.2 14 8l-1.8 1.8"/>',
+  copy:'<rect x="5.5" y="5.5" width="8" height="8" rx="1.2"/><path d="M10.5 5.5V3.7a1.2 1.2 0 0 0-1.2-1.2H3.7a1.2 1.2 0 0 0-1.2 1.2v5.6a1.2 1.2 0 0 0 1.2 1.2h1.8"/>',
+  rotate:'<path d="M13.2 8.5A5.3 5.3 0 1 1 11.6 4"/><path d="M12.2 1.8v2.7H9.5"/>',
+  mirror:'<path d="M8 2v12" stroke-dasharray="1.6 1.8"/><path d="M6 4.5 2.5 12H6zM10 4.5l3.5 7.5H10z"/>',
+  scale:'<rect x="2.5" y="6.5" width="7" height="7" rx=".5"/><path d="M9 2.5h4.5V7M13.5 2.5 8 8"/>',
+  offset:'<rect x="2.5" y="2.5" width="11" height="11" rx="1"/><rect x="5.5" y="5.5" width="5" height="5" rx=".5"/>',
+  fillet:'<path d="M3 13.5V9.5A6.5 6.5 0 0 1 9.5 3h4"/><path d="M3 6.5V3h3.5" stroke-dasharray="1.3 1.6"/>',
+  trim:'<circle cx="4" cy="11.5" r="1.8"/><circle cx="12" cy="11.5" r="1.8"/><path d="M5.2 10.2 12.5 2.5M10.8 10.2 3.5 2.5"/>',
+  text:'<path d="M3.5 4h9M8 4v8.5"/>',
+  dim:'<path d="M2.5 5v7M13.5 5v7M2.5 9.5h11"/><path d="M4 11l-1.4-1.4M13.4 9.6 12 8"/>',
+  hatch:'<rect x="2.5" y="2.5" width="11" height="11" rx="1"/><path d="M2.8 7.2 7.2 2.8M2.8 12.2l9.4-9.4M7.2 13.2l6-6"/>',
+  block:'<rect x="2.5" y="2.5" width="5" height="5" rx=".6"/><rect x="8.5" y="8.5" width="5" height="5" rx=".6"/><path d="M8.5 5H11a1 1 0 0 1 1 1v1.5M7.5 11H5a1 1 0 0 1-1-1V8.5"/>',
+  viewport:'<rect x="2" y="3" width="12" height="10" rx="1"/><path d="M4.5 10.5 7 7.5l2 2 1.5-1.5 1.5 2.5"/>',
+  extents:'<path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/><rect x="5.5" y="5.5" width="5" height="5" rx=".5"/>',
+  undo:'<path d="M5.5 3 2.5 6l3 3"/><path d="M2.5 6h7a4 4 0 0 1 0 8H6"/>',
+  redo:'<path d="M10.5 3l3 3-3 3"/><path d="M13.5 6h-7a4 4 0 0 0 0 8H10"/>',
+  thin:'<path d="M2.5 5h11" stroke-width="2.6"/><path d="M2.5 11h11" stroke-width=".8"/>',
+  pdf:'<path d="M8 2.5v8M5 7.5l3 3 3-3"/><path d="M2.5 11v2.5h11V11"/>',
+  gear:'<path d="M2.5 4.5h4M9.5 4.5h4M2.5 11.5h7M12.5 11.5h1"/><circle cx="8" cy="4.5" r="1.5"/><circle cx="11" cy="11.5" r="1.5"/>',
+  eye:'<path d="M1.8 8S4 3.8 8 3.8 14.2 8 14.2 8 12 12.2 8 12.2 1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.9"/>',
+  eyeOff:'<path d="M2.5 2.5l11 11M6.6 4A6.3 6.3 0 0 1 8 3.8c4 0 6.2 4.2 6.2 4.2a11 11 0 0 1-1.8 2.3M10.6 11.6A5.8 5.8 0 0 1 8 12.2C4 12.2 1.8 8 1.8 8a11 11 0 0 1 2.4-2.8"/>',
+  lock:'<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>',
+  unlock:'<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 4.8-1"/>'
+};
+const ic = (n, s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
+document.querySelectorAll('[data-ic]').forEach(b => b.innerHTML = ic(b.dataset.ic));
+
+/* ---------- lewy pasek: kolejność pracy, skróty pod lewą ręką ---------- */
+const TOOLS = [
+  ['select','Zaznacz','Q'],['eraser','Usuń (gumka)','S'],['brush','Pędzel — przemaluj kreskę i warstwę','M'],null,
+  ['line','Linia','A'],['pline','Polilinia','F'],['rect','Prostokąt','D'],['circle','Okrąg','V'],['arc','Łuk (trzy punkty / środek)','B'],null,
+  ['move','Przesuń','W'],['copy','Kopiuj','C'],['rotate','Obróć','E'],['mirror','Odbij','shift+E'],['scale','Skaluj','R'],null,
+  ['offset','Odsunięcie','T'],['fillet','Zaokrąglij narożnik','G'],['trim','Przytnij / wydłuż','X'],null,
+  ['hatch','Kreskowanie','H'],['block','Bloki','K'],['text','Tekst','Y'],['dim','Wymiar','U'],
+  ['viewport','Okno na arkuszu','O', 'sheet'],
+  'grow',['extents','Pokaż wszystko','Z']
+];
+const toolsEl = document.getElementById('tools');
+function buildTools(mode, active) {
+  toolsEl.innerHTML = '';
+  active = active || (mode === 'sheet' ? 'select' : 'line');
+  for (const t of TOOLS) {
+    if (t === null) { toolsEl.insertAdjacentHTML('beforeend','<div class="hsep"></div>'); continue; }
+    if (t === 'grow') { toolsEl.insertAdjacentHTML('beforeend','<div class="grow"></div>'); continue; }
+    if (t[3] === 'sheet' && mode !== 'sheet') continue;
+    const b = document.createElement('button');
+    b.className = 'ib' + (t[0] === active ? ' on' : '');
+    b.innerHTML = ic(t[0]); b.dataset.tip = t[1]; b.dataset.key = t[2];
+    toolsEl.append(b);
+  }
+  bindTips(toolsEl);
+}
+
+/* ---------- pasek kresek ---------- */
+const WEIGHTS = [0.13,0.18,0.25,0.35,0.5,0.7];
+const TYPES = [['ciągła',''],['kreskowa','6 3'],['osiowa','12 3 2 3'],['punktowa','0.1 3.2']];
+const wtxt = w => w.toFixed(2).replace('.', ',');
+const sample = (w, d, len = 26) => `<svg width="${len}" height="8"><line x1="1" y1="4" x2="${len-1}" y2="4" stroke="currentColor" stroke-width="${Math.max(0.7, w*3.78).toFixed(2)}" stroke-dasharray="${d}" stroke-linecap="${d.startsWith('0.1')?'round':'butt'}"/></svg>`;
+const chev = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>';
+// Pasek u góry: dwie pastylki — warstwa i kreska. Z zaznaczeniem pokazują jego warstwę i kreskę i zmieniają je.
+function lineBar(st) {
+  const selN = st === 'layer' ? 2 : 0;
+  const layer = `<button class="layerPill${st==='layer'?' open':''}" data-tip="Warstwa — dla nowych elementów, a z zaznaczeniem: przenosi je na wybraną"><i style="background:var(--ink)"></i><span>Ściany</span>${selN?`<span class="kpill sel" style="background:none;padding:0;height:auto">· ${selN} zaznaczone</span>`:''}${chev}</button>`;
+  const kreska = `<button class="kpill${st==='pick'?' open':''}" data-tip="Kreska — grubość i rodzaj linii"><span style="color:var(--text)">${sample(0.5,'',30)}</span><span>0,50 ciągła</span><span class="sub">jak warstwa</span>${chev}</button>`;
+  document.getElementById('lineBar').innerHTML = layer + '<div style="width:6px"></div>' + kreska;
+  bindTips(document.getElementById('lineBar'));
+}
+function kreskaPop(left) {
+  const ws = WEIGHTS.map(w => `<div class="krow${w===0.5?' on':''}">${sample(w,'',96)}<span>${wtxt(w)}</span></div>`).join('');
+  const ts = TYPES.map(([n,d],i) => `<div class="krow${i===0?' on':''}">${sample(0.25,d,96)}<span>${n}</span></div>`).join('');
+  return `<div class="pop kpop" style="left:${left}px;top:8px">
+    <div class="row" style="height:28px"><span class="ttl grow">Jak warstwa <span class="lbl" style="font-weight:400">· Ściany: 0,50 ciągła</span></span><span class="tgl on"></span></div>
+    <div class="hr"></div>
+    <div class="kcols"><div class="kcol"><div class="h">Grubość, mm</div>${ws}</div><div class="kcol"><div class="h">Rodzaj</div>${ts}</div></div>
+    <div class="hr"></div>
+    <div class="note">Wybór kreski wyłącza „jak warstwa”. Dotyczy następnych linii, a gdy coś jest zaznaczone — zaznaczenia. Istniejące linie najszybciej przemalujesz pędzlem <kbd>M</kbd>.</div></div>`;
+}
+
+/* ---------- warstwy ---------- */
+const LAYERS = [
+  {n:'Osie', c:'#c0533f', w:0.18, t:2, vis:1, lock:1},
+  {n:'Ściany', c:'var(--ink)', w:0.5, t:0, vis:1, lock:0, cur:1},
+  {n:'Okna i drzwi', c:'#6a6a66', w:0.25, t:0, vis:1, lock:0},
+  {n:'Dach', c:'#4f8a46', w:0.25, t:1, vis:1, lock:0, target:1},
+  {n:'Wyposażenie', c:'#9a948a', w:0.13, t:0, vis:0, lock:0},
+  {n:'Wymiary', c:'#4d6597', w:0.18, t:0, vis:1, lock:0},
+  {n:'Opisy', c:'#4a4945', w:0.25, t:0, vis:1, lock:0},
+  {n:'Podkład — działka.dwg', c:'#b9b4aa', w:0.13, t:0, vis:1, lock:1}
+];
+function layersPop(left) {
+  const rows = LAYERS.map(L => `<div class="layer${L.cur?' cur':''}${L.vis?'':' off'}${L.target?' target':''}">
+    <i style="background:${L.c}"></i><span class="nm">${L.n}</span>${L.target?'<button class="mv">Przenieś tutaj 2</button>':''}
+    <span class="ls"><svg width="28" height="4"><line x1="1" y1="2" x2="27" y2="2" stroke="currentColor" stroke-width="${Math.max(0.6,L.w*3.78)}" stroke-dasharray="${TYPES[L.t][1]}"/></svg><span>${String(L.w).replace('0.',',')}</span></span>
+    <span class="ic${L.vis?' act':''}">${ic(L.vis?'eye':'eyeOff',14)}</span><span class="ic${L.lock?' act':''}">${ic(L.lock?'lock':'unlock',14)}</span></div>`).join('');
+  return `<div class="pop" style="left:${left}px;top:8px;width:340px">
+    <div class="row" style="height:26px"><span class="ttl grow">Warstwy</span><button class="tbs">Dodaj</button></div>
+    <div class="hr" style="margin-top:4px"></div>${rows}<div class="hr"></div>
+    <div class="note">Zaznaczone są 2 linie z warstwy Ściany. „Przenieś tutaj” przy wierszu przenosi je na tę warstwę i przejmują jej kreskę. Bez zaznaczenia klik w nazwę wybiera warstwę dla nowych linii.</div></div>`;
+}
+
+/* ---------- rysowanie: model w metrach → piksele ---------- */
+const PX_MM = 3.78;            // ekran: 1 mm papieru ≈ 3,78 px
+const f2 = v => v.toFixed(2);
+const fmt = v => v.toFixed(2).replace('.', ',');
+function Plan(o) {
+  // o: ox, oy (px), k (px/m), wk (px na mm grubości), bg (kolor zasłonięcia otworów), ink, axis, dim, notes
+  const X = x => o.ox + x*o.k, Y = y => o.oy + y*o.k, W = mm => Math.max(o.minW ?? 0.5, mm*o.wk);
+  const out = [];
+  const L = (x1,y1,x2,y2,w,col=o.ink,dash='') => out.push(`<line x1="${f2(X(x1))}" y1="${f2(Y(y1))}" x2="${f2(X(x2))}" y2="${f2(Y(y2))}" stroke="${col}" stroke-width="${f2(W(w))}" ${dash?`stroke-dasharray="${dash}"`:''} stroke-linecap="${dash?'butt':'square'}"/>`);
+  const R = (x,y,w,h,fill) => out.push(`<rect x="${f2(X(x))}" y="${f2(Y(y))}" width="${f2(w*o.k)}" height="${f2(h*o.k)}" fill="${fill}"/>`);
+  const T = (x,y,s,txt,col=o.ink,anchor='middle',rot=0,weight=400) => out.push(`<text x="${f2(X(x))}" y="${f2(Y(y))}" font-size="${s}" fill="${col}" text-anchor="${anchor}" font-weight="${weight}" ${rot?`transform="rotate(${rot} ${f2(X(x))} ${f2(Y(y))})"`:''} font-family="-apple-system,'Segoe UI',system-ui,sans-serif">${txt}</text>`);
+  const A = (cx,cy,r,a1,a2,w,col=o.ink) => { const p=a=>[X(cx+r*Math.cos(a)),Y(cy+r*Math.sin(a))]; const [x1,y1]=p(a1),[x2,y2]=p(a2); out.push(`<path d="M${f2(x1)} ${f2(y1)}A${f2(r*o.k)} ${f2(r*o.k)} 0 0 ${a2>a1?1:0} ${f2(x2)} ${f2(y2)}" fill="none" stroke="${col}" stroke-width="${f2(W(w))}"/>`); };
+  const s = o.k / 52;   // przeliczenie rozmiarów znaczków między modelem a arkuszem
+  const axDash = `${f2(16*s)} ${f2(4*s)} ${f2(2.5*s)} ${f2(4*s)}`;
+
+  // osie konstrukcyjne
+  for (const [x,n] of [[0.22,'1'],[5.06,'2'],[11.78,'3']]) { L(x,-0.3,x,10.2,0.18,o.axis,axDash); out.push(`<circle cx="${f2(X(x))}" cy="${f2(Y(10.55))}" r="${f2(9*s)}" fill="none" stroke="${o.axis}" stroke-width="${f2(W(0.18))}"/>`); T(x,10.55+3.6*s/o.k,10*s,n,o.axis); }
+  for (const [y,n] of [[0.22,'A'],[4.56,'B'],[8.78,'C']]) { L(-0.3,y,12.6,y,0.18,o.axis,axDash); out.push(`<circle cx="${f2(X(12.95))}" cy="${f2(Y(y))}" r="${f2(9*s)}" fill="none" stroke="${o.axis}" stroke-width="${f2(W(0.18))}"/>`); T(12.95,y+3.6*s/o.k,10*s,n,o.axis); }
+
+  // obrys okapu dachu (0,5 m od lica): każdy bok osobno — 'roof' = kreskowa 0,25 na warstwie Dach, 'wall' = jeszcze ciągła 0,5, 'sel' = zaznaczony
+  const ov = 0.5, sides = o.roof || {};
+  const roofDash = `${f2(7*s)} ${f2(3.5*s)}`;
+  const side = (k,x1,y1,x2,y2) => { const st = sides[k] || 'roof';
+    if (st === 'sel') { out.push(`<line x1="${f2(X(x1))}" y1="${f2(Y(y1))}" x2="${f2(X(x2))}" y2="${f2(Y(y2))}" stroke="${o.sel}" stroke-opacity=".22" stroke-width="7" stroke-linecap="round"/>`); L(x1,y1,x2,y2,0.5,o.sel); for (const [a,b] of [[x1,y1],[x2,y2],[(x1+x2)/2,(y1+y2)/2]]) out.push(`<rect x="${f2(X(a)-3.5)}" y="${f2(Y(b)-3.5)}" width="7" height="7" fill="${o.bg}" stroke="${o.sel}" stroke-width="1.3"/>`); return; }
+    if (st === 'hot') out.push(`<line x1="${f2(X(x1))}" y1="${f2(Y(y1))}" x2="${f2(X(x2))}" y2="${f2(Y(y2))}" stroke="${o.snap}" stroke-opacity=".25" stroke-width="7" stroke-linecap="round"/>`);
+    if (st === 'wall') L(x1,y1,x2,y2,0.5); else L(x1,y1,x2,y2,0.25,o.roofc||o.ink,roofDash); };
+  side('top',-ov,-ov,12+ov,-ov); side('right',12+ov,-ov,12+ov,9+ov); side('bottom',-ov,9+ov,12+ov,9+ov); side('left',-ov,-ov,-ov,9+ov);
+
+  // ściany zewnętrzne
+  const t = 0.44;
+  out.push(`<rect x="${f2(X(0))}" y="${f2(Y(0))}" width="${f2(12*o.k)}" height="${f2(9*o.k)}" fill="none" stroke="${o.ink}" stroke-width="${f2(W(0.5))}"/>`);
+  out.push(`<rect x="${f2(X(t))}" y="${f2(Y(t))}" width="${f2((12-2*t)*o.k)}" height="${f2((9-2*t)*o.k)}" fill="none" stroke="${o.ink}" stroke-width="${f2(W(0.5))}"/>`);
+  // okna: w ścianach poziomych (y0 = lico zewnętrzne) i pionowych
+  const winH = (x1,x2,y0) => { R(x1,y0-0.06,x2-x1,t+0.12,o.bg); L(x1,y0,x1,y0+t,0.5); L(x2,y0,x2,y0+t,0.5); L(x1,y0+0.17,x2,y0+0.17,0.25); L(x1,y0+0.27,x2,y0+0.27,0.25); L(x1,y0,x2,y0,0.13); L(x1,y0+t,x2,y0+t,0.13); };
+  const winV = (y1,y2,x0) => { R(x0-0.06,y1,t+0.12,y2-y1,o.bg); L(x0,y1,x0+t,y1,0.5); L(x0,y2,x0+t,y2,0.5); L(x0+0.17,y1,x0+0.17,y2,0.25); L(x0+0.27,y1,x0+0.27,y2,0.25); L(x0,y1,x0,y2,0.13); L(x0+t,y1,x0+t,y2,0.13); };
+  winH(1.4,3.6,0); winH(7.2,9.6,0); winH(1.6,3.4,9-t); winH(8.6,10.4,9-t); winV(5.4,6.9,0); winV(1.6,3.2,12-t);
+  // drzwi wejściowe w ścianie dolnej
+  R(5.6,9-t-0.06,1.0,t+0.12,o.bg); L(5.6,9-t,5.6,9,0.5); L(6.6,9-t,6.6,9,0.5); L(5.6,9-t,5.6,9-t-1.0,0.25); A(5.6,9-t,1.0,-Math.PI/2,0,0.13);
+
+  // ściany działowe
+  L(5,t,5,6.0,0.5); L(5,6.9,5,9-t,0.5);
+  L(5.12,t,5.12,4.5,0.5); L(5.12,4.62,5.12,6.0,0.5); L(5.12,6.9,5.12,9-t,0.5);
+  L(5,6.0,5.12,6.0,0.5); L(5,6.9,5.12,6.9,0.5);
+  L(5.12,4.5,8,4.5,0.5); L(8.9,4.5,12-t,4.5,0.5); L(5.12,4.62,8,4.62,0.5); L(8.9,4.62,12-t,4.62,0.5);
+  L(8,4.5,8,4.62,0.5); L(8.9,4.5,8.9,4.62,0.5);
+  // drzwi wewnętrzne
+  L(5.12,6.0,6.02,6.0,0.25); A(5.12,6.0,0.9,0,Math.PI/2,0.13);
+  L(8,4.62,8,5.52,0.25); A(8,4.62,0.9,Math.PI/2,0,0.13);
+
+  // opisy pomieszczeń
+  if (o.notes) {
+    T(2.6,4.05,11*s,'Pokój dzienny',o.ink,'middle',0,500); T(2.6,4.05+16*s/o.k,10*s,'32,4 m²',o.ink2);
+    T(8.4,3.35,11*s,'Sypialnia',o.ink,'middle',0,500);  T(8.4,3.35+16*s/o.k,10*s,'15,6 m²',o.ink2);
+    T(9.8,6.85,11*s,'Kuchnia',o.ink,'middle',0,500);    T(9.8,6.85+16*s/o.k,10*s,'14,9 m²',o.ink2);
+  }
+  // wymiary: łańcuch u góry i z lewej
+  const dy = -1.1, dx = -1.1, tk = 5*s/o.k;
+  for (const x of [0,5.06,12]) { L(x,-0.12,x,dy-0.15,0.18,o.dim); L(x-tk,dy+tk,x+tk,dy-tk,0.35,o.dim); }
+  L(-0.2,dy,12.2,dy,0.18,o.dim); T(2.53,dy-5*s/o.k,10*s,'5,06',o.dim); T(8.53,dy-5*s/o.k,10*s,'6,94',o.dim);
+  for (const y of [0,4.56,9]) { L(-0.12,y,dx-0.15,y,0.18,o.dim); L(dx-tk,y+tk,dx+tk,y-tk,0.35,o.dim); }
+  L(dx,-0.2,dx,9.2,0.18,o.dim); T(dx-5*s/o.k,2.28,10*s,'4,56',o.dim,'middle',-90); T(dx-5*s/o.k,6.78,10*s,'4,44',o.dim,'middle',-90);
+  return { svg: out.join(''), X, Y, W };
+}
+
+/* ---------- okno modelu ---------- */
+const view = document.getElementById('view');
+function cssv(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+let state = 'draw';
+function renderModel() {
+  view.className = '';
+  lineBar(state);
+  const k = 46, ox = 120, oy = 96;
+  const roof = state === 'brush' ? { left: 'hot', bottom: 'wall' } : state === 'layer' ? { left: 'sel', bottom: 'sel' } : {};
+  const p = Plan({ ox, oy, k, wk: PX_MM, minW: 0.5, bg: cssv('--paper'), ink: cssv('--ink'), ink2: cssv('--ink2'), axis: cssv('--axis'), dim: cssv('--dimc'), sel: cssv('--sel'), snap: cssv('--snap'), roofc: '#4f8a46', roof, notes: true });
+  const tr = cssv('--trace'), sn = cssv('--snap'), ink = cssv('--ink');
+  const vr = view.getBoundingClientRect();
+  const relLeft = sel => { const r = document.querySelector(sel).getBoundingClientRect(); return Math.max(8, r.left - vr.left); };
+  let live = '', extra = '', hint = '';
+  if (state === 'draw' || state === 'pick') {
+    // rysowana linia: od lica ściany do ściany działowej, przyciągnięta „prostopadle”
+    const y = 2.6, x0 = 0.44, x1 = 5.0;
+    const sx0 = p.X(x0), sx1 = p.X(x1), sy = p.Y(y);
+    live = `
+    <line x1="${p.X(-0.6)}" y1="${sy}" x2="${p.X(11.4)}" y2="${sy}" stroke="${tr}" stroke-width="1" stroke-dasharray="2 5" opacity=".85"/>
+    <line x1="${sx0}" y1="${sy}" x2="${sx1}" y2="${sy}" stroke="${ink}" stroke-width="${0.5*PX_MM}"/>
+    <rect x="${sx0-3.5}" y="${sy-3.5}" width="7" height="7" fill="none" stroke="${sn}" stroke-width="1.4"/>
+    <path d="M${sx1-7} ${sy+7}H${sx1}V${sy-7}M${sx1-7} ${sy+7}V${sy}H${sx1}" fill="none" stroke="${sn}" stroke-width="1.6"/>
+    <path d="M${sx1-14} ${sy}h-6M${sx1+14} ${sy}h6M${sx1} ${sy-14}v-6M${sx1} ${sy+14}v6" stroke="${ink}" stroke-width="1"/>`;
+    extra = `<div class="snapLbl" style="left:${sx1+12}px;top:${sy+10}px">Prostopadle</div>
+    <div class="reading" style="left:${(sx0+sx1)/2-18}px;top:${sy-28}px">4,56 m</div>`;
+    if (state === 'pick') extra += kreskaPop(relLeft('#lineBar .kpill'));
+    hint = '<b>Linia:</b> kliknij następny punkt albo wpisz długość. Esc kończy.';
+  } else if (state === 'brush') {
+    // ślad pędzla przeciągniętego przez lewy bok okapu; dolny bok czeka
+    const pts = [[-1.5,5.2],[-1.0,5.9],[-0.4,6.7],[0.0,7.6],[0.3,8.5],[0.55,9.15]].map(([x,y]) => `${f2(p.X(x))} ${f2(p.Y(y))}`);
+    const [cx, cy] = [p.X(0.55), p.Y(9.15)];
+    live = `<path d="M${pts.join('L')}" fill="none" stroke="${sn}" stroke-opacity=".35" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+      <g transform="translate(${cx-2} ${cy-18})" color="${ink}">${ic('brush',18).replace('stroke-width="1.4"','stroke-width="1.4" fill="var(--paper)"')}</g>`;
+    extra = `<div class="brushbar" style="left:12px;top:10px"><span class="t">Pędzel</span>
+      <div class="seg"><button class="on">Kreska i warstwa</button><button>Tylko kreska</button><button>Tylko warstwa</button></div>
+      <div class="smp">${sample(0.25,'6 3',30)}<span>0,25 kreskowa</span><span class="lbl">·</span><i style="background:#4f8a46"></i><span>Dach</span></div>
+      <span class="lbl" style="padding:0 6px"><kbd data-k="alt">⌥</kbd> + klik — pobierz z linii</span></div>`;
+    hint = '<b>Pędzel:</b> klikaj linie albo przeciągnij przez kilka naraz. <kbd data-k="alt">⌥</kbd> + klik pobiera kreskę z linii.';
+  } else if (state === 'layer') {
+    extra = layersPop(relLeft('#lineBar .layerPill'));
+    hint = '<b>2 linie zaznaczone</b> (Ściany, 0,50 ciągła). Warstwę i kreskę zmienisz w pastylkach u góry.';
+  }
+  view.innerHTML = `<svg class="dwg">${p.svg}${live}</svg>${extra}`;
+  document.getElementById('hint').innerHTML = hint;
+  document.getElementById('statusRight').innerHTML = `
+    <button class="tb chip" data-tip="Przyciąganie do końców, środków, przecięć…"><i></i>Przyciąganie</button>
+    <button class="tb chip off" data-tip="Tylko kąty proste"><i></i>Kąty proste</button>
+    <label id="vcbWrap"><span class="lbl">Długość</span><span id="vcb">4,5</span></label>
+    <button class="tb unit" data-tip="Jednostki rysunku">m</button>
+    <button class="tb unit" style="min-width:64px;color:var(--text)" data-tip="Skala rysunku — od niej zależą grubości kresek, tekst i kreskowanie">1:50 <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg></button>`;
+  bindTips(document.getElementById('status'));
+  buildTools('model', state === 'brush' ? 'brush' : state === 'layer' ? 'select' : 'line');
+  fixAltKeys();
+}
+function fixAltKeys() { const mac = document.body.classList.contains('mac'); document.querySelectorAll('kbd[data-k=alt]').forEach(k => k.textContent = mac ? '⌥' : 'Alt'); }
+
+/* ---------- okno arkusza ---------- */
+function renderSheet() {
+  view.className = 'sheet';
+  lineBar('sheet');
+  const vw = view.clientWidth, vh = view.clientHeight;
+  const K = Math.min((vw-80)/420, (vh-48)/297);      // px na mm papieru
+  const pw = 420*K, ph = 297*K, px = (vw-pw)/2, py = (vh-ph)/2;
+  const P = (x,y) => [px+x*K, py+y*K];
+  const ink = '#1a1a19', ink2 = '#6f6e69', W = mm => Math.max(0.55, mm*K);
+  const out = [];
+  out.push(`<rect x="${px}" y="${py}" width="${pw}" height="${ph}" fill="#fff" style="filter:drop-shadow(0 1px 3px rgba(0,0,0,.18))"/>`);
+  // ramka
+  const [fx,fy] = P(20,10); out.push(`<rect x="${fx}" y="${fy}" width="${390*K}" height="${277*K}" fill="none" stroke="${ink}" stroke-width="${W(0.5)}"/>`);
+  // okno 1: rzut 1:100
+  const v1 = {x:24,y:12,w:164,h:136};
+  const plan = Plan({ ox: px+48*K, oy: py+32*K, k: K*10, wk: K, minW: 0.4, bg: '#fff', ink, ink2, axis:'#c0533f', dim:'#4d6597', notes: true });
+  out.push(`<clipPath id="c1"><rect x="${P(v1.x,v1.y)[0]}" y="${P(v1.x,v1.y)[1]}" width="${v1.w*K}" height="${v1.h*K}"/></clipPath><g clip-path="url(#c1)">${plan.svg}</g>`);
+  const T = (x,y,mm,txt,col=ink,anchor='start',weight=400,ls=0) => { const [a,b]=P(x,y); out.push(`<text x="${a}" y="${b}" font-size="${mm*K}" fill="${col}" text-anchor="${anchor}" font-weight="${weight}" letter-spacing="${ls}" font-family="-apple-system,'Segoe UI',system-ui,sans-serif">${txt}</text>`); };
+  const Ln = (x1,y1,x2,y2,w,col=ink) => { const [a,b]=P(x1,y1),[c,d]=P(x2,y2); out.push(`<line x1="${a}" y1="${b}" x2="${c}" y2="${d}" stroke="${col}" stroke-width="${W(w)}"/>`); };
+  T(32,156,4,'RZUT PARTERU',ink,'start',600,0.6); Ln(32,158,92,158,0.35); T(32,163.5,2.8,'skala 1:100',ink2);
+  // okno 2: detal 1:20 (warstwy ściany z kreskowaniem)
+  const v2 = {x:222,y:16,w:96,h:84};
+  const dx0 = 232, dy0 = 26, s20 = 50;     // mm papieru na metr przy 1:20
+  const D = (x,y) => P(dx0+x*s20, dy0+y*s20);
+  out.push(`<defs>
+    <pattern id="mur" patternUnits="userSpaceOnUse" width="${2*K}" height="${2*K}" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="${2*K}" stroke="${ink}" stroke-width="${W(0.13)}"/></pattern>
+    <pattern id="izo" patternUnits="userSpaceOnUse" width="${3.2*K}" height="${7.5*K}"><path d="M0 ${7.5*K} Q${0.8*K} 0 ${1.6*K} ${3.75*K} T${3.2*K} 0" fill="none" stroke="${ink}" stroke-width="${W(0.13)}"/></pattern>
+  </defs>`);
+  const poly = (pts, fill, w=0.5) => out.push(`<path d="M${pts.map(([x,y])=>D(x,y).join(' ')).join('L')}Z" fill="${fill}" stroke="${ink}" stroke-width="${W(w)}"/>`);
+  // izolacja 0,15 m, mur 0,25 m, narożnik w lewym górnym rogu, urwania przy 1,6 i 1,4 m
+  poly([[0,0],[1.6,0],[1.6,0.15],[0.15,0.15],[0.15,1.4],[0,1.4]], 'url(#izo)');
+  poly([[0.15,0.15],[1.6,0.15],[1.6,0.40],[0.40,0.40],[0.40,1.4],[0.15,1.4]], 'url(#mur)');
+  poly([[0.40,0.40],[1.6,0.40],[1.6,0.42],[0.42,0.42],[0.42,1.4],[0.40,1.4]], '#fff', 0.25);
+  T(232+0.95*s20,dy0+0.1*s20-1,2.4,'styropian 15 cm',ink2); T(232+0.95*s20,dy0+0.3*s20+1,2.4,'',ink2);
+  T(dx0+0.55*s20,dy0+0.75*s20,2.4,'mur 25 cm',ink2);
+  T(dx0+0.55*s20,dy0+0.75*s20+3.4,2.4,'tynk 2 cm',ink2);
+  T(226,108,4,'DETAL NAROŻNIKA',ink,'start',600,0.6); Ln(226,110,290,110,0.35); T(226,115.5,2.8,'skala 1:20',ink2);
+  // uwagi
+  T(226,134,3,'Uwagi',ink,'start',600);
+  ['1. Wymiary podano w metrach.','2. Wymiary sprawdzić na budowie.','3. Osie konstrukcyjne wg projektu konstrukcji.'].forEach((s,i)=>T(226,140+i*5,2.6,s,ink));
+  // strzałka północy
+  const [nx,ny] = P(372,40); out.push(`<g transform="translate(${nx} ${ny})"><circle r="${7*K}" fill="none" stroke="${ink}" stroke-width="${W(0.25)}"/><path d="M0 ${-6*K}L${2.4*K} ${4*K}L0 ${2.4*K}L${-2.4*K} ${4*K}Z" fill="${ink}"/><text y="${-8.5*K}" font-size="${3*K}" text-anchor="middle" fill="${ink}" font-family="system-ui">N</text></g>`);
+  // tabelka
+  const tb = {x:250,y:247,w:160,h:40};
+  const [tx,ty] = P(tb.x,tb.y); out.push(`<rect x="${tx}" y="${ty}" width="${tb.w*K}" height="${tb.h*K}" fill="none" stroke="${ink}" stroke-width="${W(0.5)}"/>`);
+  Ln(tb.x,tb.y+14,tb.x+tb.w,tb.y+14,0.25); Ln(tb.x,tb.y+27,tb.x+tb.w,tb.y+27,0.25); Ln(tb.x+100,tb.y+14,tb.x+100,tb.y+40,0.25); Ln(tb.x+130,tb.y+27,tb.x+130,tb.y+40,0.25);
+  const cell = (x,y,l,v,vs=3.2,b=500) => { T(x+2.5,y+4,1.9,l.toUpperCase(),ink2,'start',400,0.3); T(x+2.5,y+10,vs,v,ink,'start',b); };
+  cell(tb.x,tb.y,'Projekt','Dom jednorodzinny w Lesznie',3.6,600);
+  cell(tb.x,tb.y+14,'Rysunek','Rzut parteru'); cell(tb.x+100,tb.y+14,'Projektant','—',3.2,400);
+  cell(tb.x,tb.y+27,'Skala','1:100, 1:20',3,400); cell(tb.x+100,tb.y+27,'Data','23.11.2026',3,400); cell(tb.x+130,tb.y+27,'Nr','A-01',3.2,600);
+  // okna: cienka ramka (nie drukuje się), zaznaczone okno 1
+  const sel = '#3f63a8';
+  const vbox = (v,on) => { const [a,b]=P(v.x,v.y); out.push(`<rect x="${a}" y="${b}" width="${v.w*K}" height="${v.h*K}" fill="none" stroke="${on?sel:'#b9b7b0'}" stroke-width="${on?1.3:1}" ${on?'':'stroke-dasharray="4 3"'}/>`);
+    if (on) for (const [cx,cy] of [[a,b],[a+v.w*K,b],[a,b+v.h*K],[a+v.w*K,b+v.h*K]]) out.push(`<rect x="${cx-3.5}" y="${cy-3.5}" width="7" height="7" fill="#fff" stroke="${sel}" stroke-width="1.3"/>`); };
+  vbox(v1,true); vbox(v2,false);
+  const [bx,by] = P(v1.x, v1.y);
+  view.innerHTML = `<svg class="dwg">${out.join('')}</svg>
+    <div class="vpbar" style="left:${bx}px;top:${by-42}px"><span class="t">Okno</span>
+      <button class="tb" style="background:var(--soft);color:var(--text)">Skala 1:100 <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg></button>
+      <button class="tb">Warstwy 6 z 7 <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg></button>
+      <button class="tb">${ic('lock',14)}Zablokuj widok</button></div>`;
+  document.getElementById('hint').innerHTML = '<b>Arkusz:</b> przeciągnij okno, żeby je przesunąć; dwuklik — przesuwanie i przybliżanie modelu w oknie. Rysowanie i tekst trafiają na arkusz.';
+  document.getElementById('statusRight').innerHTML = `
+    <button class="tb chip" data-tip="Format i orientacja arkusza">A3 poziomo <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg></button>
+    <button class="tb chip" data-tip="Wypełnij tabelkę rysunkową">Tabelka</button>
+    <button class="tb unit" style="color:var(--text)" data-tip="Wymiary na arkuszu w milimetrach papieru">mm</button>`;
+  bindTips(document.getElementById('status'));
+  buildTools('sheet');
+}
+
+/* ---------- wskazówki (opisy skrótów dla Maca i Windows) ---------- */
+let tipEl = null;
+function prettyKey(k) {
+  if (!k) return '';
+  const mac = document.body.classList.contains('mac');
+  return k.split('+').map(p => p === 'mod' ? (mac ? '⌘' : 'Ctrl') : p === 'shift' ? (mac ? '⇧' : 'Shift') : p === 'alt' ? (mac ? '⌥' : 'Alt') : p).join(mac ? '' : '+');
+}
+function bindTips(root) {
+  root.querySelectorAll('[data-tip]').forEach(b => {
+    if (b._tip) return; b._tip = 1;
+    b.addEventListener('mouseenter', () => {
+      tipEl?.remove(); tipEl = document.createElement('div'); tipEl.className = 'tip';
+      tipEl.innerHTML = b.dataset.tip + (b.dataset.key ? ` <kbd>${prettyKey(b.dataset.key)}</kbd>` : '');
+      document.body.append(tipEl);
+      const r = b.getBoundingClientRect();
+      const left = b.closest('#tools') ? r.right + 8 : Math.min(r.left, innerWidth - tipEl.offsetWidth - 8);
+      const top = b.closest('#tools') ? r.top + 2 : (b.closest('#status') ? r.top - 34 : r.bottom + 6);
+      tipEl.style.left = left + 'px'; tipEl.style.top = top + 'px';
+    });
+    b.addEventListener('mouseleave', () => { tipEl?.remove(); tipEl = null; });
+  });
+}
+bindTips(document.querySelector('header'));
+
+/* ---------- przełączniki ---------- */
+let tab = 'model';
+const render = () => tab === 'model' ? renderModel() : renderSheet();
+document.getElementById('tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-tab]'); if (!b) return;
+  document.querySelectorAll('#tabs [data-tab]').forEach(x => x.classList.toggle('on', x === b));
+  tab = b.dataset.tab === 'model' ? 'model' : 'sheet';
+  document.querySelectorAll('#lineBar .layerPill').forEach(x => x.classList.toggle('open', tab === 'model'));
+  render();
+});
+const seg = (id, fn) => document.getElementById(id).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; document.querySelectorAll('#'+id+' button').forEach(x => x.classList.toggle('on', x === b)); fn(b.dataset.v); });
+seg('themeSeg', v => { document.documentElement.dataset.theme = v; render(); });
+seg('osSeg', v => { document.body.className = v; render(); });
+seg('stateSeg', v => { state = v; if (tab !== 'model') document.querySelector('#tabs [data-tab=model]').click(); else render(); });
+const q0 = new URLSearchParams(location.search);
+if (q0.get('state')) document.querySelector(`#stateSeg [data-v=${q0.get('state')}]`)?.click();
+const q = new URLSearchParams(location.search);
+if (q.get('theme') === 'dark') document.querySelector('#themeSeg [data-v=dark]').click();
+if (q.get('os') === 'win') document.querySelector('#osSeg [data-v=win]').click();
+render();
+if (q.get('tab') === 'sheet') document.querySelector('#tabs [data-tab=sheet]').click();
+addEventListener('resize', render);
+</script>
+</body>
+</html>

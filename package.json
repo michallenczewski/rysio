@@ -1,0 +1,80 @@
+{
+  "name": "rysio",
+  "productName": "Rysio",
+  "version": "0.1.0",
+  "description": "Lekki program do rysunku 2D w skali",
+  "author": "Michał Lenczewski",
+  "license": "GPL-3.0-or-later",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "web": "node scripts/serve-web.js",
+    "test": "node scripts/sprawdziany.mjs",
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "^42.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "pl.lenczewski.rysio",
+    "productName": "Rysio",
+    "artifactName": "Rysio-${version}-${os}-${arch}.${ext}",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "fileAssociations": [
+      {
+        "ext": "rysio",
+        "name": "Rysunek Rysia",
+        "description": "Rysunek Rysia",
+        "mimeType": "application/x-rysio",
+        "role": "Editor",
+        "rank": "Owner"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "identity": null,
+      "extendInfo": {
+        "CFBundleDisplayName": "Rysio"
+      }
+    },
+    "dmg": {
+      "title": "Rysio ${version}"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "executableName": "Rysio"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Rysio"
+    },
+    "afterSign": "build/adhoc.js"
+  }
+}

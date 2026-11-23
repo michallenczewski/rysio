@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' blob: data:">
+<title>Rysio</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="top">
+  <div id="crumbs"><button id="fileBtn" class="tb" aria-haspopup="menu" data-tip="Plik: nowy, otwórz, zapisz"><span>Plik</span><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg></button><span id="fileName" translate="no">Bez nazwy</span><span id="saved"></span></div>
+  <button id="undoBtn" class="ib" aria-label="Cofnij" data-tip="Cofnij" data-act="undo"></button><button id="redoBtn" class="ib" aria-label="Ponów" data-tip="Ponów" data-act="redo"></button>
+  <div class="gap"></div>
+  <div id="lineBar">
+    <button id="layerPill" class="pill" aria-haspopup="dialog" data-tip="Warstwa — dla nowych elementów, a z zaznaczeniem: przenosi je na wybraną"></button>
+    <button id="strokePill" class="pill" aria-haspopup="dialog" data-tip="Kreska — grubość i rodzaj linii"></button>
+  </div>
+  <div class="gap"></div>
+  <button id="updBtn" class="tb" hidden></button>
+  <button id="thinBtn" class="ib" aria-pressed="false" aria-label="Cienkie linie" data-tip="Cienkie linie — wszystkie kreski jednakowo cienkie, do precyzyjnej pracy" data-act="thin"></button>
+  <button id="pdfBtn" class="ib" aria-label="Eksport PDF" data-tip="Eksport PDF w skali — w etapie 2 (arkusze)"></button>
+  <div class="sep"></div>
+  <button id="setBtn" class="ib" aria-haspopup="menu" aria-label="Ustawienia" data-tip="Ustawienia: wygląd, język, skróty"></button>
+</header>
+
+<nav id="tools" aria-label="Narzędzia"></nav>
+
+<main id="view"></main>
+
+<footer id="status">
+  <div class="tabs" id="tabs">
+    <button class="on" id="tabModel">Model</button>
+    <button class="add" id="tabAdd" data-tip="Nowy arkusz — w etapie 2">+</button>
+  </div>
+  <div class="sep" style="margin:0 2px"></div>
+  <div id="hint"></div>
+  <button id="snapChip" class="tb chip" data-tip="Przyciąganie do końców, środków, przecięć, okręgów i linii prowadzących" data-act="snapToggle"><i></i>Przyciąganie</button>
+  <button id="orthoChip" class="tb chip off" data-tip="Tylko kąty proste — linie wyłącznie poziome i pionowe" data-act="ortho"><i></i>Kąty proste</button>
+  <label id="vcbWrap"><span id="vcbLabel" class="lbl">Długość</span><span id="vcb" class="num"></span></label>
+  <button id="unitBtn" class="tb unit" aria-haspopup="menu" data-tip="Jednostka wymiarów"></button>
+  <button id="scaleBtn" class="tb unit" aria-haspopup="menu" data-tip="Skala rysunku — od niej zależą grubości kresek na ekranie i na wydruku"></button>
+</footer>
+
+<section id="layersPop" class="pop" role="dialog" aria-label="Warstwy" hidden></section>
+<section id="strokePop" class="pop" role="dialog" aria-label="Kreska" hidden></section>
+<div id="menu" class="menu" role="menu" hidden></div>
+
+<div id="keysModal" hidden>
+  <div class="scrim"></div>
+  <section class="pop modal" role="dialog" aria-label="Skróty klawiszowe">
+    <div class="row"><span class="ttl grow">Skróty klawiszowe</span><button class="ib sm" id="keysClose" aria-label="Zamknij">×</button></div>
+    <div class="row softbox"><span class="grow">Domyślnie układ jak w Modo. Kliknij klawisz przy poleceniu i naciśnij nową kombinację; <kbd>Esc</kbd> anuluje, <kbd>Backspace</kbd> czyści.</span><button class="tb soft" id="keysReset">Przywróć domyślne</button></div>
+    <label class="search"><input id="keysQ" placeholder="Szukaj polecenia albo klawisza" aria-label="Szukaj skrótu"></label>
+    <div id="keysList"></div>
+  </section>
+</div>
+
+<div id="toast" hidden></div>
+
+<script src="web-api.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
