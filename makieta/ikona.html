@@ -31,8 +31,8 @@ h2{font-size:15px;font-weight:600;margin:34px 0 4px}
 </head>
 <body>
 <main>
-  <h1>Ikona Rysia — chodzący ołówek w stylu Modo i Gapy</h1>
-  <p class="lead">Pomysł z obrazków z Krei — chodzący ołówek — narysowany językiem rodziny: płaska czerń i biel z grubym czarnym obrysem, korpus z białej i czarnej ściany jak kostka Modo, jeden kolorowy akcent (gumka, jak czerwona tęczówka Gapy) i czarny cień pod nogami jak pod okiem Gapy. Mocny kolor tła.</p>
+  <h1>Ikona Rysia — ołówek jak przedmiot z ikony Gapy</h1>
+  <p class="lead">Ołówek zostaje w swoich kolorach (żółty, różowa gumka, szara skuwka, drewniany czubek), ale narysowany tak jak oko Gapy: płaskie kolory, gruby czarny kontur, proste kształty, czarny cień pod spodem, mocne tło.</p>
 
   <h2>Kolor</h2>
   <p class="lead">Limonka (Modo), fiolet (Gapa) i pomarańcz (Blat) są zajęte. Kliknij kolor — zmienią się wszystkie wersje i Dock.</p>
@@ -51,32 +51,30 @@ const COLORS = [['#F1ECE1', 'Złamana biel'], ['#FFFFFF', 'Białe'], ['#BFE2FF',
 let color = '#3D8BFF';
 
 const ln = (d, w, col = K, extra = '') => `<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" ${extra}/>`;
-// Ołówek w stylu Modo i Gapy: płaska czerń i biel, gruby czarny obrys, jeden kolorowy akcent (gumka jak tęczówka Gapy),
-// korpus z dwóch ścian — białej i czarnej — jak kostka Modo, czarny cień pod nogami jak pod okiem Gapy.
-// Współrzędne lokalne: oś ołówka x = 0, góra gumki y = 0, czubek y = 124.
-const ACC = '#FF5A5F';
-function pencil({ eye = false, arms = false, legs = "walk", w = 58 } = {}) {
-  const h = w / 2, sw = 5, f = h * 0.45, st = `stroke="${K}" stroke-width="${sw}" stroke-linejoin="round"`, ln = `stroke="${K}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" fill="none"`;
-  const cone = 92, tip = 124, gy = 112, gw = h * (tip - gy) / (tip - cone);
+// Ołówek jak przedmiot z ikony Gapy: naturalne, płaskie kolory (żółty korpus, różowa gumka, szara skuwka, drewniany czubek),
+// gruby czarny kontur, uproszczone kształty, czarny cień pod nogami, mocne tło.
+const OL = '#161616';
+function pencil({ eyes = false, arms = false, legs = 'walk', w = 50 } = {}) {
+  const h = w / 2, sw = 6, st = `stroke="${OL}" stroke-width="${sw}" stroke-linejoin="round"`, ln = `stroke="${OL}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" fill="none"`;
+  const cone = 94, tip = 126, gy = 113, gw = h * (tip - gy) / (tip - cone), f = h * 0.3;
   let o = '';
-  if (legs === 'walk') o += `<path d="M-8 104L-20 140H-31M8 104L18 138H30" ${ln}/>`;
-  if (legs === 'stride') o += `<path d="M-8 104L-27 134H-38M8 104L24 141H36" ${ln}/>`;
-  if (arms) o += `<path d="M${-h} 60L${-h - 13} 78L${-h - 19} 70M${h} 56L${h + 12} 42L${h + 19} 48" ${ln}/>`;
-  o += `<path d="M${-h} ${cone}L0 ${tip}L${h} ${cone}Z" fill="${W}" ${st}/><path d="M${-gw} ${gy}L0 ${tip}L${gw} ${gy}Z" fill="${K}" ${st}/>`;
-  o += `<path d="M${-h} 30H${f}V${cone}H${-h}Z" fill="${W}" ${st}/><path d="M${f} 30H${h}V${cone}H${f}Z" fill="${K}" ${st}/>`;
-  o += `<path d="M${f} ${cone}L0 ${tip}" stroke="${K}" stroke-width="3"/>`;
-  o += `<rect x="${-h}" y="16" width="${w}" height="14" fill="${K}" ${st}/>`;
-  o += `<path d="M${-h} 16V8Q${-h} 0 ${-h + 8} 0H${h - 8}Q${h} 0 ${h} 8V16Z" fill="${ACC}" ${st}/>`;
-  if (eye) o += `<circle cx="-5" cy="56" r="13" fill="${W}" ${st}/><circle cx="-1" cy="54" r="5.5" fill="${K}"/>`;
+  if (legs === 'walk') o += `<path d="M-9 106L-20 138H-31M9 106L19 136H31" ${ln}/>`;
+  if (legs === 'stride') o += `<path d="M-9 106L-28 134H-39M9 106L25 140H37" ${ln}/>`;
+  if (arms) o += `<path d="M${-h} 62L${-h - 14} 80L${-h - 21} 72M${h} 58L${h + 13} 44L${h + 21} 50" ${ln}/>`;
+  o += `<path d="M${-h} ${cone}L0 ${tip}L${h} ${cone}Z" fill="#F1C79E" ${st}/><path d="M${-gw} ${gy}L0 ${tip}L${gw} ${gy}Z" fill="${OL}" ${st}/>`;
+  o += `<rect x="${-h}" y="30" width="${w}" height="${cone - 30}" fill="#FFC93C" ${st}/><rect x="${f}" y="33" width="${h - f - 3}" height="${cone - 36}" fill="#F2A516"/><path d="M${f} 30V${cone}" stroke="${OL}" stroke-width="4"/>`;
+  o += `<rect x="${-h}" y="16" width="${w}" height="14" fill="#C9CED6" ${st}/>`;
+  o += `<path d="M${-h} 16V9Q${-h} 0 ${-h + 9} 0H${h - 9}Q${h} 0 ${h} 9V16Z" fill="#FF8FA6" ${st}/>`;
+  if (eyes) o += `<circle cx="-10" cy="54" r="4" fill="${OL}"/><circle cx="4" cy="54" r="4" fill="${OL}"/><path d="M-10 64Q-3 70 4 64" ${ln.replace('stroke-width="6"', 'stroke-width="4"')}/>`;
   return o;
 }
-const shadowE = (x, y, rx = 34) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="6" fill="${K}"/>`;
-const place = (body, { x = 80, y = 16, k = 0.84, rot = 0 } = {}) => `<g transform="translate(${x} ${y}) rotate(${rot} 0 70) scale(${k})">${body}</g>`;
+const shadowE = (x, y, rx = 32) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="6" fill="${OL}"/>`;
+const place = (body, { x = 80, y = 16, k = 0.82, rot = 0 } = {}) => `<g transform="translate(${x} ${y}) rotate(${rot} 0 70) scale(${k})">${body}</g>`;
 const V = [
-  { g: 'Ołówek', t: 'Idzie', d: 'Biało-czarny korpus jak ściany kostki Modo, czerwona gumka, czarny cień pod nogami jak u Gapy.', rec: true, svg: () => shadowE(80, 138, 30) + place(pencil()) },
-  { g: 'Ołówek', t: 'Macha rękami', d: 'To samo, z rękami w marszu — więcej ruchu.', svg: () => shadowE(80, 138, 32) + place(pencil({ arms: true, legs: 'stride' })) },
-  { g: 'Ołówek', t: 'Z okiem Gapy', d: 'Na białej ścianie oko jak u Gapy — od razu widać, że to ta sama rodzina.', svg: () => shadowE(80, 138, 30) + place(pencil({ eye: true })) },
-  { g: 'Ołówek', t: 'Na ukos', d: 'Pochylony w marszu, szerszy krok.', svg: () => shadowE(82, 138, 34) + place(pencil({ legs: 'stride' }), { x: 86, y: 16, rot: 20, k: 0.82 }) }
+  { g: 'Ołówek', t: 'Idzie', d: 'Żółty ołówek z różową gumką, gruby czarny kontur i cień pod nogami — tak jak oko Gapy.', rec: true, svg: () => shadowE(80, 139) + place(pencil()) },
+  { g: 'Ołówek', t: 'Z buzią', d: 'To samo z oczkami i uśmiechem — bliżej obrazków z Krei.', svg: () => shadowE(80, 139) + place(pencil({ eyes: true })) },
+  { g: 'Ołówek', t: 'Macha rękami', d: 'Idzie i macha rękami.', svg: () => shadowE(80, 139, 34) + place(pencil({ arms: true, legs: 'stride' })) },
+  { g: 'Ołówek', t: 'Na ukos', d: 'Pochylony w marszu, z buzią.', svg: () => shadowE(82, 139, 34) + place(pencil({ eyes: true, legs: 'stride' }), { x: 86, y: 16, rot: 20, k: 0.8 }) }
 ];
 const icon = (v, size, c = color) => // tło + znak
   `<svg width="${size}" height="${size}" viewBox="0 0 160 160"><rect x="1" y="1" width="158" height="158" rx="36" fill="${c}" ${c === '#FFFFFF' ? 'stroke="#d8d5ce" stroke-width="2"' : ''}/>${v.svg()}</svg>`;
