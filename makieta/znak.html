@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rysio — znak</title>
+<style>
+:root{--bg:#f7f7f5;--text:#1a1a19;--muted:#706f6a;--soft:#efeeea;--line:#e6e5e1;--card:#fff;--pill:#fff;--pillsh:0 1px 2px rgba(0,0,0,.08)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:1180px;margin:0 auto;padding:28px 24px 60px}
+h1{font-size:20px;font-weight:600;margin:0 0 4px}
+h2{font-size:15px;font-weight:600;margin:28px 0 8px}
+.lead{color:var(--muted);margin:0 0 14px;max-width:820px}
+.studio{display:grid;grid-template-columns:300px 1fr;gap:28px;align-items:start}
+.ctrl{display:flex;flex-direction:column;gap:12px;background:var(--card);border-radius:14px;box-shadow:0 0 0 1px var(--line);padding:16px}
+.ctrl .lbl{font-size:11.5px;color:var(--muted);margin-bottom:4px}
+.seg{display:flex;flex-wrap:wrap;gap:2px;padding:2px;border-radius:8px;background:var(--soft)}
+.seg button{flex:1 0 auto;height:26px;padding:0 9px;border-radius:6px;color:var(--muted);font:inherit;font-size:12px;border:0;background:none;cursor:pointer;white-space:nowrap}
+.seg button.on{background:var(--pill);box-shadow:var(--pillsh);color:var(--text)}
+.sw{display:flex;flex-wrap:wrap;gap:6px}
+.sw button{width:26px;height:26px;border-radius:7px;border:0;cursor:pointer;box-shadow:0 0 0 1px rgba(0,0,0,.12) inset}
+.sw button.on{box-shadow:0 0 0 2px var(--text),0 0 0 4px var(--bg) inset}
+.preview{display:flex;flex-direction:column;gap:16px}
+.bigrow{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap}
+.dock{display:flex;align-items:flex-end;gap:18px;padding:16px 22px 12px;border-radius:22px;background:#8b879c;width:max-content;max-width:100%}
+.dock .it{display:flex;flex-direction:column;align-items:center;gap:6px}
+.dock .it span{font-size:11px;color:#f3f2f7}
+.gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
+.gal button{background:var(--card);border:0;border-radius:14px;box-shadow:0 0 0 1px var(--line);padding:12px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;font:inherit;color:var(--text)}
+.gal button:hover{box-shadow:0 0 0 2px var(--text)}
+.gal span{font-size:12px;color:var(--muted);text-align:center}
+.code{font:12px/1.4 ui-monospace,Menlo,monospace;color:var(--muted);background:var(--soft);border-radius:8px;padding:8px 10px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Znak Rysia — łamana „R” i jej miękka wersja</h1>
+  <p class="lead">Ustaw kształt i styl przełącznikami po lewej — podgląd, rozmiary i Dock zmieniają się od razu. Niżej galeria gotowych stylizacji: kliknięcie wczytuje ją do przełączników. Na końcu jest krótki opis wybranego ustawienia — wystarczy mi go przepisać albo powiedzieć numer z galerii.</p>
+  <div class="studio">
+    <div class="ctrl" id="ctrl"></div>
+    <div class="preview">
+      <div class="bigrow" id="big"></div>
+      <div class="dock" id="dock"></div>
+      <div class="code" id="desc"></div>
+    </div>
+  </div>
+  <h2>Galeria stylizacji</h2>
+  <div class="gal" id="gal"></div>
+</main>
+<script>
+const K = '#161616', W = '#FFFFFF';
+// punkty kształtu (siatka 160 × 160)
+const SHAPES = {
+  p5: { name: 'Łamana 5 odc.', pts: [[26, 126], [58, 38], [122, 50], [104, 104], [58, 78], [136, 128]] },
+  p4: { name: 'Łamana 4 odc.', pts: [[26, 126], [66, 34], [126, 72], [62, 92], [134, 128]] },
+  p6: { name: 'Łamana 6 odc.', pts: [[26, 126], [46, 54], [98, 32], [124, 78], [84, 104], [64, 72], [136, 128]] }
+};
+const OPT = {
+  shape: [['p5', 'Łamana 5'], ['p4', 'Łamana 4'], ['p6', 'Łamana 6']],
+  soft: [['0', 'Ostra'], ['1', 'Miękka']],
+  line: [['white', 'Biała'], ['black', 'Czarna'], ['red', 'Czerwona'], ['yellow', 'Żółta']],
+  width: [['9', 'Cienka'], ['15', 'Średnia'], ['22', 'Gruba']],
+  outline: [['0', 'Bez obrysu'], ['1', 'Czarny obrys'], ['2', 'Podwójna (ściana)']],
+  shadow: [['0', 'Bez cienia'], ['1', 'Cień'], ['2', 'Cień miękki']],
+  marks: [['none', 'Bez'], ['start', 'Na początku'], ['ends', 'Na końcach'], ['all', 'W wierzchołkach']],
+  caps: [['butt', 'Ucięte'], ['round', 'Okrągłe']]
+};
+const BGS = ['#3D8BFF', '#22C3A6', '#FFD23F', '#FF5A5F', '#FF8FCB', '#232326', '#1D2A44', '#F1ECE1', '#FFFFFF'];
+const LINE = { white: W, black: K, red: '#FF5A5F', yellow: '#FFD23F' };
+let S = { shape: 'p5', soft: '0', line: 'white', width: '15', outline: '0', shadow: '1', marks: 'start', caps: 'butt', bg: '#3D8BFF' };
+
+// gładka krzywa przez punkty (Catmull–Rom → krzywe Béziera)
+function smoothPath(p) {
+  let d = `M${p[0][0]} ${p[0][1]}`;
+  for (let i = 0; i < p.length - 1; i++) {
+    const a = p[i - 1] || p[i], b = p[i], c = p[i + 1], e = p[i + 2] || c, t = 0.5;
+    const c1 = [b[0] + (c[0] - a[0]) * t / 3 * 2, b[1] + (c[1] - a[1]) * t / 3 * 2];
+    const c2 = [c[0] - (e[0] - b[0]) * t / 3 * 2, c[1] - (e[1] - b[1]) * t / 3 * 2];
+    d += `C${c1[0].toFixed(1)} ${c1[1].toFixed(1)} ${c2[0].toFixed(1)} ${c2[1].toFixed(1)} ${c[0]} ${c[1]}`;
+  }
+  return d;
+}
+const polyPath = p => 'M' + p.map(q => q.join(' ')).join('L');
+function mark(x, y, r, col, sh) {
+  const sq = (dx, c, stroke) => `<rect x="${x - r + dx}" y="${y - r + dx}" width="${2 * r}" height="${2 * r}" fill="${c}" ${stroke ? `stroke="${K}" stroke-width="4.5"` : ''}/>`;
+  return (sh ? sq(6, 'rgba(22,22,22,.9)') : '') + sq(0, col === K ? W : W, true);
+}
+function glyph(s) {
+  const pts = SHAPES[s.shape].pts, d = s.soft === '1' ? smoothPath(pts) : polyPath(pts);
+  const w = +s.width, col = LINE[s.line], join = s.soft === '1' || s.caps === 'round' ? 'round' : 'miter', cap = s.soft === '1' ? 'round' : s.caps;
+  const path = (c, sw, dx = 0, extra = '') => `<path d="${d}" transform="translate(${dx} ${dx})" fill="none" stroke="${c}" stroke-width="${sw}" stroke-linejoin="${join}" stroke-linecap="${cap}" stroke-miterlimit="10" ${extra}/>`;
+  let o = '';
+  const outlineW = s.outline === '1' ? w + 8 : s.outline === '2' ? w + 10 : w;
+  if (s.shadow === '1') o += path('rgba(22,22,22,.9)', outlineW, 6);
+  if (s.shadow === '2') o += path('rgba(22,22,22,.35)', outlineW + 6, 7, 'style="filter:blur(3px)"');
+  if (s.outline === '1') o += path(K, w + 8);
+  if (s.outline === '2') { o += path(K, w + 10); o += path(s.bg, w + 2); o += path(K, Math.max(2, w - 8)); }
+  else o += path(col, w);
+  const r = Math.max(7, w * 0.6), idx = s.marks === 'all' ? pts.map((_, i) => i) : s.marks === 'ends' ? [0, pts.length - 1] : s.marks === 'start' ? [0] : [];
+  for (const i of idx) o += mark(pts[i][0], pts[i][1], s.marks === 'all' ? Math.max(6, r * 0.8) : r, col, s.shadow === '1');
+  return o;
+}
+const icon = (s, size) => `<svg width="${size}" height="${size}" viewBox="0 0 160 160"><rect x="1" y="1" width="158" height="158" rx="36" fill="${s.bg}" ${s.bg === '#FFFFFF' ? 'stroke="#d8d5ce" stroke-width="2"' : ''}/>${glyph(s)}</svg>`;
+
+const MODO = `<svg width="64" height="64" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="#C6F432"/><polygon points="80,30 120,53 80,76 40,53" fill="#fff" stroke="${K}" stroke-width="4" stroke-linejoin="round"/><polygon points="40,53 80,76 80,132 40,109" fill="${K}" stroke="${K}" stroke-width="4" stroke-linejoin="round"/><polygon points="80,76 120,53 120,109 80,132" fill="#fff" stroke="${K}" stroke-width="4" stroke-linejoin="round"/><path d="M80 102 L120 79" stroke="${K}" stroke-width="3" stroke-dasharray="5 5"/><path d="M80 62 V44 M73 51 L80 44 L87 51" stroke="${K}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+const GAPA = `<svg width="64" height="64" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="#7B3CF6"/><ellipse cx="80" cy="128" rx="38" ry="8" fill="${K}"/><path d="M80 112V124" stroke="${K}" stroke-width="6"/><circle cx="80" cy="74" r="40" fill="#CFF3E2" stroke="${K}" stroke-width="6"/><circle cx="96" cy="66" r="15" fill="#FF5A5F" stroke="${K}" stroke-width="5"/><circle cx="96" cy="66" r="5" fill="${K}"/></svg>`;
+const BLAT = `<svg width="64" height="64" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="#F2782B"/><g transform="translate(6 7)"><path d="M62 34V126M98 34V126M34 62H126M34 98H126" stroke="${K}" stroke-width="26" stroke-linecap="round"/></g><path d="M62 34V126M98 34V126M34 62H126M34 98H126" stroke="${K}" stroke-width="26" stroke-linecap="round"/><path d="M62 34V126M98 34V126M34 62H126M34 98H126" stroke="#FFF7EE" stroke-width="16" stroke-linecap="round"/></svg>`;
+
+const GAL = [
+  ['Biała, ostra, cień — jak wersja B', { shape: 'p5', soft: '0', line: 'white', width: '15', outline: '0', shadow: '1', marks: 'start', caps: 'butt', bg: '#3D8BFF' }],
+  ['Biała, miękka, cień', { shape: 'p5', soft: '1', line: 'white', width: '15', outline: '0', shadow: '1', marks: 'start', caps: 'round', bg: '#3D8BFF' }],
+  ['Biała z czarnym obrysem — styl Blatu', { shape: 'p5', soft: '0', line: 'white', width: '13', outline: '1', shadow: '1', marks: 'start', caps: 'butt', bg: '#22C3A6' }],
+  ['Miękka z czarnym obrysem', { shape: 'p5', soft: '1', line: 'white', width: '13', outline: '1', shadow: '1', marks: 'ends', caps: 'round', bg: '#FFD23F' }],
+  ['Czarna, płaska, bez cienia', { shape: 'p5', soft: '0', line: 'black', width: '15', outline: '0', shadow: '0', marks: 'start', caps: 'butt', bg: '#FFD23F' }],
+  ['Podwójna linia jak ściana', { shape: 'p5', soft: '0', line: 'white', width: '20', outline: '2', shadow: '0', marks: 'none', caps: 'butt', bg: '#F1ECE1' }],
+  ['Cienka, kwadraciki w wierzchołkach', { shape: 'p6', soft: '0', line: 'white', width: '9', outline: '0', shadow: '1', marks: 'all', caps: 'butt', bg: '#232326' }],
+  ['Gruba, miękka, bez kwadracików', { shape: 'p4', soft: '1', line: 'white', width: '22', outline: '0', shadow: '1', marks: 'none', caps: 'round', bg: '#FF5A5F' }],
+  ['Czerwona z obrysem na granacie', { shape: 'p5', soft: '1', line: 'red', width: '13', outline: '1', shadow: '0', marks: 'start', caps: 'round', bg: '#1D2A44' }],
+  ['Żółta miękka na grafitowym', { shape: 'p5', soft: '1', line: 'yellow', width: '15', outline: '0', shadow: '0', marks: 'start', caps: 'round', bg: '#232326' }],
+  ['Biała miękka, cień miękki', { shape: 'p5', soft: '1', line: 'white', width: '15', outline: '0', shadow: '2', marks: 'start', caps: 'round', bg: '#22C3A6' }],
+  ['Czarna łamana na białym', { shape: 'p5', soft: '0', line: 'black', width: '15', outline: '0', shadow: '0', marks: 'start', caps: 'butt', bg: '#FFFFFF' }]
+];
+const NAMES = { shape: 'Kształt', soft: 'Linia', line: 'Kolor linii', width: 'Grubość', outline: 'Obrys', shadow: 'Cień', marks: 'Kwadraciki', caps: 'Końce' };
+function render() {
+  document.getElementById('ctrl').innerHTML = Object.entries(OPT).map(([k, opts]) => `<div><div class="lbl">${NAMES[k]}</div><div class="seg">${opts.map(([v, n]) => `<button data-k="${k}" data-v="${v}" class="${S[k] === v ? 'on' : ''}">${n}</button>`).join('')}</div></div>`).join('') +
+    `<div><div class="lbl">Tło</div><div class="sw">${BGS.map(c => `<button data-k="bg" data-v="${c}" class="${S.bg === c ? 'on' : ''}" style="background:${c}"></button>`).join('')}</div></div>`;
+  document.getElementById('big').innerHTML = icon(S, 260) + icon(S, 128) + icon(S, 64) + icon(S, 32) + icon(S, 16);
+  document.getElementById('dock').innerHTML = [['Modo', MODO], ['Gapa', GAPA], ['Blat', BLAT], ['Rysio', icon(S, 64)]].map(([n, s]) => `<div class="it">${s}<span>${n}</span></div>`).join('');
+  document.getElementById('desc').textContent = Object.entries(OPT).map(([k, o]) => `${NAMES[k]}: ${o.find(x => x[0] === S[k])[1]}`).join(' · ') + ` · Tło: ${S.bg}`;
+  document.getElementById('gal').innerHTML = GAL.map(([n, s], i) => `<button data-g="${i}">${icon(s, 120)}<span>${i + 1}. ${n}</span></button>`).join('');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.g) { S = { ...GAL[+b.dataset.g][1] }; scrollTo({ top: 0, behavior: 'smooth' }); }
+  else if (b.dataset.k) S[b.dataset.k] = b.dataset.v;
+  render();
+});
+render();
+</script>
+</body>
+</html>
