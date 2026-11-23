@@ -31,7 +31,7 @@ h2{font-size:15px;font-weight:600;margin:30px 0 4px}
 <body>
 <main>
   <h1>Rysio — ołówek w stylu Blatu</h1>
-  <p class="lead">Ołówek narysowany tak jak spinacz: biały kształt z grubym czarnym obrysem, czarny grafit, przesunięty czarny cień i małe oczka. Blat zostaje przy swoim krzyżyku — nic nie zamieniamy.</p>
+  <p class="lead">Ołówek-karykatura: krótki i gruby, żółty korpus, różowa gumka, duże oczy, gruby czarny obrys i przesunięty czarny cień jak w spinaczu. Blat zostaje przy swoim krzyżyku — nic nie zamieniamy.</p>
   <h2>Kolor Rysia</h2>
   <div class="colors" id="rc"></div>
   <h2>W Docku</h2>
@@ -42,16 +42,21 @@ h2{font-size:15px;font-weight:600;margin:30px 0 4px}
 <script>
 const K = '#161616', W = '#FFFFFF', RED = '#FF5A5F';
 let color = '#3D8BFF';
-const COLORS = [['#3D8BFF', 'Niebieski'], ['#22C3A6', 'Morski'], ['#FFD23F', 'Żółty'], ['#FF8FCB', 'Różowy'], ['#232326', 'Grafit']];
+const COLORS = [['#3D8BFF', 'Niebieski'], ['#22C3A6', 'Morski'], ['#FF8FCB', 'Różowy'], ['#232326', 'Grafit'], ['#F1ECE1', 'Złamana biel']];
 const st = (w = 5) => `stroke="${K}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"`;
 const shadowed = body => `<g transform="translate(6 7)" style="filter:brightness(0)">${body}</g>${body}`;
-// ołówek: oś pionowa, gumka u góry (y = −56), czubek u dołu (y = 56)
-function pencil({ eyes = true, eraser = W, body = W, look = [1.5, 1] } = {}) {
-  let o = `<path d="M-14 -44V-50Q-14 -56 -8 -56H8Q14 -56 14 -50V-44Z" fill="${eraser}" ${st()}/>`;
-  o += `<rect x="-14" y="-44" width="28" height="11" fill="${K}" ${st()}/>`;
-  o += `<rect x="-14" y="-33" width="28" height="61" fill="${body}" ${st()}/><path d="M4 -30V25" stroke="${K}" stroke-width="2.6"/>`;
-  o += `<path d="M-14 28L0 56L14 28Z" fill="${W}" ${st()}/><path d="M-5 46L0 56L5 46Z" fill="${K}" ${st(3)}/>`;
-  if (eyes) o += `<circle cx="-5" cy="-16" r="6" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="${-5 + look[0]}" cy="${-16 + look[1]}" r="2.6" fill="${K}"/><circle cx="8" cy="-18" r="6" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="${8 + look[0]}" cy="${-18 + look[1]}" r="2.6" fill="${K}"/>`;
+// ołówek-karykatura: krótki i gruby, żółty korpus, duże oczy; oś pionowa, gumka u góry, czubek u dołu (y = 54)
+const YEL = '#FFC93C';
+function pencil({ eyes = true, eraser = '#FF8FA6', body = YEL, look = [2, 2], big = 11 } = {}) {
+  const h = 19;
+  let o = `<path d="M${-h} -38V-46Q${-h} -54 ${-h + 8} -54H${h - 8}Q${h} -54 ${h} -46V-38Z" fill="${eraser}" ${st()}/>`;
+  o += `<rect x="${-h}" y="-38" width="${2 * h}" height="11" fill="${K}" ${st()}/>`;
+  o += `<rect x="${-h}" y="-27" width="${2 * h}" height="51" fill="${body}" ${st()}/><path d="M${h * 0.35} -24V21" stroke="${K}" stroke-width="2.6" opacity=".5"/>`;
+  o += `<path d="M${-h} 24L0 56L${h} 24Z" fill="#F6D9B4" ${st()}/><path d="M-6 44L0 56L6 44Z" fill="${K}" ${st(3)}/>`;
+  if (eyes) {
+    const e = (x, y) => `<circle cx="${x}" cy="${y}" r="${big}" fill="#fff" stroke="${K}" stroke-width="3.6"/><circle cx="${x + look[0]}" cy="${y + look[1]}" r="${big * 0.48}" fill="${K}"/><circle cx="${x + look[0] - big * 0.18}" cy="${y + look[1] - big * 0.2}" r="${big * 0.15}" fill="#fff"/>`;
+    o += e(-8, -10) + e(10, -12);
+  }
   return o;
 }
 const at = (inner, x, y, k, a) => `<g transform="translate(${x} ${y}) rotate(${a}) scale(${k})">${inner}</g>`;
@@ -59,8 +64,8 @@ const V = [
   { t: 'Po przekątnej', d: 'Czubkiem w lewy dół, jak trzymany do rysowania — najlepiej wypełnia kwadrat.', rec: true, svg: () => shadowed(at(pencil(), 82, 78, 1.08, 42)) },
   { t: 'Pionowo', d: 'Stoi prosto na czubku, wyśrodkowany.', svg: () => shadowed(at(pencil(), 80, 80, 1.08, 0)) },
   { t: 'Rysuje kreskę', d: 'Po przekątnej, a spod czubka wychodzi gruba biała kreska.', svg: () => `<path d="M24 136H86" stroke="${K}" stroke-width="12" stroke-linecap="round"/><path d="M24 136H86" stroke="${W}" stroke-width="5" stroke-linecap="round"/>` + shadowed(at(pencil(), 96, 74, 1.0, 38)) },
-  { t: 'Bez oczek', d: 'Sam ołówek — najbardziej oszczędny.', svg: () => shadowed(at(pencil({ eyes: false }), 82, 78, 1.08, 42)) },
-  { t: 'Czerwona gumka', d: 'Jeden kolorowy akcent — gumka, jak tęczówka Gapy.', svg: () => shadowed(at(pencil({ eraser: RED }), 82, 78, 1.08, 42)) },
+  { t: 'Biały korpus', d: 'Dla porównania: ta sama karykatura z białym korpusem.', svg: () => shadowed(at(pencil({ body: W }), 82, 78, 1.08, 42)) },
+  { t: 'Jeszcze większe oczy', d: 'Oczy wychodzą poza korpus — najbardziej karykaturalny.', svg: () => shadowed(at(pencil({ big: 14 }), 82, 78, 1.08, 42)) },
   { t: 'Poziomo', d: 'Leży na boku, czubkiem w lewo, zerka do góry.', svg: () => shadowed(at(pencil({ look: [1, -1.5] }), 80, 82, 1.08, 90)) }
 ];
 const icon = (body, size, c) => `<svg width="${size}" height="${size}" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="${c}"/>${body}</svg>`;
