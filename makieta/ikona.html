@@ -32,7 +32,7 @@ h2{font-size:15px;font-weight:600;margin:34px 0 4px}
 <body>
 <main>
   <h1>Ikona Rysia — rozwinięcie propozycji C</h1>
-  <p class="lead">Zostają różne rodzaje kresek — grubość i rodzaj linii to sedno programu. Wymiar jest lżejszy (cienka linia z ukośnymi kreseczkami, jak na rysunku) albo znika. Kreski dostały styl rodziny: biały kształt z grubym czarnym obrysem i czarnym cieniem przesuniętym w dół w prawo — jak krzyżyk Blatu i oko Gapy.</p>
+  <p class="lead">Zostają różne rodzaje kresek — grubość i rodzaj linii to sedno programu. Wymiar jest lżejszy (cienka linia z ukośnymi kreseczkami, jak na rysunku) albo znika. Kreski są płaskie, czarne (w jednej wersji jedna biała) na kolorowym tle — bez obrysów i cieni, jak czerń i biel w ikonie Modo.</p>
 
   <h2>Kolor</h2>
   <p class="lead">Limonka (Modo), fiolet (Gapa) i pomarańcz (Blat) są zajęte. Kliknij kolor — zmienią się wszystkie wersje i Dock.</p>
@@ -50,13 +50,9 @@ const K = '#161616', W = '#FFFFFF';
 const COLORS = [['#3D8BFF', 'Niebieski'], ['#22C3A6', 'Morski'], ['#FFD23F', 'Żółty'], ['#FF5A5F', 'Czerwony'], ['#FF8FCB', 'Różowy']];
 let color = COLORS[0][0];
 
-// kreska „z obrysem”: czarna szersza pod białą, ten sam wzór kresek i zaokrąglone końce → każdy kawałek ma swój obrys
-const stroke = (d, w, dash = '', out = 7) =>
-  `<path d="${d}" fill="none" stroke="${K}" stroke-width="${w + out}" stroke-linecap="round" stroke-linejoin="round" ${dash ? `stroke-dasharray="${dash}"` : ''}/>` +
-  `<path d="${d}" fill="none" stroke="${W}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" ${dash ? `stroke-dasharray="${dash}"` : ''}/>`;
-const shadow = d => `<path d="${d}" fill="none" stroke="${K}" stroke-linecap="round" stroke-linejoin="round"/>`;
-// cień: ta sama grupa na czarno, przesunięta (jak w Blacie)
-const withShadow = (body, dx = 5, dy = 6) => `<g transform="translate(${dx} ${dy})" style="filter:brightness(0)">${body}</g>${body}`;
+// płaska kreska w jednym kolorze (czarna albo biała) — bez obrysu i cienia, jak czerń i biel w ikonie Modo
+const stroke = (d, w, dash = '', col = K) => `<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" ${dash ? `stroke-dasharray="${dash}"` : ''}/>`;
+const withShadow = body => body;
 // lekki wymiar: cienka linia, krótkie pionowe linie pomocnicze i ukośne kreseczki
 const dim = (x1, x2, y) => `
   <path d="M${x1} ${y}H${x2}" stroke="${K}" stroke-width="3.2" stroke-linecap="round"/>
@@ -65,13 +61,15 @@ const dim = (x1, x2, y) => `
 
 const V = [
   { t: 'Cztery kreski', d: 'Gruba ciągła, cieńsza ciągła, kreskowa i osiowa — jak pasek kresek w programie. Najprostsza, czytelna nawet w 16 px.', rec: true,
-    svg: () => withShadow(stroke('M36 46H124', 15) + stroke('M36 72H124', 8) + stroke('M36 96H124', 8, '10 30') + stroke('M36 120H124', 6, '24 24 0.1 24')) },
-  { t: 'Kreski z wymiarem', d: 'Trzy kreski i nad nimi lekki wymiar z ukośnymi kreseczkami — „rysunek w skali”, ale bez toporności.',
-    svg: () => dim(36, 124, 38) + withShadow(stroke('M36 74H124', 14) + stroke('M36 100H124', 8, '10 30') + stroke('M36 124H124', 6, '24 24 0.1 24')) },
-  { t: 'Narożnik', d: 'Ten sam zestaw kresek złożony w narożnik budynku: gruba ściana, kreskowy okap i osiowa oś — kreski od razu „rysują” rzut.',
-    svg: () => withShadow(stroke('M58 128V58H128', 14) + stroke('M36 132V36H132', 7, '10 28') ) + `<path d="M22 92H140" stroke="${K}" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="22 8 2 8"/>` },
-  { t: 'Kreski ukośnie', d: 'Kreski jak próbki tuszu położone na skos — lżejsza, bardziej „rysunkowa”, mniej techniczna.',
-    svg: () => withShadow(stroke('M34 72L84 30', 14) + stroke('M42 104L112 46', 8) + stroke('M58 124L128 66', 8, '10 30') + stroke('M88 132L130 97', 6, '22 24 0.1 24')) }
+    svg: () => stroke('M36 44H124', 16) + stroke('M36 72H124', 9) + stroke('M36 98H124', 9, '12 18') + stroke('M36 122H124', 6, '26 14 0.1 14') },
+  { t: 'Czerń i biel', d: 'Te same cztery kreski, ale gruba jest biała — jak białe i czarne ściany bryły w ikonie Modo.',
+    svg: () => stroke('M36 44H124', 16, '', W) + stroke('M36 72H124', 9) + stroke('M36 98H124', 9, '12 18') + stroke('M36 122H124', 6, '26 14 0.1 14') },
+  { t: 'Kreski z wymiarem', d: 'Trzy kreski i nad nimi lekki wymiar z ukośnymi kreseczkami — „rysunek w skali”, bez toporności.',
+    svg: () => dim(36, 124, 40) + stroke('M36 76H124', 15) + stroke('M36 102H124', 9, '12 18') + stroke('M36 124H124', 6, '26 14 0.1 14') },
+  { t: 'Narożnik', d: 'Kreski złożone w narożnik budynku: gruba ściana, kreskowy okap i osiowa oś.',
+    svg: () => stroke('M36 132V36H132', 7, '10 16') + stroke('M58 128V58H128', 15) + stroke('M22 92H140', 4, '22 9 0.1 9') },
+  { t: 'Kreski ukośnie', d: 'Kreski jak próbki tuszu położone na skos — lżejsza, bardziej „rysunkowa”.',
+    svg: () => stroke('M34 72L84 30', 15) + stroke('M42 104L112 46', 9) + stroke('M58 124L128 66', 9, '12 18') + stroke('M88 132L130 97', 6, '22 14 0.1 14') }
 ];
 const icon = (v, size, c = color) => `<svg width="${size}" height="${size}" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="${c}"/>${v.svg()}</svg>`;
 // Gapa i Blat odrysowane z zrzutu ekranu — tylko do porównania
