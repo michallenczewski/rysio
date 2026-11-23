@@ -31,8 +31,8 @@ h2{font-size:15px;font-weight:600;margin:34px 0 4px}
 </head>
 <body>
 <main>
-  <h1>Ikona Rysia — na luzie</h1>
-  <p class="lead">Prościej i z przymrużeniem oka: dwa–trzy kształty na ikonę, trochę charakteru, jak oko Gapy. Tła i kolory przełączasz jak wcześniej.</p>
+  <h1>Ikona Rysia — chodząca kreska i ołówek</h1>
+  <p class="lead">Rozwinięcie dwóch wybranych pomysłów: po cztery wersje chodzącej kreski i ołówka. Dalej prosto — kilka kształtów i trochę charakteru. Tła przełączasz jak wcześniej.</p>
 
   <h2>Kolor</h2>
   <p class="lead">Limonka (Modo), fiolet (Gapa) i pomarańcz (Blat) są zajęte. Kliknij kolor — zmienią się wszystkie wersje i Dock.</p>
@@ -51,25 +51,24 @@ const COLORS = [['#FFFFFF', 'Białe'], ['#F1ECE1', 'Złamana biel'], ['#232326',
 let color = '#FFD23F';
 
 const ln = (d, w, col = K, extra = '') => `<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" ${extra}/>`;
+const eye = (x, y, r = 7, look = [2, 0]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${W}" stroke="${K}" stroke-width="4"/><circle cx="${x + look[0]}" cy="${y + look[1]}" r="${r * 0.45}" fill="${K}"/>`;
 const V = [
-  { t: 'Uśmiechnięty wymiar', d: 'Linia wymiarowa wygięta w uśmiech, z kreseczkami na końcach, i dwoje oczu. Wymiar, który się cieszy.', rec: true,
-    svg: () => `<circle cx="58" cy="62" r="10" fill="${K}"/><circle cx="102" cy="62" r="10" fill="${K}"/>
-      <path d="M38 94Q80 132 122 94" fill="none" stroke="${K}" stroke-width="7"/><path d="M30 102 46 86M114 102 130 86" stroke="${K}" stroke-width="7" stroke-linecap="round"/>` },
-  { t: 'Kwadracik', d: 'Znaczek przyciągania „koniec” jako postać: biały kwadracik z oczami siedzi na kresce i zerka w bok.',
-    svg: () => `<path d="M18 118H142" stroke="${K}" stroke-width="9"/><rect x="50" y="48" width="60" height="60" fill="${W}" stroke="${K}" stroke-width="9"/>
-      <circle cx="78" cy="74" r="6" fill="${K}"/><circle cx="98" cy="74" r="6" fill="${K}"/>` },
-  { t: 'Ryś', d: 'Czarna główka z uszami z pędzelkami i dwoma białymi oczami. Trzy kształty i gotowe.',
-    svg: () => `<path d="M38 70 44 22 74 52ZM122 70 116 22 86 52Z" fill="${K}"/><path d="M44 22 42 8M116 22 118 8" stroke="${K}" stroke-width="6" stroke-linecap="round"/><circle cx="80" cy="92" r="46" fill="${K}"/>
-      <circle cx="62" cy="88" r="10" fill="${W}"/><circle cx="98" cy="88" r="10" fill="${W}"/>` },
-  { t: 'Bazgroł na prosto', d: 'Falująca kreska z ręki, która na końcu sama się prostuje i trafia w kwadracik — „rysujesz na luzie, wychodzi prosto”.',
-    svg: () => `<path d="M20 98C30 64 44 128 56 92S78 72 88 82H128" fill="none" stroke="${K}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
-      <rect x="120" y="70" width="24" height="24" fill="${W}" stroke="${K}" stroke-width="7"/>` },
-  { t: 'Chodząca kreska', d: 'Gruba kreska na dwóch cienkich nóżkach, idzie gdzieś w prawo. Tak po prostu.',
-    svg: () => `<path d="M28 72H132" stroke="${K}" stroke-width="22"/><path d="M58 83 48 120H38M104 83 114 118H124" fill="none" stroke="${K}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="120" cy="72" r="5" fill="${W}"/>` },
-  { t: 'Ołówek z okiem', d: 'Krótki, gruby ołówek z jednym dużym okiem — kuzyn oka Gapy.',
-    svg: () => `<g transform="rotate(-30 80 80)"><rect x="56" y="18" width="48" height="84" fill="${W}" stroke="${K}" stroke-width="7"/><path d="M56 102 80 140 104 102Z" fill="${K}"/>
-      <circle cx="80" cy="58" r="15" fill="${W}" stroke="${K}" stroke-width="6"/><circle cx="84" cy="56" r="6" fill="${K}"/></g>` }
+  { g: 'Chodząca kreska', t: 'W marszu', d: 'Gruba kreska na dwóch cienkich nóżkach, z okiem z przodu — idzie w prawo.',
+    svg: () => `<path d="M26 70H134" stroke="${K}" stroke-width="22"/><path d="M56 81 44 118H34M108 81 118 116H128" fill="none" stroke="${K}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>${eye(122, 70, 7)}` },
+  { g: 'Chodząca kreska', t: 'Kreska, która rysuje', d: 'Idąc, zostawia za sobą cienką linię — sama się rysuje.', rec: true,
+    svg: () => `<path d="M16 112H74" stroke="${K}" stroke-width="5"/><path d="M60 66H136" stroke="${K}" stroke-width="20"/><path d="M78 76 70 112M120 76 130 110" fill="none" stroke="${K}" stroke-width="6" stroke-linecap="round"/>${eye(126, 66, 6)}` },
+  { g: 'Chodząca kreska', t: 'Z kwadracikiem', d: 'Głową jest kwadracik przyciągania — z okiem w środku.',
+    svg: () => `<path d="M22 80H100" stroke="${K}" stroke-width="18"/><rect x="100" y="60" width="38" height="38" fill="${W}" stroke="${K}" stroke-width="7"/><circle cx="124" cy="78" r="5.5" fill="${K}"/><path d="M42 89 34 122H26M84 89 92 120H100" fill="none" stroke="${K}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>` },
+  { g: 'Chodząca kreska', t: 'Kreskowa w drodze', d: 'Kreska przerywana na nóżkach — każdy kawałek dostał swoją parę.',
+    svg: () => `<path d="M18 74H48M62 74H96M110 74H140" stroke="${K}" stroke-width="16"/><path d="M28 82 24 112M40 82 44 112M74 82 70 112M86 82 90 112M120 82 116 112M132 82 136 112" stroke="${K}" stroke-width="5" stroke-linecap="round"/>${eye(134, 74, 5.5)}` },
+  { g: 'Ołówek', t: 'Z okiem', d: 'Krótki, gruby ołówek z jednym dużym okiem — kuzyn oka Gapy.',
+    svg: () => `<g transform="rotate(-30 80 80)"><rect x="56" y="18" width="48" height="84" fill="${W}" stroke="${K}" stroke-width="7"/><path d="M56 102 80 140 104 102Z" fill="${K}"/>${eye(80, 58, 15, [4, -2])}</g>` },
+  { g: 'Ołówek', t: 'Na nóżkach', d: 'Ołówek leży poziomo i idzie na dwóch nóżkach, grafitem do przodu — połączenie obu pomysłów.', rec: true,
+    svg: () => `<rect x="26" y="52" width="80" height="34" fill="${W}" stroke="${K}" stroke-width="7"/><path d="M106 52 140 69 106 86Z" fill="${K}"/><path d="M48 90 40 120H30M88 90 96 118H106" fill="none" stroke="${K}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>${eye(88, 69, 9)}` },
+  { g: 'Ołówek', t: 'Rysuje linię', d: 'Ołówek z okiem patrzy, jak spod grafitu wychodzi linia.',
+    svg: () => `<path d="M16 124H84" stroke="${K}" stroke-width="6"/><g transform="rotate(40 100 80)"><rect x="80" y="12" width="40" height="78" fill="${W}" stroke="${K}" stroke-width="7"/><path d="M80 90 100 124 120 90Z" fill="${K}"/>${eye(100, 52, 12, [-3, 3])}</g>` },
+  { g: 'Ołówek', t: 'Zerka zza kreski', d: 'Ołówek wystaje zza grubej kreski i zerka dwojgiem oczu.',
+    svg: () => `<path d="M60 34 80 8 100 34Z" fill="${K}"/><rect x="60" y="34" width="40" height="70" fill="${W}" stroke="${K}" stroke-width="7"/>${eye(72, 62, 7, [2, 1])}${eye(90, 62, 7, [2, 1])}<path d="M16 108H144" stroke="${K}" stroke-width="22"/>` }
 ];
 const icon = (v, size, c = color) => // tło + znak
   `<svg width="${size}" height="${size}" viewBox="0 0 160 160"><rect x="1" y="1" width="158" height="158" rx="36" fill="${c}" ${c === '#FFFFFF' ? 'stroke="#d8d5ce" stroke-width="2"' : ''}/>${v.svg()}</svg>`;
@@ -88,7 +87,7 @@ function render() {
   document.getElementById('dock').innerHTML = [['Modo', MODO0], ['Gapa', GAPA0], ['Blat', BLAT0]].map(([n, f]) => { const k = K; K = '#161616'; const s = f(); K = k; return `<div class="it">${s}<span>${n}</span></div>`; }).join('') + '<div class="sp"></div>' +
     V.map((v, i) => `<div class="it">${icon(v, 64)}<span>${String.fromCharCode(65 + i)}</span></div>`).join('');
   document.getElementById('grid').innerHTML = V.map((v, i) => `<div class="card"><div class="big">${icon(v, 140)}</div>
-    <div><span class="t">${String.fromCharCode(65 + i)}. ${v.t}</span>${v.rec ? '<span class="tag">polecam</span>' : ''}</div><div class="d">${v.d}</div>
+    <div><span class="t">${String.fromCharCode(65 + i)}. ${v.g}: ${v.t}</span>${v.rec ? '<span class="tag">polecam</span>' : ''}</div><div class="d">${v.d}</div>
     <div class="sizes">${[64, 32, 16].map(s => icon(v, s)).join('')}</div></div>`).join('');
 }
 document.getElementById('colors').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; color = b.dataset.c; render(); });
