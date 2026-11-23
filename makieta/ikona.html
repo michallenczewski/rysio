@@ -32,7 +32,7 @@ h2{font-size:15px;font-weight:600;margin:34px 0 4px}
 <body>
 <main>
   <h1>Ikona Rysia — rozwinięcie propozycji C</h1>
-  <p class="lead">Zostają różne rodzaje kresek — grubość i rodzaj linii to sedno programu. Wymiar jest lżejszy (cienka linia z ukośnymi kreseczkami, jak na rysunku) albo znika. Kreski są płaskie, czarne (w jednej wersji jedna biała) na kolorowym tle — bez obrysów i cieni, jak czerń i biel w ikonie Modo.</p>
+  <p class="lead">Układ z pierwszej wersji C zostaje: wymiar, gruba czarna belka i biała linia przerywana, wszystkie z prostymi, uciętymi końcami. Zmienia się tylko wymiar — jest cieńszy i ostrzejszy — i kolor tła. Pierwsza karta to dawna wersja, do porównania.</p>
 
   <h2>Kolor</h2>
   <p class="lead">Limonka (Modo), fiolet (Gapa) i pomarańcz (Blat) są zajęte. Kliknij kolor — zmienią się wszystkie wersje i Dock.</p>
@@ -50,26 +50,24 @@ const K = '#161616', W = '#FFFFFF';
 const COLORS = [['#3D8BFF', 'Niebieski'], ['#22C3A6', 'Morski'], ['#FFD23F', 'Żółty'], ['#FF5A5F', 'Czerwony'], ['#FF8FCB', 'Różowy']];
 let color = COLORS[0][0];
 
-// płaska kreska w jednym kolorze (czarna albo biała) — bez obrysu i cienia, jak czerń i biel w ikonie Modo
-const stroke = (d, w, dash = '', col = K) => `<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" ${dash ? `stroke-dasharray="${dash}"` : ''}/>`;
-const withShadow = body => body;
-// lekki wymiar: cienka linia, krótkie pionowe linie pomocnicze i ukośne kreseczki
-const dim = (x1, x2, y) => `
-  <path d="M${x1} ${y}H${x2}" stroke="${K}" stroke-width="3.2" stroke-linecap="round"/>
-  <path d="M${x1} ${y - 9}V${y + 9}M${x2} ${y - 9}V${y + 9}" stroke="${K}" stroke-width="3.2" stroke-linecap="round"/>
-  <path d="M${x1 - 6} ${y + 6}L${x1 + 6} ${y - 6}M${x2 - 6} ${y + 6}L${x2 + 6} ${y - 6}" stroke="${K}" stroke-width="5.5" stroke-linecap="round"/>`;
-
+// kreska z prostymi, uciętymi końcami (jak w pierwszej wersji C), czarna albo biała
+const stroke = (d, w, dash = '', col = K) => `<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="butt" ${dash ? `stroke-dasharray="${dash}"` : ''}/>`;
+// wymiar: cienka linia, krótkie linie pomocnicze i ukośne kreseczki; o — grubość, t — długość kreseczki
+const dim = (x1, x2, y, o = {}) => { const w = o.w ?? 3.5, tw = o.tw ?? 5, t = o.t ?? 7, e = o.e ?? 10;
+  return `<path d="M${x1 - 6} ${y}H${x2 + 6}" stroke="${K}" stroke-width="${w}"/>
+  <path d="M${x1} ${y - e}V${y + e}M${x2} ${y - e}V${y + e}" stroke="${K}" stroke-width="${w}"/>
+  <path d="M${x1 - t} ${y + t}L${x1 + t} ${y - t}M${x2 - t} ${y + t}L${x2 + t} ${y - t}" stroke="${K}" stroke-width="${tw}"/>`; };
 const V = [
-  { t: 'Cztery kreski', d: 'Gruba ciągła, cieńsza ciągła, kreskowa i osiowa — jak pasek kresek w programie. Najprostsza, czytelna nawet w 16 px.', rec: true,
-    svg: () => stroke('M36 44H124', 16) + stroke('M36 72H124', 9) + stroke('M36 98H124', 9, '12 18') + stroke('M36 122H124', 6, '26 14 0.1 14') },
-  { t: 'Czerń i biel', d: 'Te same cztery kreski, ale gruba jest biała — jak białe i czarne ściany bryły w ikonie Modo.',
-    svg: () => stroke('M36 44H124', 16, '', W) + stroke('M36 72H124', 9) + stroke('M36 98H124', 9, '12 18') + stroke('M36 122H124', 6, '26 14 0.1 14') },
-  { t: 'Kreski z wymiarem', d: 'Trzy kreski i nad nimi lekki wymiar z ukośnymi kreseczkami — „rysunek w skali”, bez toporności.',
-    svg: () => dim(36, 124, 40) + stroke('M36 76H124', 15) + stroke('M36 102H124', 9, '12 18') + stroke('M36 124H124', 6, '26 14 0.1 14') },
-  { t: 'Narożnik', d: 'Kreski złożone w narożnik budynku: gruba ściana, kreskowy okap i osiowa oś.',
-    svg: () => stroke('M36 132V36H132', 7, '10 16') + stroke('M58 128V58H128', 15) + stroke('M22 92H140', 4, '22 9 0.1 9') },
-  { t: 'Kreski ukośnie', d: 'Kreski jak próbki tuszu położone na skos — lżejsza, bardziej „rysunkowa”.',
-    svg: () => stroke('M34 72L84 30', 15) + stroke('M42 104L112 46', 9) + stroke('M58 124L128 66', 9, '12 18') + stroke('M88 132L130 97', 6, '22 14 0.1 14') }
+  { t: 'Pierwsza wersja C', d: 'Tak jak była — do porównania. Wymiar ma grube, zaokrąglone kreseczki i dlatego wygląda topornie.', old: true,
+    svg: () => `<path d="M30 52H130" stroke="${K}" stroke-width="4"/><path d="M30 40V64M130 40V64" stroke="${K}" stroke-width="4" stroke-linecap="round"/><path d="M22 60 38 44M122 60 138 44" stroke="${K}" stroke-width="7" stroke-linecap="round"/><path d="M30 94H130" stroke="${K}" stroke-width="16"/><path d="M30 124H130" stroke="${W}" stroke-width="6" stroke-dasharray="14 8"/>` },
+  { t: 'C — lżejszy wymiar', d: 'Ten sam układ. Wymiar cienki, z ostrymi ukośnymi kreseczkami i krótkimi liniami pomocniczymi — jak na prawdziwym rysunku.', rec: true,
+    svg: () => dim(34, 126, 46) + stroke('M34 90H126', 16) + stroke('M34 120H126', 7, '13 8', W) },
+  { t: 'C — z cienką linią', d: 'Dochodzi cienka ciągła między grubą i przerywaną: trzy grubości i dwa rodzaje kreski pod jednym wymiarem.',
+    svg: () => dim(34, 126, 40) + stroke('M34 80H126', 16) + stroke('M34 102H126', 4) + stroke('M34 124H126', 7, '13 8', W) },
+  { t: 'C — z osiową', d: 'Zamiast cienkiej ciągłej — osiowa (kreska-kropka), białą przerywana zostaje.',
+    svg: () => dim(34, 126, 40) + stroke('M34 80H126', 16) + stroke('M34 102H126', 4, '20 6 3 6') + stroke('M34 124H126', 7, '13 8', W) },
+  { t: 'C — wymiar pod kreskami', d: 'Kreski na górze, wymiar na dole — jak linia wymiarowa pod rzutem.',
+    svg: () => stroke('M34 46H126', 16) + stroke('M34 76H126', 7, '13 8', W) + dim(34, 126, 114) }
 ];
 const icon = (v, size, c = color) => `<svg width="${size}" height="${size}" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="${c}"/>${v.svg()}</svg>`;
 // Gapa i Blat odrysowane z zrzutu ekranu — tylko do porównania
@@ -80,10 +78,10 @@ const BLAT = `<svg width="64" height="64" viewBox="0 0 160 160"><rect width="160
 function render() {
   document.getElementById('colors').innerHTML = COLORS.map(([c, n]) => `<button data-c="${c}" class="${c === color ? 'on' : ''}"><i style="background:${c}"></i>${n}</button>`).join('');
   document.getElementById('dock').innerHTML = [['Modo', MODO], ['Gapa', GAPA], ['Blat', BLAT]].map(([n, s]) => `<div class="it">${s}<span>${n}</span></div>`).join('') + '<div class="sp"></div>' +
-    V.map((v, i) => `<div class="it">${icon(v, 64)}<span>${String.fromCharCode(65 + i)}</span></div>`).join('');
-  document.getElementById('grid').innerHTML = V.map((v, i) => `<div class="card"><div class="big">${icon(v, 140)}</div>
-    <div><span class="t">${String.fromCharCode(65 + i)}. ${v.t}</span>${v.rec ? '<span class="tag">polecam</span>' : ''}</div><div class="d">${v.d}</div>
-    <div class="sizes">${[64, 32, 16].map(s => icon(v, s)).join('')}</div></div>`).join('');
+    V.map((v, i) => `<div class="it">${icon(v, 64, v.old ? '#FF8F6B' : color)}<span>${v.old ? 'dawna' : i}</span></div>`).join('');
+  document.getElementById('grid').innerHTML = V.map((v, i) => `<div class="card"><div class="big">${icon(v, 140, v.old ? '#FF8F6B' : color)}</div>
+    <div><span class="t">${v.old ? '' : i + '. '}${v.t}</span>${v.rec ? '<span class="tag">polecam</span>' : ''}</div><div class="d">${v.d}</div>
+    <div class="sizes">${[64, 32, 16].map(s => icon(v, s, v.old ? '#FF8F6B' : color)).join('')}</div></div>`).join('');
 }
 document.getElementById('colors').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; color = b.dataset.c; render(); });
 render();
