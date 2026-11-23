@@ -58,7 +58,24 @@ const photo = (x, y, w, h, a = 0, fill = W, sun = true) => `<g transform="transl
   <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="4" fill="${fill}" ${st()}/>
   <path d="M${-w / 2 + 8} ${h / 2 - 8}L${-w / 2 + w * 0.38} ${-h * 0.05}L${-w / 2 + w * 0.56} ${h * 0.18}L${-w / 2 + w * 0.7} ${h * 0.04}L${w / 2 - 8} ${h / 2 - 8}Z" fill="${K}"/>
   ${sun ? `<circle cx="${w / 2 - w * 0.24}" cy="${-h / 2 + h * 0.28}" r="${Math.min(w, h) * 0.1}" fill="${RED}" stroke="${K}" stroke-width="3.5"/>` : ''}</g>`;
+// klips biurowy: czarny trapez i dwa druciane uchwyty (biały drut z czarnym obrysem); x, y — środek górnej krawędzi szczęk, k — skala
+const clip = (x, y, k = 1, a = 0) => `<g transform="translate(${x} ${y}) rotate(${a}) scale(${k})">
+  <path d="M-14 0L-22 -30Q-24 -38 -16 -38H-8Q-2 -38 -4 -30L-6 0M14 0L22 -30Q24 -38 16 -38H8Q2 -38 4 -30L6 0" fill="none" stroke="${K}" stroke-width="11" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M-14 0L-22 -30Q-24 -38 -16 -38H-8Q-2 -38 -4 -30L-6 0M14 0L22 -30Q24 -38 16 -38H8Q2 -38 4 -30L6 0" fill="none" stroke="#fff" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M-28 -4H28L34 22H-34Z" fill="${K}" stroke="${K}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M-22 4H22" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".55"/></g>`;
 const B = [
+  { t: 'Klips na stosie obrazów', d: 'Czarny klips biurowy spina stos zdjęć — referencje zebrane w jednym miejscu.', rec: true,
+    svg: () => shadowed(photo(84, 92, 92, 70, 7, W, false)) + shadowed(photo(80, 90, 92, 70, -4)) + clip(80, 54, 1) },
+  { t: 'Sam klips', d: 'Tylko duży klips — czarno-biały i mocny, jak kostka Modo.',
+    svg: () => shadowed(`<g>${clip(80, 82, 1.9)}</g>`) },
+  { t: 'Klips na zdjęciu', d: 'Jedno zdjęcie, przypięte klipsem w rogu, lekko przekrzywione.',
+    svg: () => shadowed(photo(82, 90, 100, 80, -6)) + clip(48, 56, 0.85, -20) },
+  { t: 'Klips z notatką i obrazem', d: 'Klips trzyma obraz i żółtą notatkę — dwa rodzaje rzeczy, które leżą na Blacie.',
+    svg: () => shadowed(`<rect x="44" y="56" width="80" height="80" transform="rotate(6 84 96)" fill="#FFD23F" ${st()}/>`) + shadowed(photo(76, 92, 86, 66, -5)) + clip(78, 56, 0.95) },
+  { t: 'Klipsy na sznurku', d: 'Dwa obrazy na sznurku, spięte klipsami — mała wystawa referencji.',
+    svg: () => `<path d="M14 40Q80 62 146 40" fill="none" stroke="${K}" stroke-width="4"/>` + shadowed(photo(52, 92, 56, 66, -6, W, false)) + shadowed(photo(110, 94, 56, 66, 6)) + clip(52, 58, 0.6, -6) + clip(110, 58, 0.6, 6) },
+
   { t: 'Kolaż zdjęć', d: 'Trzy obrazy rzucone na blat, nachodzące na siebie — referencje przed oczami.', rec: true,
     svg: () => shadowed(photo(58, 62, 64, 50, -10, W, false)) + shadowed(photo(104, 74, 60, 70, 8, W, false)) + shadowed(photo(74, 108, 76, 52, -3)) },
   { t: 'Mozaika', d: 'Prostokąty różnej wielkości ułożone na blacie — jeden z nich to obraz.',
