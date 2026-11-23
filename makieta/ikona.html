@@ -32,7 +32,7 @@ h2{font-size:15px;font-weight:600;margin:34px 0 4px}
 <body>
 <main>
   <h1>Ikona Rysia — linia wypełniająca kwadrat</h1>
-  <p class="lead">Pętla z łamanej z mniejszą liczbą załamań. Pierwsza karta to poprzednia wersja B do porównania. Linia biała albo czarna, z przesuniętym cieniem albo bez (cień działa przy białej linii). Kolor tła jak wcześniej.</p>
+  <p class="lead">Swobodne zygzaki z łamanej — nieregularne, jak pociągnięcie ręką. Pierwsza karta to pętla z poprzedniego kroku do porównania. Linia biała albo czarna, z przesuniętym cieniem albo bez (cień działa przy białej linii). Kolor tła jak wcześniej.</p>
 
   <h2>Kolor</h2>
   <p class="lead">Limonka (Modo), fiolet (Gapa) i pomarańcz (Blat) są zajęte. Kliknij kolor — zmienią się wszystkie wersje i Dock.</p>
@@ -71,11 +71,18 @@ const P6 = [[26, 126], [58, 38], [122, 50], [104, 104], [58, 78], [136, 128]];
 const P5 = [[26, 126], [66, 34], [126, 72], [62, 92], [134, 128]];
 const P7 = [[26, 126], [46, 54], [98, 32], [124, 78], [84, 104], [64, 72], [136, 128]];
 const poly = pts => 'M' + pts.map(p => p.join(' ')).join('L');
+const Z1 = [[20, 112], [40, 44], [60, 104], [84, 34], [102, 100], [122, 50], [142, 120]];
+const Z2 = [[18, 84], [32, 70], [46, 96], [64, 52], [86, 118], [110, 30], [142, 128]];
+const Z3 = [[22, 134], [60, 110], [36, 88], [86, 74], [58, 54], [112, 44], [86, 26], [140, 24]];
+const Z4 = [[26, 36], [136, 54], [28, 74], [132, 94], [32, 110], [130, 128]];
+const Z5 = [[22, 120], [52, 40], [74, 92], [96, 58], [112, 112], [140, 34]];
 const V = [
-  { t: 'B — jak było', d: 'Osiem odcinków, do porównania.', svg: () => bold(poly(P1), 15, 'miter', 'butt') + sq(26, 124, 9) },
-  { t: 'Pięć odcinków', d: 'Mniej załamań: pętla nadal widoczna, narożniki łagodniejsze.', rec: true, svg: () => bold(poly(P6), 15, 'miter', 'butt') + sq(26, 126, 9) },
-  { t: 'Cztery odcinki', d: 'Najprościej — pętla jako trójkątne skrzyżowanie.', svg: () => bold(poly(P5), 15, 'miter', 'butt') + sq(26, 126, 9) },
-  { t: 'Sześć odcinków', d: 'Pośrodku: pętla bardziej okrągła, ale wciąż łamana.', svg: () => bold(poly(P7), 15, 'miter', 'butt') + sq(26, 126, 9) }
+  { t: 'Pętla z pięciu odcinków', d: 'Wersja z poprzedniego kroku, do porównania.', svg: () => bold(poly(P6), 15, 'miter', 'butt') + sq(26, 126, 9) },
+  { t: 'Swobodny zygzak', d: 'Szczyty na różnych wysokościach, jak pociągnięcie ręką.', rec: true, svg: () => bold(poly(Z1), 14, 'miter', 'butt') + sq(20, 112, 9) },
+  { t: 'Zygzak narastający', d: 'Zaczyna się drobno i coraz mocniej się rozpędza.', svg: () => bold(poly(Z2), 14, 'miter', 'butt') + sq(18, 84, 9) },
+  { t: 'Zygzak po schodach', d: 'Idzie po przekątnej z lewego dołu do prawej góry, tam i z powrotem.', svg: () => bold(poly(Z3), 13, 'miter', 'butt') + sq(22, 134, 9) },
+  { t: 'Gryzmoł', d: 'Długie pociągnięcia w lewo i prawo, jak szybkie zakreskowanie.', svg: () => bold(poly(Z4), 13, 'miter', 'butt') + sq(26, 36, 9) },
+  { t: 'Zygzak nierówny', d: 'Mniej odcinków, za to każdy inny — swobodny, ale czytelny w małym rozmiarze.', svg: () => bold(poly(Z5), 15, 'miter', 'butt') + sq(22, 120, 9) }
 ];
 const icon = (v, size, c = color) => // tło + znak
   `<svg width="${size}" height="${size}" viewBox="0 0 160 160"><rect x="1" y="1" width="158" height="158" rx="36" fill="${c}" ${c === '#FFFFFF' ? 'stroke="#d8d5ce" stroke-width="2"' : ''}/>${v.svg()}</svg>`;
@@ -94,7 +101,7 @@ function render() {
   document.getElementById('colors').innerHTML = COLORS.map(([c, n]) => `<button data-c="${c}" class="${c === color ? 'on' : ''}"><i style="background:${c}"></i>${n}</button>`).join('');
   document.getElementById('dock').innerHTML = [['Modo', MODO0], ['Gapa', GAPA0], ['Blat', BLAT0]].map(([n, f]) => { const k = K; K = '#161616'; const s = f(); K = k; return `<div class="it">${s}<span>${n}</span></div>`; }).join('') + '<div class="sp"></div>' +
     V.map((v, i) => `<div class="it">${icon(v, 64)}<span>${String.fromCharCode(65 + i)}</span></div>`).join('');
-  document.getElementById('big').innerHTML = icon(V[1], 220) + icon(V[2], 220) + icon(V[3], 220);
+  document.getElementById('big').innerHTML = icon(V[1], 170) + icon(V[2], 170) + icon(V[3], 170) + icon(V[4], 170) + icon(V[5], 170);
   document.getElementById('grid').innerHTML = V.map((v, i) => `<div class="card"><div class="big">${icon(v, 140)}</div>
     <div><span class="t">${String.fromCharCode(65 + i)}. ${v.g ? v.g + ' ' : ''}${v.t}</span>${v.rec ? '<span class="tag">polecam</span>' : ''}</div><div class="d">${v.d}</div>
     <div class="sizes">${[64, 32, 16].map(s => icon(v, s)).join('')}</div></div>`).join('');
