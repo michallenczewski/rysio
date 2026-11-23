@@ -80,15 +80,22 @@ const wire = (d, wire = '#fff', w = 5) => `<path d="${d}" fill="none" stroke="${
 const eyesAt = (look = [1.5, 1], r = 5.5) => `<circle cx="-1" cy="-8" r="${r}" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="${-1 + look[0]}" cy="${-8 + look[1]}" r="${r * 0.44}" fill="${K}"/><circle cx="12" cy="-10" r="${r}" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="${12 + look[0]}" cy="${-10 + look[1]}" r="${r * 0.44}" fill="${K}"/>`;
 const pcG = (inner, x = 76, y = 78, k = 1.55, a = 8) => `<g transform="translate(${x} ${y}) rotate(${a}) scale(${k})">${inner}</g>`;
 const pcShadow = (x, y, k, a, d = PC) => `<g transform="translate(6 7)">${pcG(`<path d="${d}" fill="none" stroke="${K}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>`, x, y, k, a)}</g>`;
+// prawdziwy spinacz (trzy zakręty): wewnętrzna noga, mały zakręt u góry, długa noga, zakręt u dołu, zewnętrzna noga, duży zakręt u góry
+const GEM = 'M-4 18V-26A6 6 0 0 1 8 -26V36A12 12 0 0 1 -16 36V-34A16 16 0 0 1 16 -34V12';
+const GEM_BACK = 'M-4 18V-26A6 6 0 0 1 8 -26V36A12 12 0 0 1 -16 36';      // część za kartką
+const GEM_FRONT = 'M-16 36V-34A16 16 0 0 1 16 -34V12';                     // część przed kartką
+const gEyes = (look = [1.5, 1]) => `<circle cx="-4" cy="-12" r="6" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="${-4 + look[0]}" cy="${-12 + look[1]}" r="2.6" fill="${K}"/><circle cx="10" cy="-14" r="6" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="${10 + look[0]}" cy="${-14 + look[1]}" r="2.6" fill="${K}"/>`;
+const at = (inner, x, y, k, a) => `<g transform="translate(${x} ${y}) rotate(${a}) scale(${k})">${inner}</g>`;
+const gemShadow = (x, y, k, a, d = GEM) => `<g transform="translate(6 7)">${at(`<path d="${d}" fill="none" stroke="${K}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>`, x, y, k, a)}</g>`;
+const gWire = (d = GEM, col = '#fff') => `<path d="${d}" fill="none" stroke="${K}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="${col}" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>`;
 const S = [
-  { t: 'Z oczkami', d: 'Wybrany spinacz, lekko przechylony, patrzy w prawo.', svg: () => pcShadow(76, 78, 1.55, 8) + pcG(wire(PC) + eyesAt()) },
-  { t: 'Bez oczek', d: 'Sam spinacz — najbardziej oszczędny.', svg: () => pcShadow(80, 80, 1.6, 10) + pcG(wire(PC), 80, 80, 1.6, 10) },
-  { t: 'Większe oczy', d: 'Oczy większe i patrzą w górę — więcej charakteru.', svg: () => pcShadow(76, 80, 1.55, 6) + pcG(wire(PC) + eyesAt([0, -2], 7), 76, 80, 1.55, 6) },
-  { t: 'Puszcza oczko', d: 'Jedno oko otwarte, drugie mrugnięte.', svg: () => pcShadow(76, 78, 1.55, 8) + pcG(wire(PC) + `<circle cx="-1" cy="-8" r="5.5" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="0.5" cy="-7" r="2.4" fill="${K}"/><path d="M7 -10Q12 -14 17 -10" fill="none" stroke="${K}" stroke-width="3.2" stroke-linecap="round"/>`) },
-  { t: 'Czarny drut', d: 'Drut czarny, oczy białe — mocniejszy kontrast na kolorze.', svg: () => pcShadow(76, 78, 1.55, 8) + pcG(`<path d="${PC}" fill="none" stroke="${K}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>` + eyesAt()) },
-  { t: 'Czerwony drut', d: 'Kolorowy spinacz z czarnym obrysem — jak czerwona tęczówka Gapy.', svg: () => pcShadow(76, 78, 1.55, 8) + pcG(wire(PC, '#FF5A5F') + eyesAt()) },
-  { t: 'Poziomo, zerka', d: 'Spinacz leży na boku i zerka — szerszy kształt, lepiej wypełnia kwadrat.', svg: () => pcShadow(80, 82, 1.45, 96) + pcG(wire(PC) + eyesAt([-1.5, 1]), 80, 82, 1.45, 96) },
-  { t: 'Dwa spinacze', d: 'Para spinaczy obok siebie, jeden z oczkami.', svg: () => pcShadow(58, 82, 1.2, -8) + pcShadow(104, 78, 1.2, 12) + pcG(wire(PC), 58, 82, 1.2, -8) + pcG(wire(PC) + eyesAt(), 104, 78, 1.2, 12) }
+  { t: 'Duży, prosto', d: 'Prawdziwy spinacz z trzema zakrętami, duży i wyśrodkowany.', svg: () => gemShadow(80, 80, 1.18, 0) + at(gWire() + gEyes(), 80, 80, 1.18, 0) },
+  { t: 'Po przekątnej', d: 'Ułożony po przekątnej — najlepiej wypełnia kwadrat.', svg: () => gemShadow(80, 80, 1.3, 42) + at(gWire() + gEyes([1, 1.5]), 80, 80, 1.3, 42) },
+  { t: 'Poziomo', d: 'Leży na boku, szeroki na całą ikonę.', svg: () => gemShadow(80, 82, 1.28, 90) + at(gWire() + gEyes([-1.5, 1]), 80, 82, 1.28, 90) },
+  { t: 'Na kartce', d: 'Spinacz zaczepiony o górną krawędź białej kartki — część drutu za kartką, część przed.', rec: true,
+    svg: () => `<g transform="translate(6 7)"><rect x="30" y="52" width="100" height="88" rx="4" fill="${K}"/></g>` + at(gWire(GEM_BACK), 98, 66, 0.95, 8) + `<rect x="30" y="52" width="100" height="88" rx="4" fill="#fff" ${st()}/><path d="M46 96H96M46 112H84" ${st(5)}/>` + at(gWire(GEM_FRONT) + gEyes(), 98, 66, 0.95, 8) },
+  { t: 'Bez oczek, po przekątnej', d: 'Sam drut po przekątnej — najbardziej oszczędny.', svg: () => gemShadow(80, 80, 1.3, 42) + at(gWire(), 80, 80, 1.3, 42) },
+  { t: 'Czerwony, po przekątnej', d: 'Czerwony drut z czarnym obrysem, jak tęczówka Gapy.', svg: () => gemShadow(80, 80, 1.3, 42) + at(gWire(GEM, '#FF5A5F') + gEyes([1, 1.5]), 80, 80, 1.3, 42) }
 ];
 const B = [
   { t: 'Spinacz z oczkami', d: 'Spinacz-postać na zdjęciu: zerka zza krawędzi obrazu. Nawiązanie do pomysłu, ale własny rysunek, nie Clippy.', rec: true,

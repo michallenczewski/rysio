@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rysio — ołówek</title>
+<style>
+:root{--bg:#f7f7f5;--text:#1a1a19;--muted:#706f6a;--soft:#efeeea;--line:#e6e5e1;--card:#fff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:1180px;margin:0 auto;padding:28px 24px 60px}
+h1{font-size:20px;font-weight:600;margin:0 0 4px}
+h2{font-size:15px;font-weight:600;margin:30px 0 4px}
+.lead{color:var(--muted);margin:0 0 14px;max-width:800px}
+.colors{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 12px}
+.colors button{display:flex;align-items:center;gap:8px;height:32px;padding:0 12px 0 8px;border-radius:8px;border:0;background:var(--card);box-shadow:0 0 0 1px var(--line);font:inherit;cursor:pointer;color:var(--muted)}
+.colors button i{width:16px;height:16px;border-radius:5px}
+.colors button.on{box-shadow:0 0 0 2px var(--text);color:var(--text)}
+.dock{display:flex;align-items:flex-end;gap:18px;padding:16px 22px 12px;border-radius:22px;background:#8b879c;width:max-content;max-width:100%;overflow:auto}
+.dock .it{display:flex;flex-direction:column;align-items:center;gap:6px}
+.dock .it span{font-size:11px;color:#f3f2f7}
+.dock .sp{width:1px;height:64px;background:rgba(255,255,255,.35);margin:0 4px 18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px}
+.card{background:var(--card);border-radius:14px;box-shadow:0 0 0 1px var(--line);padding:16px;display:flex;flex-direction:column;gap:10px}
+.card .big{display:flex;justify-content:center}
+.card .t{font-weight:600}
+.card .d{color:var(--muted);font-size:12px}
+.tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:5px;background:#e5efd9;color:#3d6b2f;margin-left:6px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Rysio — ołówek w stylu Blatu</h1>
+  <p class="lead">Ołówek narysowany tak jak spinacz: biały kształt z grubym czarnym obrysem, czarny grafit, przesunięty czarny cień i małe oczka. Blat zostaje przy swoim krzyżyku — nic nie zamieniamy.</p>
+  <h2>Kolor Rysia</h2>
+  <div class="colors" id="rc"></div>
+  <h2>W Docku</h2>
+  <div class="dock" id="dock"></div>
+  <h2>Wersje</h2>
+  <div class="grid" id="grid"></div>
+</main>
+<script>
+const K = '#161616', W = '#FFFFFF', RED = '#FF5A5F';
+let color = '#3D8BFF';
+const COLORS = [['#3D8BFF', 'Niebieski'], ['#22C3A6', 'Morski'], ['#FFD23F', 'Żółty'], ['#FF8FCB', 'Różowy'], ['#232326', 'Grafit']];
+const st = (w = 5) => `stroke="${K}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"`;
+const shadowed = body => `<g transform="translate(6 7)" style="filter:brightness(0)">${body}</g>${body}`;
+// ołówek: oś pionowa, gumka u góry (y = −56), czubek u dołu (y = 56)
+function pencil({ eyes = true, eraser = W, body = W, look = [1.5, 1] } = {}) {
+  let o = `<path d="M-14 -44V-50Q-14 -56 -8 -56H8Q14 -56 14 -50V-44Z" fill="${eraser}" ${st()}/>`;
+  o += `<rect x="-14" y="-44" width="28" height="11" fill="${K}" ${st()}/>`;
+  o += `<rect x="-14" y="-33" width="28" height="61" fill="${body}" ${st()}/><path d="M4 -30V25" stroke="${K}" stroke-width="2.6"/>`;
+  o += `<path d="M-14 28L0 56L14 28Z" fill="${W}" ${st()}/><path d="M-5 46L0 56L5 46Z" fill="${K}" ${st(3)}/>`;
+  if (eyes) o += `<circle cx="-5" cy="-16" r="6" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="${-5 + look[0]}" cy="${-16 + look[1]}" r="2.6" fill="${K}"/><circle cx="8" cy="-18" r="6" fill="#fff" stroke="${K}" stroke-width="3.2"/><circle cx="${8 + look[0]}" cy="${-18 + look[1]}" r="2.6" fill="${K}"/>`;
+  return o;
+}
+const at = (inner, x, y, k, a) => `<g transform="translate(${x} ${y}) rotate(${a}) scale(${k})">${inner}</g>`;
+const V = [
+  { t: 'Po przekątnej', d: 'Czubkiem w lewy dół, jak trzymany do rysowania — najlepiej wypełnia kwadrat.', rec: true, svg: () => shadowed(at(pencil(), 82, 78, 1.08, 42)) },
+  { t: 'Pionowo', d: 'Stoi prosto na czubku, wyśrodkowany.', svg: () => shadowed(at(pencil(), 80, 80, 1.08, 0)) },
+  { t: 'Rysuje kreskę', d: 'Po przekątnej, a spod czubka wychodzi gruba biała kreska.', svg: () => `<path d="M24 136H86" stroke="${K}" stroke-width="12" stroke-linecap="round"/><path d="M24 136H86" stroke="${W}" stroke-width="5" stroke-linecap="round"/>` + shadowed(at(pencil(), 96, 74, 1.0, 38)) },
+  { t: 'Bez oczek', d: 'Sam ołówek — najbardziej oszczędny.', svg: () => shadowed(at(pencil({ eyes: false }), 82, 78, 1.08, 42)) },
+  { t: 'Czerwona gumka', d: 'Jeden kolorowy akcent — gumka, jak tęczówka Gapy.', svg: () => shadowed(at(pencil({ eraser: RED }), 82, 78, 1.08, 42)) },
+  { t: 'Poziomo', d: 'Leży na boku, czubkiem w lewo, zerka do góry.', svg: () => shadowed(at(pencil({ look: [1, -1.5] }), 80, 82, 1.08, 90)) }
+];
+const icon = (body, size, c) => `<svg width="${size}" height="${size}" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="${c}"/>${body}</svg>`;
+const MODO = `<svg width="64" height="64" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="#C6F432"/><polygon points="80,30 120,53 80,76 40,53" fill="#fff" stroke="${K}" stroke-width="4" stroke-linejoin="round"/><polygon points="40,53 80,76 80,132 40,109" fill="${K}" stroke="${K}" stroke-width="4" stroke-linejoin="round"/><polygon points="80,76 120,53 120,109 80,132" fill="#fff" stroke="${K}" stroke-width="4" stroke-linejoin="round"/><path d="M80 102 L120 79" stroke="${K}" stroke-width="3" stroke-dasharray="5 5"/><path d="M80 62 V44 M73 51 L80 44 L87 51" stroke="${K}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+const GAPA = `<svg width="64" height="64" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="#7B3CF6"/><ellipse cx="80" cy="128" rx="38" ry="8" fill="${K}"/><path d="M80 112V124" stroke="${K}" stroke-width="6"/><circle cx="80" cy="74" r="40" fill="#CFF3E2" stroke="${K}" stroke-width="6"/><circle cx="96" cy="66" r="15" fill="#FF5A5F" stroke="${K}" stroke-width="5"/><circle cx="96" cy="66" r="5" fill="${K}"/></svg>`;
+const BLAT = `<svg width="64" height="64" viewBox="0 0 160 160"><rect width="160" height="160" rx="36" fill="#F2782B"/><g transform="translate(6 7)"><path d="M62 34V126M98 34V126M34 62H126M34 98H126" stroke="${K}" stroke-width="26" stroke-linecap="round"/></g><path d="M62 34V126M98 34V126M34 62H126M34 98H126" stroke="${K}" stroke-width="26" stroke-linecap="round"/><path d="M62 34V126M98 34V126M34 62H126M34 98H126" stroke="#FFF7EE" stroke-width="16" stroke-linecap="round"/></svg>`;
+function render() {
+  document.getElementById('rc').innerHTML = COLORS.map(([c, n]) => `<button data-c="${c}" class="${c === color ? 'on' : ''}"><i style="background:${c}"></i>${n}</button>`).join('');
+  document.getElementById('dock').innerHTML = [['Modo', MODO], ['Gapa', GAPA], ['Blat', BLAT]].map(([n, s]) => `<div class="it">${s}<span>${n}</span></div>`).join('') + '<div class="sp"></div>' +
+    V.map((v, i) => `<div class="it">${icon(v.svg(), 64, color)}<span>Rysio ${i + 1}</span></div>`).join('');
+  document.getElementById('grid').innerHTML = V.map((v, i) => `<div class="card"><div class="big">${icon(v.svg(), 170, color)}</div><div><span class="t">${i + 1}. ${v.t}</span>${v.rec ? '<span class="tag">polecam</span>' : ''}</div><div class="d">${v.d}</div></div>`).join('');
+}
+document.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; color = b.dataset.c; render(); });
+render();
+</script>
+</body>
+</html>
