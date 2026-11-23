@@ -94,7 +94,19 @@ header{grid-column:1/-1;grid-row:1;display:flex;align-items:center;gap:6px;paddi
 .brushbar .smp i{width:8px;height:8px;border-radius:2px}
 .layer .mv{height:22px;padding:0 8px;border-radius:6px;background:var(--text);color:var(--bg);font-size:11.5px;font-weight:500;white-space:nowrap}
 .layer.target{background:var(--hover)}
-#stateSeg button{padding:0 8px}
+#stateSeg button,#sheetSeg button{padding:0 8px}
+.fld{height:28px;border:0;border-radius:7px;background:var(--soft);display:flex;align-items:center;padding:0 10px;font:inherit;color:var(--text);outline:none;min-width:0}
+.pop .w72{width:84px;flex:none}
+.pop .seg.stretch button{flex:1;justify-content:center}
+.primary{height:30px;padding:0 14px;border-radius:8px;background:var(--text);color:var(--bg);font-weight:500}
+.vlayer{display:flex;align-items:center;gap:8px;height:28px;padding:0 4px 0 8px;border-radius:7px}
+.vlayer:hover{background:var(--hover)}
+.vlayer i{width:9px;height:9px;border-radius:2px}
+.vlayer .nm{flex:1;font-size:12.5px;color:var(--text2)}
+.vlayer.off .nm{opacity:.45}
+.vlayer.glob .nm{opacity:.35;text-decoration:line-through}
+.textEd{position:absolute;z-index:8;min-width:60px;padding:1px 4px;border-radius:4px;box-shadow:0 0 0 1.5px var(--sel);background:color-mix(in srgb,var(--paper) 85%,transparent);color:var(--ink);font:500 11px/1.2 -apple-system,'Segoe UI',system-ui,sans-serif;white-space:nowrap}
+.textEd::after{content:"";display:inline-block;width:1px;height:11px;background:var(--ink);margin-left:1px;vertical-align:-1px;animation:blink 1s steps(1) infinite}
 
 /* narzędzia */
 #tools{grid-column:1;grid-row:2/4;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0 12px}
@@ -200,7 +212,8 @@ header{grid-column:1/-1;grid-row:1;display:flex;align-items:center;gap:6px;paddi
 </footer>
 
 <div id="mock"><span class="lbl">Makieta</span>
-  <div class="seg" id="stateSeg"><button data-v="draw" class="on">Rysowanie</button><button data-v="pick">Wybór kreski</button><button data-v="brush">Pędzel</button><button data-v="layer">Na warstwę</button></div>
+  <div class="seg" id="stateSeg"><button data-v="draw" class="on">Rysowanie</button><button data-v="pick">Wybór kreski</button><button data-v="brush">Pędzel</button><button data-v="layer">Na warstwę</button><button data-v="text">Tekst</button><button data-v="dim">Wymiar</button></div>
+  <div class="seg" id="sheetSeg" hidden><button data-v="vp" class="on">Warstwy okna</button><button data-v="format">Format</button><button data-v="title">Tabelka</button><button data-v="pdf">Eksport</button></div>
   <div class="seg" id="themeSeg"><button data-v="light" class="on">Jasny</button><button data-v="dark">Ciemny</button></div>
   <div class="seg" id="osSeg"><button data-v="mac" class="on">Mac</button><button data-v="win">Windows</button></div>
 </div>
@@ -235,6 +248,7 @@ const IC = {
   thin:'<path d="M2.5 5h11" stroke-width="2.6"/><path d="M2.5 11h11" stroke-width=".8"/>',
   pdf:'<path d="M8 2.5v8M5 7.5l3 3 3-3"/><path d="M2.5 11v2.5h11V11"/>',
   gear:'<path d="M2.5 4.5h4M9.5 4.5h4M2.5 11.5h7M12.5 11.5h1"/><circle cx="8" cy="4.5" r="1.5"/><circle cx="11" cy="11.5" r="1.5"/>',
+  alignL:'<path d="M2.5 4h11M2.5 8h7M2.5 12h9"/>', alignC:'<path d="M2.5 4h11M4.5 8h7M3.5 12h9"/>', alignR:'<path d="M2.5 4h11M6.5 8h7M4.5 12h9"/>',
   eye:'<path d="M1.8 8S4 3.8 8 3.8 14.2 8 14.2 8 12 12.2 8 12.2 1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.9"/>',
   eyeOff:'<path d="M2.5 2.5l11 11M6.6 4A6.3 6.3 0 0 1 8 3.8c4 0 6.2 4.2 6.2 4.2a11 11 0 0 1-1.8 2.3M10.6 11.6A5.8 5.8 0 0 1 8 12.2C4 12.2 1.8 8 1.8 8a11 11 0 0 1 2.4-2.8"/>',
   lock:'<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>',
@@ -419,6 +433,24 @@ function renderModel() {
       <div class="smp">${sample(0.25,'6 3',30)}<span>0,25 kreskowa</span><span class="lbl">·</span><i style="background:#4f8a46"></i><span>Dach</span></div>
       <span class="lbl" style="padding:0 6px"><kbd data-k="alt">⌥</kbd> + klik — pobierz z linii</span></div>`;
     hint = '<b>Pędzel:</b> klikaj linie albo przeciągnij przez kilka naraz. <kbd data-k="alt">⌥</kbd> + klik pobiera kreskę z linii.';
+  } else if (state === 'text') {
+    const [tx, ty] = [p.X(8.4), p.Y(1.75)];
+    extra = `<div class="brushbar" style="left:12px;top:10px"><span class="t">Tekst</span>
+      <span class="lbl">Wysokość</span><div class="seg"><button>1,8</button><button>2,5</button><button class="on">3,5</button><button>5</button><button>7</button></div><span class="lbl">mm na wydruku</span>
+      <div class="seg"><button class="on" data-tip="Do lewej">${ic('alignL',14)}</button><button data-tip="Do środka">${ic('alignC',14)}</button><button data-tip="Do prawej">${ic('alignR',14)}</button></div></div>
+      <div class="textEd" style="left:${tx-30}px;top:${ty-8}px">Garderoba</div>`;
+    hint = '<b>Tekst:</b> kliknij miejsce i pisz. Enter kończy, <kbd data-k="shift">⇧</kbd> + Enter — nowy wiersz. Dwuklik w tekst — poprawka.';
+  } else if (state === 'dim') {
+    // łańcuch wymiarowy po prawej: pierwszy odcinek gotowy, drugi w trakcie
+    const x = 14.1, X = p.X(x), dc = cssv('--dimc');
+    const tick = y => `<path d="M${X-4} ${p.Y(y)+4}L${X+4} ${p.Y(y)-4}" stroke="${dc}" stroke-width="1.5"/>`;
+    const ext = y => `<line x1="${p.X(12.15)}" y1="${p.Y(y)}" x2="${X+5}" y2="${p.Y(y)}" stroke="${dc}" stroke-width="0.7"/>`;
+    const txt = (y, t, o = 1) => `<text x="${X-6}" y="${p.Y(y)}" font-size="10" fill="${dc}" opacity="${o}" text-anchor="middle" transform="rotate(-90 ${X-6} ${p.Y(y)})" font-family="-apple-system,'Segoe UI',system-ui,sans-serif">${t}</text>`;
+    live = `${ext(0)}${ext(4.56)}${tick(0)}${tick(4.56)}<line x1="${X}" y1="${p.Y(-0.12)}" x2="${X}" y2="${p.Y(4.68)}" stroke="${dc}" stroke-width="0.7"/>${txt(2.28,'4,56')}
+      <g opacity=".6">${ext(9)}${tick(9)}<line x1="${X}" y1="${p.Y(4.56)}" x2="${X}" y2="${p.Y(9.12)}" stroke="${dc}" stroke-width="0.7"/>${txt(6.78,'4,44')}</g>
+      <rect x="${p.X(12)-3.5}" y="${p.Y(9)-3.5}" width="7" height="7" fill="none" stroke="${sn}" stroke-width="1.4"/>`;
+    extra = `<div class="snapLbl" style="left:${p.X(12)+12}px;top:${p.Y(9)+10}px">Koniec</div>`;
+    hint = '<b>Wymiar:</b> kliknij kolejny punkt — łańcuch ciągnie się dalej. Esc kończy. Tab: poziomo / pionowo / równolegle.';
   } else if (state === 'layer') {
     extra = layersPop(relLeft('#lineBar .layerPill'));
     hint = '<b>2 linie zaznaczone</b> (Ściany, 0,50 ciągła). Warstwę i kreskę zmienisz w pastylkach u góry.';
@@ -432,12 +464,42 @@ function renderModel() {
     <button class="tb unit" data-tip="Jednostki rysunku">m</button>
     <button class="tb unit" style="min-width:64px;color:var(--text)" data-tip="Skala rysunku — od niej zależą grubości kresek, tekst i kreskowanie">1:50 <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg></button>`;
   bindTips(document.getElementById('status'));
-  buildTools('model', state === 'brush' ? 'brush' : state === 'layer' ? 'select' : 'line');
+  buildTools('model', {brush:'brush', layer:'select', text:'text', dim:'dim'}[state] || 'line');
   fixAltKeys();
 }
-function fixAltKeys() { const mac = document.body.classList.contains('mac'); document.querySelectorAll('kbd[data-k=alt]').forEach(k => k.textContent = mac ? '⌥' : 'Alt'); }
+function fixAltKeys() { const mac = document.body.classList.contains('mac'); document.querySelectorAll('kbd[data-k=alt]').forEach(k => k.textContent = mac ? '⌥' : 'Ctrl'); document.querySelectorAll('kbd[data-k=shift]').forEach(k => k.textContent = mac ? '⇧' : 'Shift'); }
 
 /* ---------- okno arkusza ---------- */
+let sstate = 'vp';
+function sheetPop(st, vr) {
+  const chipLeft = sel => { const r = document.querySelector(sel).getBoundingClientRect(); return r.left - vr.left; };
+  if (st === 'format') return `<div class="pop" style="right:90px;bottom:8px;width:330px;gap:10px">
+    <div class="row"><span class="ttl grow">Arkusz</span></div>
+    <div class="row"><span class="lbl w72">Format</span><div class="seg stretch grow"><button>A4</button><button class="on">A3</button><button>A2</button><button>A1</button><button>A0</button></div></div>
+    <div class="row"><span class="lbl w72">Układ</span><div class="seg stretch grow"><button class="on">Poziomo</button><button>Pionowo</button></div></div>
+    <div class="row"><span class="lbl w72">Ramka</span><span class="grow">z tabelką rysunkową</span><span class="tgl on"></span></div>
+    <div class="row"><span class="lbl w72">Nazwa</span><input class="fld grow" value="Rzut parteru"></div>
+    <div class="hr"></div><div class="note">Ramka ma margines 20 mm z lewej do wpięcia i 10 mm z pozostałych stron. Przy zmianie formatu okna zostają w tym samym miejscu od lewego górnego rogu.</div></div>`;
+  if (st === 'title') return `<div class="pop" style="right:12px;bottom:8px;width:360px;gap:8px">
+    <div class="row"><span class="ttl grow">Tabelka rysunkowa</span></div>
+    <div class="lbl" style="padding:2px 4px 0">Wspólne dla wszystkich arkuszy</div>
+    <div class="row"><span class="lbl w72">Projekt</span><input class="fld grow" value="Dom jednorodzinny w Lesznie"></div>
+    <div class="row"><span class="lbl w72">Projektant</span><input class="fld grow" placeholder="imię i nazwisko"></div>
+    <div class="row"><span class="lbl w72">Data</span><input class="fld grow" value="23.11.2026"></div>
+    <div class="hr"></div>
+    <div class="lbl" style="padding:0 4px">Tylko ten arkusz</div>
+    <div class="row"><span class="lbl w72">Rysunek</span><input class="fld grow" value="Rzut parteru"></div>
+    <div class="row"><span class="lbl w72">Nr</span><input class="fld grow" value="A-01"></div>
+    <div class="row"><span class="lbl w72">Skala</span><span class="grow">1:100, 1:20</span><span class="lbl">z okien</span></div></div>`;
+  if (st === 'pdf') return `<div class="pop" style="right:12px;top:8px;width:330px;gap:10px">
+    <div class="row"><span class="ttl grow">Eksport</span></div>
+    <div class="seg stretch"><button class="on">PDF wektorowy</button><button>PNG</button></div>
+    <div class="row"><span class="lbl w72">Arkusze</span><div class="seg stretch grow"><button class="on">Ten</button><button>Wszystkie (3)</button></div></div>
+    <div class="row"><span class="lbl w72">Kolory</span><div class="seg stretch grow"><button>Warstw</button><button class="on">Czarno-białe</button></div></div>
+    <div class="hr"></div><div class="note">Format A3, kreski w milimetrach jak w pasku kreski. Wszystkie arkusze trafiają do jednego pliku, każdy na osobnej stronie.</div>
+    <div class="row" style="justify-content:flex-end;padding-top:4px"><button class="primary">Zapisz PDF…</button></div></div>`;
+  return '';
+}
 function renderSheet() {
   view.className = 'sheet';
   lineBar('sheet');
@@ -496,15 +558,21 @@ function renderSheet() {
   view.innerHTML = `<svg class="dwg">${out.join('')}</svg>
     <div class="vpbar" style="left:${bx}px;top:${by-42}px"><span class="t">Okno</span>
       <button class="tb" style="background:var(--soft);color:var(--text)">Skala 1:100 <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg></button>
-      <button class="tb">Warstwy 6 z 7 <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg></button>
-      <button class="tb">${ic('lock',14)}Zablokuj widok</button></div>`;
+      <button class="tb${sstate === 'vp' ? ' open' : ''}">Warstwy 6 z 8 <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg></button>
+      <button class="tb">${ic('lock',14)}Zablokuj widok</button></div>
+    ${sstate === 'vp' ? `<div class="pop" style="left:${bx + 150}px;top:${by - 2}px;width:270px">
+      <div class="row" style="height:24px"><span class="ttl grow">Warstwy w tym oknie</span></div><div class="hr" style="margin-top:2px"></div>
+      ${LAYERS.map(L => `<div class="vlayer${L.n === 'Osie' ? ' off' : ''}${L.vis ? '' : ' glob'}"><i style="background:${L.c}"></i><span class="nm">${L.n}</span><span style="color:var(--muted2)">${ic(L.n === 'Osie' || !L.vis ? 'eyeOff' : 'eye', 14)}</span></div>`).join('')}
+      <div class="hr"></div><div class="note">Ukrycie tutaj dotyczy tylko tego okna. Warstwa przekreślona jest ukryta w całym rysunku.</div></div>` : ''}`;
   document.getElementById('hint').innerHTML = '<b>Arkusz:</b> przeciągnij okno, żeby je przesunąć; dwuklik — przesuwanie i przybliżanie modelu w oknie. Rysowanie i tekst trafiają na arkusz.';
   document.getElementById('statusRight').innerHTML = `
-    <button class="tb chip" data-tip="Format i orientacja arkusza">A3 poziomo <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg></button>
-    <button class="tb chip" data-tip="Wypełnij tabelkę rysunkową">Tabelka</button>
+    <button class="tb chip${sstate === 'format' ? ' open' : ''}" id="fmtChip" data-tip="Format i orientacja arkusza">A3 poziomo <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6l4 4 4-4"/></svg></button>
+    <button class="tb chip${sstate === 'title' ? ' open' : ''}" id="titleChip" data-tip="Wypełnij tabelkę rysunkową">Tabelka</button>
     <button class="tb unit" style="color:var(--text)" data-tip="Wymiary na arkuszu w milimetrach papieru">mm</button>`;
   bindTips(document.getElementById('status'));
   buildTools('sheet');
+  if (sstate !== 'vp') view.insertAdjacentHTML('beforeend', sheetPop(sstate, view.getBoundingClientRect()));
+  document.querySelector('[data-ic=pdf]')?.classList.toggle('on', sstate === 'pdf');
 }
 
 /* ---------- wskazówki (opisy skrótów dla Maca i Windows) ---------- */
@@ -538,14 +606,17 @@ document.getElementById('tabs').addEventListener('click', e => {
   const b = e.target.closest('[data-tab]'); if (!b) return;
   document.querySelectorAll('#tabs [data-tab]').forEach(x => x.classList.toggle('on', x === b));
   tab = b.dataset.tab === 'model' ? 'model' : 'sheet';
+  document.getElementById('stateSeg').hidden = tab !== 'model'; document.getElementById('sheetSeg').hidden = tab === 'model';
   document.querySelectorAll('#lineBar .layerPill').forEach(x => x.classList.toggle('open', tab === 'model'));
   render();
 });
 const seg = (id, fn) => document.getElementById(id).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; document.querySelectorAll('#'+id+' button').forEach(x => x.classList.toggle('on', x === b)); fn(b.dataset.v); });
 seg('themeSeg', v => { document.documentElement.dataset.theme = v; render(); });
 seg('osSeg', v => { document.body.className = v; render(); });
+seg('sheetSeg', v => { sstate = v; render(); });
 seg('stateSeg', v => { state = v; if (tab !== 'model') document.querySelector('#tabs [data-tab=model]').click(); else render(); });
 const q0 = new URLSearchParams(location.search);
+if (q0.get('sstate')) { document.querySelector('#tabs [data-tab=sheet]').click(); document.querySelector(`#sheetSeg [data-v=${q0.get('sstate')}]`)?.click(); }
 if (q0.get('state')) document.querySelector(`#stateSeg [data-v=${q0.get('state')}]`)?.click();
 const q = new URLSearchParams(location.search);
 if (q.get('theme') === 'dark') document.querySelector('#themeSeg [data-v=dark]').click();
