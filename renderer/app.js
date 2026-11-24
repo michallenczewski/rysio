@@ -848,7 +848,7 @@ async function openCad(r) {
   loadDoc(res.doc, { path: null, name: r.name, dirty: true });
   const sk = Object.entries(res.info.skipped);
   const unitsTxt = { m: _t('metry'), cm: _t('centymetry'), mm: _t('milimetry'), dm: _t('decymetry'), in: _t('cale'), ft: _t('stopy') }[res.info.units] || res.info.units;
-  toast(_t`Wczytano ${res.info.count} elementów.` + ' ' + (res.info.guessed ? _t`Plik nie podaje jednostek — przyjąłem ${unitsTxt}.` : _t`Jednostki pliku: ${unitsTxt}.`) + (sk.length ? ' ' + _t`Pominięte: ${esc(sk.map(([t, n]) => `${t} ×${n}`).join(', '))}.` : '') + (res.info.truncated ? ' ' + _t('Plik był bardzo duży — wczytano tylko część.') : ''), 7000);
+  toast(_t`Wczytano ${res.info.count} elementów.` + ' ' + (res.info.guessed ? _t`Plik nie podaje jednostek — przyjąłem ${unitsTxt}.` : _t`Jednostki pliku: ${unitsTxt}.`) + (sk.length ? ' ' + _t`Pominięte: ${esc(sk.map(([t, n]) => `${t} ×${n}`).join(', '))}.` : '') + (res.info.truncated ? ' ' + _t('Plik był bardzo duży — wczytano tylko część.') : '') + (res.info.noText ? ' ' + _t('Tekstów z tego pliku DWG nie udało się odczytać — wczytano sam rysunek.') : ''), 7000);
 }
 async function exportDxf() {
   try {

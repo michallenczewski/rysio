@@ -5,6 +5,7 @@ import { _t } from './i18n.js';
 // Moduł (ok. 8 MB) ładuje się dopiero przy pierwszym pliku DWG.
 
 let mod = null;
+let withText = true;   // teksty z DWG: najpierw próbujemy z nimi; gdy LibreDWG się na nich wyłoży — bez nich
 // Każdy plik dostaje świeży egzemplarz modułu: po nieudanym odczycie stan WASM bywa uszkodzony.
 async function fresh() {
   if (!mod) {
@@ -15,8 +16,20 @@ async function fresh() {
     // do podkładu wystarczą linie, łuki, polilinie, wstawienia bloków i wymiary; pozostałe rodzaje encji (teksty, kreskowania,
     // bryły ACIS, tabele…) pomijamy już przy odczycie — to na nich LibreDWG najczęściej się wykłada
     const { LibreEntityConverter } = await import('./vendor/libredwg/converter/entityConverter.js');
-    const keep = /^convert(3dFace|Arc|Circle|Ellise|Ellipse|Insert|Line|LWPolyline|Polyline2d|Polyline3d|Solid|Trace|Spline)?$/;
+    const keep = /^convert(3dFace|Arc|Circle|Ellise|Ellipse|Insert|Line|LWPolyline|Polyline2d|Polyline3d|Solid|Trace|Spline|Text|MText)?$/;
     for (const k of Object.getOwnPropertyNames(LibreEntityConverter.prototype)) if (/^convert/.test(k) && !keep.test(k)) LibreEntityConverter.prototype[k] = () => ({ type: 'POMINIETE' });
+    // teksty: tylko pola, których potrzebujemy (pełny odczyt MTEXT z kolumnami i tłem bywa zawodny); każde pole osobno
+    const field = (L, ent, name) => { try { return L.dwg_dynapi_entity_data(ent, name); } catch (e) { return undefined; } };
+    LibreEntityConverter.prototype.convertText = function (ent, common) {
+      if (!withText) return { type: 'POMINIETE' };
+      const L = this.libredwg;
+      return { ...common, type: 'TEXT', text: field(L, ent, 'text_value'), startPoint: field(L, ent, 'ins_pt'), endPoint: field(L, ent, 'alignment_pt'), textHeight: field(L, ent, 'height'), rotation: field(L, ent, 'rotation'), halign: field(L, ent, 'horiz_alignment'), valign: field(L, ent, 'vert_alignment') };
+    };
+    LibreEntityConverter.prototype.convertMText = function (ent, common) {
+      if (!withText) return { type: 'POMINIETE' };
+      const L = this.libredwg;
+      return { ...common, type: 'MTEXT', text: field(L, ent, 'text'), insertionPoint: field(L, ent, 'ins_pt'), textHeight: field(L, ent, 'text_height'), attachmentPoint: field(L, ent, 'attachment'), direction: field(L, ent, 'x_axis_dir') };
+    };
     // wymiar: wystarczy nazwa anonimowego bloku z jego rysunkiem (bez tekstów)
     const dim = function (entity, common) { return { ...common, type: 'DIMENSION', name: this.libredwg.dwg_entity_get_block_name(entity, 'block') }; };
     for (const k of Object.getOwnPropertyNames(LibreEntityConverter.prototype)) if (/^convert\w*Dimension$/.test(k)) LibreEntityConverter.prototype[k] = dim;
@@ -66,6 +79,21 @@ function writeEntity(o, e) {
     case 'DIMENSION':   // rysunek wymiaru leży w anonimowym bloku (*D…)
       if (e.name) { head('INSERT'); o.push('2', e.name, '10', '0', '20', '0'); }
       break;
+    case 'TEXT': {
+      const t = String(e.text ?? '').replace(/[\r\n]+/g, ' '), p = e.startPoint, q = e.endPoint;
+      if (!t.trim() || !p || !(e.textHeight > 0)) break;
+      head('TEXT'); o.push('10', n(p.x), '20', n(p.y), '40', n(e.textHeight), '1', t, '50', n(deg(e.rotation)));
+      if ((e.halign || e.valign) && q) o.push('72', String(e.halign || 0), '73', String(e.valign || 0), '11', n(q.x), '21', n(q.y));
+      ext(); break;
+    }
+    case 'MTEXT': {
+      const t = String(e.text ?? '').replace(/\r?\n/g, '\\P'), p = e.insertionPoint, d = e.direction;
+      if (!t.trim() || !p || !(e.textHeight > 0)) break;
+      head('MTEXT'); o.push('10', n(p.x), '20', n(p.y), '40', n(e.textHeight), '71', String(e.attachmentPoint || 1));
+      if (d && (d.x || d.y)) o.push('11', n(d.x), '21', n(d.y));
+      for (let i = 0; i < t.length; i += 250) o.push(i + 250 < t.length ? '3' : '1', t.slice(i, i + 250));
+      ext(); break;
+    }
     case '3DFACE': case 'SOLID': case 'TRACE': {
       const c = [e.corner1, e.corner2, e.type === '3DFACE' ? e.corner3 : e.corner4, e.type === '3DFACE' ? e.corner4 : e.corner3].filter(Boolean);
       if (c.length < 3) break;
@@ -123,9 +151,13 @@ async function viaDxfWriter(u8) {
 // Próbujemy obu dróg i bierzemy pierwszą, która daje rysunek z liniami.
 export async function readDwg(u8, parse) {
   let last = null;
-  for (const way of [viaDatabase, viaDxfWriter]) {
-    try { const d = parse(await way(u8)); if (d && (d.layers?.length || d.doc?.ents?.length)) return d; }
+  // 1) baza encji z tekstami, 2) zapis DXF w LibreDWG (ma teksty), 3) baza encji bez tekstów (gdy teksty psują odczyt)
+  const ways = [[viaDatabase, true], [viaDxfWriter, true], [viaDatabase, false]];
+  for (const [way, txt] of ways) {
+    withText = txt;
+    try { const d = parse(await way(u8)); if (d && (d.layers?.length || d.doc?.ents?.length)) { if (!txt && d.info) d.info.noText = true; return d; } }
     catch (e) { last = e; }
+    finally { withText = true; }
   }
   throw new Error(_t('Nie udało się odczytać DWG') + (last && last.message ? ' (' + last.message + ')' : ''));
 }
