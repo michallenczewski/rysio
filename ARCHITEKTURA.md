@@ -89,6 +89,10 @@ Skala jest sprawdzana pomiarem: sprawdzian szuka w wygenerowanym PDF-ie odcinka 
 
 Mapy w układzie 2000 mają współrzędne rzędu 5 500 000 m — przy takich liczbach obraz drga i traci dokładność. Przy imporcie DXF/DWG, gdy środek rysunku leży dalej niż 100 km od zera, geometria trafia do modelu przesunięta do okolic zera (o pełne kilometry), a przesunięcie leży w `doc.origin` i zapis DXF dodaje je z powrotem.
 
+### Drukowanie
+
+„Drukuj…” w okienku eksportu rysuje arkusze tym samym kodem co PNG (do 300 dpi; dla A1 / A0 mniej, żeby obraz zmieścił się w pamięci) i wkłada je do ukrytej ramki ze stronami `@page` nazwanymi osobno dla każdego formatu, potem woła systemowe okno drukowania (`print()`). Wydruk z PDF-a nie działa pewnie w Electronie (przeglądarka PDF w ramce), a obraz w 300 dpi wystarcza do kreski 0,13 mm. Sprawdzone: w Electronie strony mają format arkuszy (A3 poziomo 420 × 297 mm, A4 pionowo 210 × 297 mm). Skala na papierze zależy od ustawienia „rzeczywisty rozmiar / 100%” w oknie drukowania — nie da się go wymusić z programu.
+
 ### Wersja przeglądarkowa
 
 Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona (`preload.js`) działa `renderer/web-api.js` (zapis = pobranie pliku, otwieranie = wybór pliku). Serwer testowy: `node scripts/serve-web.js` → http://localhost:8766 (8765 zajmuje Modo).
@@ -109,11 +113,12 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 | `renderer/dwg.js` | DWG przez LibreDWG → tekst DXF → `dxf.js` (z Modo); teksty (TEXT, MTEXT) czytane własnymi, oszczędnymi funkcjami (tylko potrzebne pola); kolejność prób: baza encji z tekstami → zapis DXF LibreDWG → baza encji bez tekstów (wtedy komunikat) |
 | `renderer/edit.js` | zmienianie geometrii: obrót, odbicie, skala (`transformed`), odsunięcie (`offsetEnt`, także polilinii z łukami), zaokrąglenie dwóch linii (`filletLines`), linii, łuków i okręgów (`filletCurves`: środek z przecięcia krzywych odsuniętych o r), narożnika polilinii (`plineCorner`, też fazowanie), fazowanie dwóch linii (`chamferLines`), przycinanie i wydłużanie jednym kliknięciem (`trimOrExtend`) i wielu kawałków jednym przeciągnięciem (`trimMany`, tryb auto / trim / extend), uchwyty (`gripsOf`, `gripMove`) |
 | `renderer/clip.js` | schowek: zaznaczenie → JSON w schowku systemu (`packClip`; warstwy i bloki po nazwie, także zagnieżdżone), wklejenie w jednej transakcji (`pasteClip`; brakujące warstwy powstają, istniejące o tej samej nazwie są używane; blok o tej samej nazwie i treści jest używany, o innej treści — powstaje „nazwa (2)”; bloki tylko do modelu; ukryte warstwy okna arkusza po nazwie), mnożnik model ↔ arkusz (`clipFactor`), podgląd (`clipGhosts`). ⌘C / ⌘X / ⌘V idą przez zdarzenia `copy` / `cut` / `paste` (bez pytania o zgodę; w Electronie na Macu wyzwala je menu Edycja); gdy zdarzenie nie przyjdzie w 250 ms albo skrót jest inny — `navigator.clipboard`, a w ostateczności pamięć okna |
+| (wymiary) | `dim` — liniowy (a, b, o, dir); `adim` — kątowy `{k:'ang', c, a, b, o}` i promień / średnica `{k:'rad'|'dia', c, r, o}`; wygląd liczy `adimGeom` (geom.js), napis `adimText` (draw.js), DXF jako DIMENSION typu 2 / 4 / 3 z blokiem *D |
 | `renderer/sheet.js` | arkusz: okna z modelem w skali (przeliczanie arkusz ↔ model), ramka z tabelką, skale do tabelki |
 | `renderer/pdf.js` | wektorowy PDF arkuszy (`PdfPen`, `makePdf`) |
 | `renderer/view.js` | płótno, przesuwanie i przybliżanie, przeliczanie metry ↔ piksele, kreski w skali, siatka modelu (`drawGrid`, odstęp z `gridStep`), uchwyty |
 | `renderer/snap.js` | przyciąganie (koniec, środek, przecięcie, prostopadle, środek okręgu, styczna, węzeł siatki, najbliższy) i kierunki (poziom, pion, wzdłuż i prostopadle do linii, śledzenie od punktów) |
-| `renderer/tools.js` | narzędzia: zaznacz, usuń, pędzel, linia, polilinia, prostokąt, okrąg, łuk, przesuń, kopiuj, wklej (ze schowka), obróć, odbij, skaluj, odsunięcie, zaokrąglij, przytnij, wydłuż, kreskowanie, bloki, tekst, wymiar, okno na arkuszu |
+| `renderer/tools.js` | narzędzia: zaznacz, usuń, pędzel, linia, polilinia, prostokąt, okrąg, łuk, przesuń, kopiuj, wklej (ze schowka), mierz (pole wielokąta z łukami), fazuj (tryb narzędzia zaokrąglania), wymiar kątowy / promienia / średnicy, obróć, odbij, skaluj, odsunięcie, zaokrąglij, przytnij, wydłuż, kreskowanie, bloki, tekst, wymiar, okno na arkuszu |
 | `renderer/units.js` | wpisywanie i pokazywanie wymiarów w jednostce rysunku |
 | `renderer/keys.js` | skróty klawiszowe i ich zmiana |
 | `renderer/i18n.js`, `renderer/lang/en.js` | tłumaczenie napisów (`_t`), znak dziesiętny `DEC` (przecinek / kropka); słownik angielski pełny od 24.11.2026 |

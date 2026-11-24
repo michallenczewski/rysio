@@ -5,7 +5,8 @@
 //             hint() podpowiedź · down/move/up(p, e) · typed(tekst) → true, gdy zrozumiało · enter() / cancel() → true, gdy coś zrobiło
 //             preview() elementy podglądu · path / box — ślad pędzla i gumki, ramka zaznaczania
 import { _t, DEC } from './i18n.js';
-import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, intersect, lengthOf, dimGeom } from './geom.js';
+import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, intersect, lengthOf, dimGeom, adimGeom, partsOf, closestOnSeg } from './geom.js';
+import { lineX } from './snap.js';
 import { parseLength, parseLengths, fmtLength, fmtNum } from './units.js';
 import { isLive, isShown } from './model.js';
 import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, filletCurves, chamferLines, plineCorner, trimMany, gripsOf, gripMove } from './edit.js';
@@ -441,13 +442,33 @@ export function makeTools(app) {
 
   /* ---------- zaokrąglij narożnik (G) ---------- */
   T.fillet = {
-    id: 'fillet', draw: false, first: null, r: 0, typeAnytime: true,
-    base: () => null, label() { return _t('Promień'); }, reading() { return fmtLength(this.r); },
-    hint() { return this.first ? _t('<b>Zaokrąglij:</b> kliknij drugi element (po stronie, która ma zostać).') : _t`<b>Zaokrąglij:</b> kliknij pierwszą linię albo łuk — albo polilinię blisko narożnika. Promień ${fmtLength(this.r)} — wpisz, żeby zmienić (0 — ostry narożnik).`; },
+    id: 'fillet', draw: false, first: null, r: 0, typeAnytime: true, mode: 'fillet', d1: 0.1, d2: 0.1,
+    base: () => null,
+    label() { return this.mode === 'chamfer' ? _t('Odległość') : _t('Promień'); },
+    reading() { return this.mode === 'chamfer' ? this.dText() : fmtLength(this.r); },
+    dText() { return Math.abs(this.d1 - this.d2) < 1e-12 ? fmtLength(this.d1) : fmtLength(this.d1) + '; ' + fmtLength(this.d2); },
+    // drugie naciśnięcie G: zaokrąglanie ↔ fazowanie
+    toggle() { this.mode = this.mode === 'chamfer' ? 'fillet' : 'chamfer'; this.first = null; },
+    badge() { return this.mode === 'chamfer' ? _t('Fazuj') : _t('Zaokrąglij'); },
+    hint() {
+      if (this.mode === 'chamfer') return this.first ? _t('<b>Fazuj:</b> kliknij drugą linię (po stronie, która ma zostać).') : _t`<b>Fazuj:</b> kliknij pierwszą linię — albo polilinię blisko narożnika. Odległość ${this.dText()} — wpisz, żeby zmienić (dwie po średniku: 0,3;0,5). ${app.againName('fillet')} jeszcze raz — zaokrąglanie.`;
+      return this.first ? _t('<b>Zaokrąglij:</b> kliknij drugi element (po stronie, która ma zostać).') : _t`<b>Zaokrąglij:</b> kliknij pierwszą linię albo łuk — albo polilinię blisko narożnika. Promień ${fmtLength(this.r)} — wpisz, żeby zmienić (0 — ostry narożnik).`; },
     start() { this.first = null; },
     down(p) {
       const s = app.pick(p); if (!s) return;
       const err = c => app.toast({ parallel: _t('Te elementy nie mają narożnika (są równoległe albo się nie spotkają).'), tooBig: _t('Promień jest za duży dla tego narożnika.'), noCorner: _t('Tu polilinia nie ma narożnika — kliknij blisko wierzchołka.'), arcCorner: _t('Ten narożnik polilinii jest na łuku — zaokrągla się narożniki między prostymi odcinkami.'), zero: _t('Promień 0 — narożnik polilinii jest już ostry.') }[c] || _t('Tego narożnika nie da się zaokrąglić.'));
+      if (this.mode === 'chamfer') {
+        const errC = c => app.toast({ parallel: _t('Linie są równoległe — nie mają narożnika.'), tooBig: _t('Odległość jest za duża dla tego narożnika.'), noCorner: _t('Tu polilinia nie ma narożnika — kliknij blisko wierzchołka.'), arcCorner: _t('Ten narożnik polilinii jest na łuku — fazuje się narożniki między prostymi odcinkami.'), zero: _t('Odległość 0 — narożnik zostaje ostry.') }[c] || _t('Tego narożnika nie da się sfazować.'));
+        if (!this.first && s.t === 'pline') { const r = plineCorner(s, p, 'chamfer', this.d1, this.d2); if (r.error) return errC(r.error); app.edit(_t('Fazuj'), tx => tx.set(s.id, { pts: r.pts })); return; }
+        if (s.t !== 'line') { app.toast(_t('Fazuje się linie i narożniki polilinii.')); return; }
+        if (!this.first) { this.first = { e: s, p: [...p] }; return; }
+        if (s.id === this.first.e.id) return;
+        const f = this.first; this.first = null;
+        const r = chamferLines(f.e, f.p, s, p, this.d1, this.d2);
+        if (r.error) return errC(r.error);
+        app.edit(_t('Fazuj'), tx => { tx.set(f.e.id, r.l1); tx.set(s.id, r.l2); if (r.line) tx.add({ ...r.line, layer: f.e.layer, w: f.e.w, lt: f.e.lt }); });
+        return;
+      }
       // polilinia: jedno kliknięcie zaokrągla najbliższy wierzchołek
       if (!this.first && s.t === 'pline') { const r = plineCorner(s, p, 'fillet', this.r); if (r.error) return err(r.error); app.edit(_t('Zaokrąglij'), tx => tx.set(s.id, { pts: r.pts })); return; }
       if (!['line', 'arc', 'circle'].includes(s.t)) { app.toast(_t('Zaokrągla się linie, łuki, okręgi i narożniki polilinii.')); return; }
@@ -458,7 +479,11 @@ export function makeTools(app) {
       if (r.error) return err(r.error);
       app.edit(_t('Zaokrąglij'), tx => { tx.set(f.e.id, r.l1); tx.set(s.id, r.l2); if (r.arc) tx.add({ ...r.arc, layer: f.e.layer, w: f.e.w, lt: f.e.lt }); });
     },
-    move() {}, typed(s) { const v = parseLength(s); if (!(v >= 0)) return false; this.r = v; return true; },
+    move() {},
+    typed(s) {
+      if (this.mode === 'chamfer') { const v = parseLengths(s); if (!v || !v.length || v.length > 2 || v.some(x => !(x >= 0))) return false; this.d1 = v[0]; this.d2 = v[1] ?? v[0]; return true; }
+      const v = parseLength(s); if (!(v >= 0)) return false; this.r = v; return true;
+    },
     highlight() { return this.first ? new Set([this.first.e.id]) : new Set(); },
     preview: () => [], enter: () => false, cancel() { if (this.first) { this.first = null; return true; } return false; }
   };
@@ -525,16 +550,25 @@ export function makeTools(app) {
   /* ---------- wymiar (U): dwa punkty i miejsce linii, potem łańcuch ---------- */
   // kierunek: 'auto' wybiera poziomo / pionowo po położeniu kursora; drugie naciśnięcie U przełącza auto → poziomo → pionowo → równolegle
   T.dim = {
-    id: 'dim', draw: true, a: null, b: null, chain: null, cur: null, mode: 'auto',
-    base() { return this.chain ? this.chain.b : this.b || this.a; },
-    label: () => null, reading() { const e = this.previewDim(); return e ? fmtLength(dimGeom(e).value) : null; },
+    id: 'dim', draw: true, a: null, b: null, chain: null, cur: null, mode: 'auto', kind: 'lin', src: null,
+    base() { return this.kind !== 'lin' ? null : this.chain ? this.chain.b : this.b || this.a; },
+    label: () => null,
+    reading() {
+      const e = this.previewDim(); if (!e) return null;
+      if (e.t === 'adim') { const g = adimGeom(e); return e.k === 'ang' ? fmtDeg(g.value) : fmtLength(g.value); }
+      return fmtLength(dimGeom(e).value);
+    },
+    // rodzaj z paska: liniowy, kątowy, promień, średnica
+    setKind(k) { this.kind = k; this.a = this.b = this.chain = this.src = null; },
     hint() {
+      if (this.kind === 'ang') return this.src && this.src.c ? _t('<b>Wymiar kątowy:</b> kliknij miejsce łuku wymiarowego — po tej stronie, którą kąt ma objąć.') : this.src ? _t('<b>Wymiar kątowy:</b> kliknij drugą linię.') : _t('<b>Wymiar kątowy:</b> kliknij pierwszą linię (albo prosty odcinek polilinii).');
+      if (this.kind === 'rad' || this.kind === 'dia') { const w = this.kind === 'rad' ? _t('Wymiar promienia') : _t('Wymiar średnicy'); return this.src ? _t`<b>${w}:</b> kliknij miejsce opisu.` : _t`<b>${w}:</b> kliknij łuk albo okrąg.`; }
       const m = { auto: _t('sam'), h: _t('poziomo'), v: _t('pionowo'), a: _t('równolegle') }[this.mode];
       if (this.chain) return _t`<b>Wymiar:</b> kliknij kolejny punkt — łańcuch ciągnie się dalej. Esc kończy. Kierunek: ${m} (${app.againName('dim')} jeszcze raz zmienia).`;
       if (this.b) return _t`<b>Wymiar:</b> kliknij miejsce linii wymiarowej. Kierunek: ${m} (${app.againName('dim')} jeszcze raz zmienia).`;
       return this.a ? _t('<b>Wymiar:</b> kliknij drugi punkt.') : _t('<b>Wymiar:</b> kliknij pierwszy punkt.');
     },
-    badge() { return _t('Wymiar') + ' · ' + { auto: _t('kierunek sam'), h: _t('poziomo'), v: _t('pionowo'), a: _t('równolegle') }[this.mode]; },
+    badge() { if (this.kind !== 'lin') return { ang: _t('Wymiar kątowy'), rad: _t('Wymiar promienia'), dia: _t('Wymiar średnicy') }[this.kind]; return _t('Wymiar') + ' · ' + { auto: _t('kierunek sam'), h: _t('poziomo'), v: _t('pionowo'), a: _t('równolegle') }[this.mode]; },
     dirFor(a, b, o) {
       if (this.mode !== 'auto') return this.mode;
       const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
@@ -542,14 +576,45 @@ export function makeTools(app) {
       if (outY && !outX) return 'h'; if (outX && !outY) return 'v';
       return Math.abs(o[1] - my) >= Math.abs(o[0] - mx) ? 'h' : 'v';
     },
-    toggle() { const o = ['auto', 'h', 'v', 'a']; this.mode = o[(o.indexOf(this.mode) + 1) % 4]; },
+    toggle() { if (this.kind !== 'lin') { this.setKind('lin'); return; } const o = ['auto', 'h', 'v', 'a']; this.mode = o[(o.indexOf(this.mode) + 1) % 4]; },
     previewDim() {
       if (!this.cur) return null;
+      if (this.kind === 'ang') return this.src && this.src.c ? { t: 'adim', k: 'ang', c: this.src.c, a: this.src.a, b: this.src.b, o: this.cur } : null;
+      if (this.kind === 'rad' || this.kind === 'dia') return this.src ? { t: 'adim', k: this.kind, c: this.src.c, r: this.src.r, o: this.cur } : null;
       if (this.chain) return { t: 'dim', a: this.chain.b, b: this.cur, o: this.chain.o, dir: this.chain.dir };
       if (this.b) return { t: 'dim', a: this.a, b: this.b, o: this.cur, dir: this.dirFor(this.a, this.b, this.cur) };
       return null;
     },
+    // prosty odcinek pod kliknięciem: linia albo odcinek polilinii
+    segAt(p) {
+      const s = app.pick(p, { locked: true }); if (!s) return null;   // podkład na zablokowanej warstwie też się wymiaruje
+      if (s.t === 'line') return { a: s.a, b: s.b };
+      if (s.t === 'pline') { let best = null, bd = Infinity; for (const q of partsOf(s)) if (q.k === 'seg') { const d = V.dist(p, closestOnSeg(p, q.a, q.b).p); if (d < bd) { bd = d; best = { a: q.a, b: q.b }; } } return best; }
+      return null;
+    },
     down(p) {
+      if (this.kind === 'ang') {
+        if (this.src && this.src.c) { const e = { t: 'adim', k: 'ang', c: this.src.c, a: this.src.a, b: this.src.b, o: [...p] }; app.edit(_t('Wymiar'), tx => tx.add(e)); this.src = null; return; }
+        const s = this.segAt(p); if (!s) { app.toast(_t('Kliknij linię albo prosty odcinek polilinii.')); return; }
+        const q = closestOnSeg(p, s.a, s.b).p;
+        if (!this.src) { this.src = { s, a: q }; return; }
+        const c = lineX(this.src.s.a, V.sub(this.src.s.b, this.src.s.a), s.a, V.sub(s.b, s.a));
+        if (!c) { app.toast(_t('Linie są równoległe — nie tworzą kąta.')); return; }
+        // punkt na ramieniu: gdy linie się przecinają — kliknięty (wskazuje stronę); gdy odcinek nie sięga wierzchołka —
+        // jego bliższy koniec (od niego rysuje się linia pomocnicza do łuku)
+        const arm = (pt, seg) => {
+          const d = V.sub(seg.b, seg.a), t = V.dot(V.sub(c, seg.a), d) / V.dot(d, d);
+          if (t > 1e-9 && t < 1 - 1e-9) return V.dist(pt, c) > 1e-9 ? pt : (V.dist(seg.a, c) > V.dist(seg.b, c) ? seg.a : seg.b);
+          return V.dist(seg.a, c) < V.dist(seg.b, c) ? seg.a : seg.b;
+        };
+        this.src = { c, a: arm(this.src.a, this.src.s), b: arm(q, s) };
+        return;
+      }
+      if (this.kind === 'rad' || this.kind === 'dia') {
+        if (this.src) { const e = { t: 'adim', k: this.kind, c: this.src.c, r: this.src.r, o: [...p] }; app.edit(_t('Wymiar'), tx => tx.add(e)); this.src = null; return; }
+        const s = app.pick(p, { locked: true }); if (!s || (s.t !== 'circle' && s.t !== 'arc')) { app.toast(_t('Kliknij łuk albo okrąg.')); return; }
+        this.src = { c: s.c, r: s.r }; return;
+      }
       if (this.chain) { if (V.dist(p, this.chain.b) < 1e-9) return; const e = { t: 'dim', a: this.chain.b, b: [...p], o: this.chain.o, dir: this.chain.dir }; app.edit(_t('Wymiar'), tx => tx.add(e)); this.chain = { ...this.chain, b: [...p] }; return; }
       if (!this.a) { this.a = [...p]; return; }
       if (!this.b) { if (V.dist(p, this.a) < 1e-9) return; this.b = [...p]; return; }
@@ -560,9 +625,69 @@ export function makeTools(app) {
     move(p) { this.cur = p; },
     typed: () => false,
     preview() { const e = this.previewDim(); if (e) return [{ ...e, ...app.newStroke() }]; return this.a && this.cur ? [{ t: 'line', a: this.a, b: this.cur, ...app.newStroke(), _ghost: true }] : []; },
-    enter() { if (this.chain || this.a) { this.chain = null; this.a = this.b = null; return true; } return false; },
+    enter() { if (this.chain || this.a || this.src) { this.chain = null; this.a = this.b = this.src = null; return true; } return false; },
     cancel() { return this.enter(); },
-    undoInTool() { if (this.b && !this.chain) { this.b = null; return true; } if (this.a && !this.chain) { this.a = null; return true; } this.chain = null; return false; }
+    undoInTool() { if (this.src) { this.src = null; return true; } if (this.b && !this.chain) { this.b = null; return true; } if (this.a && !this.chain) { this.a = null; return true; } this.chain = null; return false; }
+  };
+
+  /* ---------- mierz (L): odcinki, suma, kąt, pole — nic nie trafia do rysunku ---------- */
+  // pole wielokąta z wybrzuszeniami (polilinia z łukami): wzór Gaussa + odcinki koła
+  const areaOf = (pts, closed) => {
+    let s = 0; const n = pts.length; if (n < 3 && !(n === 2 && pts[0][2])) return 0;
+    for (let i = 0; i < n; i++) {
+      const p = pts[i], q = pts[(i + 1) % n]; s += p[0] * q[1] - q[0] * p[1];
+      if (p[2] && (closed || i < n - 1)) { const th = 4 * Math.atan(p[2]), c = V.dist(p, q), r = c / (2 * Math.sin(Math.abs(th) / 2)); s += Math.sign(th) * r * r * (Math.abs(th) - Math.sin(Math.abs(th))); }
+    }
+    return Math.abs(s / 2);
+  };
+  T.measure = {
+    id: 'measure', draw: true, pts: [], cur: null, res: null,
+    base() { return this.pts.length && !this.res ? this.pts[this.pts.length - 1] : null; },
+    label: () => null,
+    reading() { const b = this.base(); return b && this.cur ? fmtLength(V.dist(b, this.cur)) : null; },
+    start() { this.pts = []; this.res = null; },
+    hint() { return _t`<b>Mierz:</b> klikaj kolejne punkty (przyciąganie działa) — pasek u góry pokazuje odcinek i sumę. Kliknięcie w pierwszy punkt zamyka obrys i daje pole. ${app.shiftName} + klik w zamknięty element — jego pole i obwód. Esc zaczyna od nowa.`; },
+    // wynik na pasek: { seg, total, ang, dx, dy } albo { area, per }
+    info() {
+      if (this.res) return this.res;
+      const b = this.base(), cur = this.cur;
+      let total = 0; for (let i = 1; i < this.pts.length; i++) total += V.dist(this.pts[i - 1], this.pts[i]);
+      if (!b || !cur) return this.pts.length > 1 ? { total } : null;
+      const d = V.sub(cur, b), seg = V.len(d);
+      return { seg, total: total + seg, ang: seg > 1e-12 ? angOf([0, 0], d) : 0, dx: d[0], dy: d[1] };
+    },
+    down(p, e) {
+      if (e && e.shiftKey && !this.pts.length) {
+        const s = app.pick(p, { locked: true });
+        if (s && (s.t === 'circle' || (s.t === 'pline' && s.closed))) {
+          this.res = s.t === 'circle' ? { area: Math.PI * s.r * s.r, per: 2 * Math.PI * s.r, shape: s } : { area: areaOf(s.pts, true), per: lengthOf(s), shape: s };
+          return;
+        }
+        app.toast(_t('Pole mierzy się na zamkniętej polilinii, prostokącie albo okręgu.'));
+        return;
+      }
+      if (this.res) { this.res = null; this.pts = []; }
+      if (this.pts.length > 2 && V.dist(p, this.pts[0]) < Math.max(1e-9, app.tol ? app.tol() : 0)) {
+        const pts = this.pts; let per = 0; for (let i = 0; i < pts.length; i++) per += V.dist(pts[i], pts[(i + 1) % pts.length]);
+        this.res = { area: areaOf(pts, true), per, poly: pts }; this.pts = []; return;
+      }
+      if (this.pts.length && V.dist(p, this.pts[this.pts.length - 1]) < 1e-9) return;
+      this.pts.push([p[0], p[1]]);
+    },
+    move(p) { this.cur = p; },
+    snapEnts() { return this.pts.length > 1 ? [{ t: 'pline', pts: this.pts, closed: false, layer: app.doc.cur.layer }] : []; },
+    typed: () => false,
+    preview() {
+      const st = { layer: app.doc.cur.layer, w: 0.25, lt: 'dash', _ghost: true };
+      if (this.res) return this.res.poly ? [{ t: 'pline', pts: this.res.poly, closed: true, ...st }] : [];
+      const pts = this.cur && this.pts.length ? [...this.pts, this.cur] : this.pts;
+      return pts.length > 1 ? [{ t: 'pline', pts, closed: false, ...st }] : [];
+    },
+    highlight() { return this.res && this.res.shape ? new Set([this.res.shape.id]) : new Set(); },
+    enter() { if (this.pts.length || this.res) { this.pts = []; this.res = null; return true; } return false; },
+    cancel() { return this.enter(); },
+    undoInTool() { if (this.pts.length) { this.pts.pop(); return true; } return false; },
+    backspace() { if (this.pts.length) { this.pts.pop(); return true; } return false; }
   };
 
   /* ---------- okno na arkuszu (O): dwa narożniki ---------- */

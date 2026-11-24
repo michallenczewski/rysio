@@ -13,6 +13,7 @@ export const ACTIONS = [
   { group: _t('Rysowanie'), id: 'arcC', name: _t('Łuk ze środka'), keys: ['Shift+B'] },
   { group: _t('Rysowanie'), id: 'text', name: _t('Tekst'), keys: ['Y'] },
   { group: _t('Rysowanie'), id: 'dim', name: _t('Wymiar'), keys: ['U'] },
+  { group: _t('Rysowanie'), id: 'measure', name: _t('Mierz odległość i pole'), keys: ['L'] },
   { group: _t('Rysowanie'), id: 'viewport', name: _t('Okno na arkuszu'), keys: ['O'] },
   { group: _t('Rysowanie'), id: 'hatch', name: _t('Kreskowanie'), keys: ['H'] },
   { group: _t('Rysowanie'), id: 'block', name: _t('Bloki'), keys: ['K'] },

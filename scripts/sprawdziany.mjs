@@ -674,6 +674,25 @@ przypadek('DXF R2000: grubości, kreskowania, wymiary, arkusze', 'zapis rysunku 
     'arkusze nie trafiają do modelu': [back.ents.some(e => e.t === 'text' && e.s === 'Rzut'), false], 'bez bloków arkuszy': [back.blocks.map(b => b.name), []] };
 });
 
+/* ---------- wymiary kątowe, promienia, średnicy; mierzenie ---------- */
+przypadek('wymiar kątowy', 'linie z (0;0) do (6;0) i do (4;3); łuk po stronie kąta i po stronie przeciwnej', () => {
+  const e = { t: 'adim', k: 'ang', c: [0, 0], a: [5, 0], b: [2, 1.5], o: [2.5, 0.8] };
+  const g = G.adimGeom(e, 0.05), g2 = G.adimGeom({ ...e, o: [-2, 0.5] }, 0.05);
+  const deg = v => +(v * 180 / Math.PI).toFixed(4), a37 = +(Math.atan2(3, 4) * 180 / Math.PI).toFixed(4);
+  return { 'kąt': [deg(g.value), a37], 'kąt przyległy': [deg(g2.value), +(180 - a37).toFixed(4)], 'napis': [D.adimText(g, v => v), '36,9°'], 'promień łuku': [+g.arcs[0].r.toFixed(6), +Math.hypot(2.5, 0.8).toFixed(6)] };
+});
+przypadek('wymiar kątowy: ramiona nie dochodzą do wierzchołka', 'ściany kończą się 1 m przed narożnikiem, łuk 0,5 m od narożnika — linie pomocnicze łączą łuk z końcami ścian', () => {
+  const g = G.adimGeom({ t: 'adim', k: 'ang', c: [0, 0], a: [1, 0], b: [0, 1], o: [0.35, 0.35] }, 0.01);
+  const reach = g.lines.map(([p, q]) => +Math.max(Math.hypot(...p), Math.hypot(...q)).toFixed(3));
+  return { 'dwie linie pomocnicze': [g.lines.length, 2], 'sięgają do końców ścian (prawie 1 m)': [reach.every(v => v > 0.98 && v <= 1), true] };
+});
+przypadek('wymiar promienia i średnicy', 'okrąg r=1; opis na zewnątrz; skala ×2 i przesunięcie zmieniają wymiar razem z okręgiem', () => {
+  const r = { t: 'adim', k: 'rad', c: [7, 4], r: 1, o: [8.5, 5.5] }, d = { ...r, k: 'dia' };
+  const s2 = { ...r, ...ED.transformed(r, ED.scaling([7, 4], 2)) }, mv = { ...r, ...G.moved(r, [1, 0]) };
+  return { 'promień': [G.adimGeom(r).value, 1], 'średnica': [G.adimGeom(d).value, 2], 'napis średnicy': [D.adimText(G.adimGeom(d), v => v.toFixed(2)), 'Ø 2.00'],
+    'po skalowaniu ×2': [G.adimGeom(s2).value, 2], 'po przesunięciu': [mv.c, [8, 4]] };
+});
+
 /* ---------- uruchomienie ---------- */
 const args = process.argv.slice(2), verbose = args.includes('-v'), filt = args.find(a => a !== '-v')?.toLowerCase();
 const fmt = x => typeof x === 'number' ? (Number.isInteger(x) ? String(x) : x.toFixed(6)) : Array.isArray(x) && x.length && x.every(v => typeof v === 'number') ? pt(x) : JSON.stringify(x);

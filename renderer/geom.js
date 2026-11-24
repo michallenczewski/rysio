@@ -84,6 +84,55 @@ export function dimGeom(e) {
   } else { d1 = [e.a[0], e.o[1]]; d2 = [e.b[0], e.o[1]]; }
   return { d1, d2, value: V.dist(d1, d2), mid: V.lerp(d1, d2, 0.5) };
 }
+// Wymiar kątowy, promienia i średnicy: { t: 'adim', k: 'ang', c (wierzchołek), a, b (punkty na ramionach), o (miejsce łuku) }
+// albo { t: 'adim', k: 'rad' | 'dia', c, r, o (miejsce opisu) }. Wynik: odcinki, łuki, strzałki (grot p, kierunek d),
+// miejsce i kąt napisu, wartość (kąt w radianach albo długość) — wszystko w jednostkach przestrzeni; k — metry na mm wydruku.
+export function adimGeom(e, k = ANNO) {
+  const lines = [], arcs = [], arrows = [], h = (e.h || DIM_H) * k;
+  const readable = a => { a = normAng(a); return a > Math.PI / 2 + 1e-6 && a <= 3 * Math.PI / 2 + 1e-6 ? [a - Math.PI, true] : [a, false]; };
+  if (e.k === 'ang') {
+    const u1 = V.norm(V.sub(e.a, e.c)), u2 = V.norm(V.sub(e.b, e.c)), R = Math.max(V.dist(e.o, e.c), 1e-9), ao = angOf(e.c, e.o);
+    let best = null;
+    // ramiona (albo ich przedłużenia za wierzchołek) i kierunek łuku tak, żeby kąt był mniejszy od 180° i obejmował miejsce o
+    for (const s1 of [1, -1]) for (const s2 of [1, -1]) {
+      if (best) break;
+      const x0 = angOf([0, 0], V.mul(u1, s1)), x1 = angOf([0, 0], V.mul(u2, s2));
+      for (const [a0, a1, f] of [[x0, x1, false], [x1, x0, true]]) {
+        const sw = sweep(a0, a1);
+        if (sw <= Math.PI + 1e-9 && onArcAngle(a0, a1, ao)) { best = f ? { a0, a1, sw, s1: s2, s2: s1, swap: true } : { a0, a1, sw, s1, s2 }; break; }
+      }
+    }
+    if (!best) { const a0 = angOf([0, 0], u1), a1 = angOf([0, 0], u2); best = sweep(a0, a1) <= Math.PI ? { a0, a1, sw: sweep(a0, a1), s1: 1, s2: 1 } : { a0: a1, a1: a0, sw: sweep(a1, a0), s1: 1, s2: 1 }; }
+    const { a0, a1, sw } = best, E1 = V.polar(e.c, R, a0), E2 = V.polar(e.c, R, a1);
+    arcs.push({ c: e.c, r: R, a0, a1 });
+    // linie pomocnicze: od ramienia (albo wierzchołka, gdy łuk jest po drugiej stronie) do łuku i trochę dalej
+    const [P1, P2] = best.swap ? [e.b, e.a] : [e.a, e.b];
+    for (const [E, ang, P, s] of [[E1, a0, P1, best.s1], [E2, a1, P2, best.s2]]) {
+      const d = V.polar([0, 0], 1, ang), from = s > 0 ? P : e.c, L = V.dot(V.sub(E, from), d);
+      // łuk dalej niż ramię — linia od ramienia za łuk; łuk bliżej wierzchołka niż koniec ramienia — linia od ramienia do łuku
+      if (L > 1 * k) lines.push([V.add(from, V.mul(d, Math.min(1 * k, L / 3))), V.add(E, V.mul(d, DIM_EXT * k))]);
+      else if (L < -1 * k && s > 0) lines.push([V.sub(from, V.mul(d, Math.min(1 * k, -L / 3))), V.sub(E, V.mul(d, DIM_EXT * k))]);
+    }
+    arrows.push({ p: E1, d: [Math.sin(a0), -Math.cos(a0)] }, { p: E2, d: [-Math.sin(a1), Math.cos(a1)] });
+    const am = a0 + sw / 2, [ta, flip] = readable(am - Math.PI / 2);
+    return { lines, arcs, arrows, text: { p: V.polar(e.c, R + 1 * k + (flip ? h : 0), am), ang: ta, h }, value: sw, kind: 'ang', pts: [e.c, E1, E2, V.polar(e.c, R, am)] };
+  }
+  const d0 = V.sub(e.o, e.c), d = V.len(d0) > 1e-12 ? V.mul(d0, 1 / V.len(d0)) : [1, 0], out = V.len(d0) > e.r, E2 = V.add(e.c, V.mul(d, e.r));
+  const dia = e.k === 'dia', E1 = dia ? V.sub(e.c, V.mul(d, e.r)) : e.c;
+  lines.push([E1, out ? e.o : E2]);
+  arrows.push({ p: E2, d });
+  if (dia) arrows.push({ p: E1, d: V.mul(d, -1) });
+  const [ta, flip] = readable(angOf([0, 0], d)), up = V.perp(V.polar([0, 0], 1, ta));
+  const mid = out ? V.lerp(E2, e.o, 0.5) : V.lerp(dia ? e.c : e.c, E2, 0.5);
+  void flip;
+  return { lines, arcs, arrows, text: { p: V.add(mid, V.mul(up, 1 * k)), ang: ta, h }, value: dia ? 2 * e.r : e.r, kind: e.k, pts: [E1, E2, e.o] };
+}
+// odcinki grota strzałki (dwa ramiona pod 20°, długość 2,5 mm wydruku)
+export function arrowSegs(ar, k = ANNO) {
+  const L = 2.5 * k, b = angOf([0, 0], ar.d) + Math.PI;
+  return [[ar.p, V.polar(ar.p, L, b + 0.35)], [ar.p, V.polar(ar.p, L, b - 0.35)]];
+}
+
 /* ---------- bloki (etap 4) ---------- */
 // Definicje bloków zna program (setBlocks po każdej zmianie rysunku); geometria wstawienia to elementy bloku
 // przeniesione przekształceniem wstawienia: q = p + R(rot) · s · (mx ? [−x, y] : [x, y]).
@@ -124,7 +173,7 @@ function insGeo(e) {
     try {
       for (const ch of blockEnts(e.b)) {
         // jak poza blokiem: tekst, wymiar i kreskowanie nie przyciągają i nie ograniczają kreskowania
-        if (ch.t === 'hatch' || ch.t === 'text' || ch.t === 'dim' || HIDDEN.has(ch.layer)) continue;
+        if (ch.t === 'hatch' || ch.t === 'text' || ch.t === 'dim' || ch.t === 'adim' || HIDDEN.has(ch.layer)) continue;
         for (const q of partsOf(ch)) out.parts.push(xfPart(q, X));
         for (const q of endpoints(ch)) out.ends.push(X.f(q));
         for (const q of midpoints(ch)) out.mids.push(X.f(q));
@@ -191,6 +240,7 @@ export function partsOf(e) {
   if (e.t === 'text') return rectSegs(textBox(e));
   if (e.t === 'vp') return rectSegs(vpBox(e));
   if (e.t === 'dim') { const g = dimGeom(e); return [{ k: 'seg', a: g.d1, b: g.d2 }, { k: 'seg', a: e.a, b: g.d1 }, { k: 'seg', a: e.b, b: g.d2 }]; }
+  if (e.t === 'adim') { const g = adimGeom(e); return [...g.lines.map(([a, b]) => ({ k: 'seg', a, b })), ...g.arcs.map(q => ({ k: 'arc', ...q, from: V.polar(q.c, q.r, q.a0), to: V.polar(q.c, q.r, q.a1), ccw: true }))]; }
   if (e.t === 'circle') return [{ k: 'arc', c: e.c, r: e.r, a0: 0, a1: TAU, full: true }];
   if (e.t === 'arc') return [{ k: 'arc', c: e.c, r: e.r, a0: e.a0, a1: e.a1 }];
   if (e.t === 'pline') return plineParts(e);
@@ -202,6 +252,7 @@ export function endpoints(e) {
   if (e.t === 'text') return [e.p];
   if (e.t === 'vp') { const b = vpBox(e); return [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]]; }
   if (e.t === 'dim') { const g = dimGeom(e); return [e.a, e.b, g.d1, g.d2]; }
+  if (e.t === 'adim') return [];
   if (e.t === 'line') return [e.a, e.b];
   if (e.t === 'pline') return e.pts.map(p => [p[0], p[1]]);   // bez wybrzuszenia — punkt, nie wierzchołek
   if (e.t === 'arc') return [arcStart(e), arcEnd(e)];
@@ -211,6 +262,7 @@ export function midpoints(e) {
   if (e.t === 'ins') return insGeo(e).mids;
   if (e.t === 'text' || e.t === 'hatch') return [];
   if (e.t === 'dim') return [dimGeom(e).mid];
+  if (e.t === 'adim') return [];
   if (e.t === 'vp') return rectSegs(vpBox(e)).map(q => V.lerp(q.a, q.b, 0.5));
   if (e.t === 'arc') return [arcMid(e)];
   if (e.t === 'pline') return plineParts(e).map(q => q.k === 'seg' ? V.lerp(q.a, q.b, 0.5) : arcMid(q));
@@ -225,6 +277,7 @@ export function bbox(e) {
   if (e.t === 'text') return textBox(e);
   if (e.t === 'vp') return vpBox(e);
   if (e.t === 'dim') { const g = dimGeom(e), m = DIM_H * 1.6 * ANNO; return boxGrow(boxOf([e.a, e.b, g.d1, g.d2]), m); }
+  if (e.t === 'adim') { const g = adimGeom(e), m = DIM_H * 1.6 * ANNO; return boxGrow(boxOf([...g.pts, g.text.p, ...g.lines.flat()]), m); }
   if (e.t === 'circle') return [e.c[0] - e.r, e.c[1] - e.r, e.c[0] + e.r, e.c[1] + e.r];
   if (e.t === 'arc') {
     const pts = [arcStart(e), arcEnd(e)];
@@ -368,6 +421,7 @@ export function moved(e, d) {
   if (e.t === 'hatch') return { loops: e.loops.map(L => L.map(m)) };
   if (e.t === 'text') return { p: m(e.p) };
   if (e.t === 'dim') return { a: m(e.a), b: m(e.b), o: m(e.o) };
+  if (e.t === 'adim') return e.k === 'ang' ? { c: m(e.c), a: m(e.a), b: m(e.b), o: m(e.o) } : { c: m(e.c), o: m(e.o) };
   if (e.t === 'vp') return { a: m(e.a), b: m(e.b) };     // okno przesuwa się po arkuszu, widok modelu w nim zostaje
   if (e.t === 'line') return { a: m(e.a), b: m(e.b) };
   if (e.t === 'pline') return { pts: e.pts.map(p => p[2] ? [...m(p), p[2]] : m(p)) };

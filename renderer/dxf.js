@@ -6,7 +6,8 @@
 import { _t, DEC } from './i18n.js';
 import { newDoc, fixDoc, WEIGHTS, LTYPES, sheetSize } from './model.js';
 import { drawFrame } from './sheet.js';
-import { V, dimGeom, LINE_GAP, DIM_EXT, DIM_TICK, DIM_H, setAnno, ANNO } from './geom.js';
+import { V, dimGeom, adimGeom, arrowSegs, LINE_GAP, DIM_EXT, DIM_TICK, DIM_H, setAnno, ANNO } from './geom.js';
+import { adimText } from './draw.js';
 import { hatchSegs } from './hatch.js';
 
 const TAU = Math.PI * 2;
@@ -587,6 +588,27 @@ export function writeDxf(doc) {
           for (const f of fam) { const B = R(f.base), F = R(f.off); out.push(53, num(f.a + deg(ang)), 43, num(B[0] + ctx.O[0] * ctx.U), 44, num(B[1] + ctx.O[1] * ctx.U), 45, num(F[0]), 46, num(F[1]), 79, f.dash.length); for (const d of f.dash) out.push(49, num(d)); }
         }
         const s0 = P(e.loops[0][0]); out.push(98, 1, 10, s0[0], 20, s0[1]);
+      } else if (e.t === 'adim') {
+        // kątowy / promień / średnica: blok *D z wyglądem jak w Rysiu i DIMENSION z punktami definicji
+        const g = adimGeom(e, ctx.k), db = { name: '*D' + (dimBlocks.length + 1), br: H(), blk: H(), end: H(), body: [] };
+        const sub = { ...ctx, owner: db.br, paper: false }, st = { layer: e.layer, w: e.w, lt: null };
+        const parts = [...g.lines.map(([a, b]) => ({ t: 'line', a, b, ...st })), ...g.arcs.map(q => ({ t: 'arc', ...q, ...st })), ...g.arrows.flatMap(ar => arrowSegs(ar, ctx.k).map(([a, b]) => ({ t: 'line', a, b, ...st })))];
+        const label = adimText(g, v => dimText(v, ctx.paper));
+        ents(sub, parts, db.body);
+        ents(sub, [{ t: 'text', p: g.text.p, s: label, h: g.text.h / ctx.k, align: 'c', rot: g.text.ang, layer: e.layer, w: null }], db.body);
+        dimBlocks.push(db);
+        const T = P(g.text.p);
+        head('DIMENSION', e);
+        if (e.k === 'ang') {
+          const q = g.arcs[0], C = P(e.c), A1 = P(V.polar(q.c, q.r, q.a0)), A2 = P(V.polar(q.c, q.r, q.a1)), M = P(V.polar(q.c, q.r, q.a0 + (q.a1 - q.a0 + (q.a1 < q.a0 ? 2 * Math.PI : 0)) / 2));
+          out.push(100, 'AcDbDimension', 2, db.name, 10, A2[0], 20, A2[1], 30, 0, 11, T[0], 21, T[1], 31, 0, 70, 32 + 2, 1, esc(label), 3, 'Standard',
+            100, 'AcDb2LineAngularDimension', 13, C[0], 23, C[1], 33, 0, 14, A1[0], 24, A1[1], 34, 0, 15, C[0], 25, C[1], 35, 0, 16, M[0], 26, M[1], 36, 0);
+        } else {
+          const d = V.norm(V.sub(e.o, e.c)), dd = (d[0] || d[1]) ? d : [1, 0], C = P(e.c), E = P(V.add(e.c, V.mul(dd, e.r))), F = P(V.sub(e.c, V.mul(dd, e.r))), lead = Math.max(0, V.dist(e.o, e.c) - e.r) * ctx.U;
+          const dia = e.k === 'dia';
+          out.push(100, 'AcDbDimension', 2, db.name, 10, (dia ? F : C)[0], 20, (dia ? F : C)[1], 30, 0, 11, T[0], 21, T[1], 31, 0, 70, 32 + (dia ? 3 : 4), 1, esc(label), 3, 'Standard',
+            100, dia ? 'AcDbDiametricDimension' : 'AcDbRadialDimension', 15, E[0], 25, E[1], 35, 0, 40, num(lead));
+        }
       } else if (e.t === 'dim') {
         // blok *D z wyglądem wymiaru i DIMENSION, który go wskazuje (programy CAD pokazują blok, a wartość znają z punktów)
         const g = dimGeom(e), db = { name: '*D' + (dimBlocks.length + 1), br: H(), blk: H(), end: H(), body: [] };

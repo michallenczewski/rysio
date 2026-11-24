@@ -40,6 +40,7 @@ const IC = {
   offset: '<rect x="2.5" y="2.5" width="11" height="11" rx="1"/><rect x="5.5" y="5.5" width="5" height="5" rx=".5"/>',
   fillet: '<path d="M3 13.5V9.5A6.5 6.5 0 0 1 9.5 3h4"/><path d="M3 6.5V3h3.5" stroke-dasharray="1.3 1.6"/>',
   extend: '<path d="M13.5 2.5v11"/><path d="M2.5 8h8.5"/><path d="M8.5 5.5 11 8l-2.5 2.5"/>',
+  measure: '<path d="M2 11.5 11.5 2 14 4.5 4.5 14z"/><path d="M5 8.5l1.3 1.3M7 6.5l1.3 1.3M9 4.5l1.3 1.3"/>',
   trim: '<circle cx="4" cy="11.5" r="1.8"/><circle cx="12" cy="11.5" r="1.8"/><path d="M5.2 10.2 12.5 2.5M10.8 10.2 3.5 2.5"/>',
   text: '<path d="M3.5 4h9M8 4v8.5"/>',
   dim: '<path d="M2.5 5v7M13.5 5v7M2.5 9.5h11"/><path d="M4 11l-1.4-1.4M13.4 9.6 12 8"/>',
@@ -152,7 +153,7 @@ function afterChange(info) {
 }
 
 /* ---------- lewy pasek ---------- */
-const TOOLBAR = ['select', 'eraser', 'brush', null, 'line', 'pline', 'rect', 'circle', 'arc', null, 'move', 'copy', 'rotate', 'mirror', 'scale', null, 'offset', 'fillet', 'trim', 'extend', null, 'hatch', 'block', 'text', 'dim', 'viewport', 'grow', 'extents'];
+const TOOLBAR = ['select', 'eraser', 'brush', null, 'line', 'pline', 'rect', 'circle', 'arc', null, 'move', 'copy', 'rotate', 'mirror', 'scale', null, 'offset', 'fillet', 'trim', 'extend', null, 'hatch', 'block', 'text', 'dim', 'measure', 'viewport', 'grow', 'extents'];
 const toolsEl = $('#tools');
 for (const id of TOOLBAR) {
   if (id === null) { toolsEl.insertAdjacentHTML('beforeend', '<div class="hsep"></div>'); continue; }
@@ -416,6 +417,7 @@ function showSnapLabel() {
   el.style.left = (s[0] + 12) + 'px'; el.style.top = (s[1] + 10) + 'px';
 }
 function showReading() {
+  if (tool.id === 'measure') showToolBar();
   let el = $('#reading');
   const r = cursorScreen && tool.reading ? tool.reading() : null;
   // w trybie minimalnym pole wymiaru jest przy kursorze: wpisywana wartość pokazuje się tam, gdzie patrzysz
@@ -453,7 +455,7 @@ function refreshUi() {
   showVpBar(); showTextBar();
   renderPills();
   if (tool.id === 'brush') showBrushBar();
-  showHatchBar(); showBlockBar();
+  showHatchBar(); showBlockBar(); showToolBar();
   if (app.mini) renderBadge();
   if (!$('#layersPop').hidden) renderLayersPop();
   if (!$('#strokePop').hidden) renderStrokePop();
@@ -650,6 +652,47 @@ const PAT_SVG = {
   solid: '<rect x="2" y="2" width="18" height="12" rx="1" fill="currentColor" opacity=".8"/>'
 };
 const selHatches = () => tool.id === 'select' && app.sel.size ? app.ents().filter(e => app.sel.has(e.id)) : [];
+// pasek narzędzia: rodzaj wymiaru, zaokrąglij / fazuj, wynik mierzenia
+function showToolBar() {
+  let el = $('#toolBar2');
+  if (!['dim', 'fillet', 'measure'].includes(tool.id) || (tool.id === 'dim' && app.vpEdit)) { el?.remove(); return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'toolBar2'; el.className = 'toolbar'; view.append(el);
+    el.addEventListener('pointerdown', e => e.stopPropagation());
+    el.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.kind && tool.id === 'dim') tool.setKind(b.dataset.kind);
+      else if (b.dataset.fm && tool.id === 'fillet' && tool.mode !== b.dataset.fm) tool.toggle();
+      else if (b.dataset.copy != null) { navigator.clipboard?.writeText(el._copy || '').then(() => toast(_t('Skopiowano wynik.'), 1200), () => toast(_t('Nie udało się skopiować do schowka.'))); return; }
+      refreshUi(); redraw();
+    });
+  }
+  const fld = (label, v, big) => `<span class="fld${big ? ' big' : ''}"><em>${label}</em>${v}</span>`;
+  let html = '', copy = '';
+  if (tool.id === 'dim') {
+    const ks = [['lin', _t('Liniowy')], ['ang', _t('Kątowy')], ['rad', _t('Promień')], ['dia', _t('Średnica')]];
+    html = `<span class="t">${_t('Wymiar')}</span><div class="seg">${ks.map(([k, n]) => `<button data-kind="${k}" class="${tool.kind === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  } else if (tool.id === 'fillet') {
+    const ch = tool.mode === 'chamfer';
+    html = `<span class="t">${_t('Narożnik')}</span><div class="seg"><button data-fm="fillet" class="${ch ? '' : 'on'}">${_t('Zaokrąglij')}</button><button data-fm="chamfer" class="${ch ? 'on' : ''}">${_t('Fazuj')}</button></div>`
+      + fld(ch ? _t('Odległość') : _t('Promień'), ch ? tool.dText() : fmtLength(tool.r))
+      + `<span class="lbl">${ch ? _t('cyfry zmieniają odległość · dwie po średniku: 0,3;0,5') : _t('cyfry zmieniają promień')}</span>`;
+  } else {
+    // pole w jednostce rysunku (na arkuszu — mm² papieru)
+    const r = tool.info(), u = app.space ? 'mm' : app.doc.units;
+    const fA = v => (u === 'm' ? v.toFixed(2) : (v * (u === 'cm' ? 1e4 : 1e6)).toFixed(0)).replace('.', DEC) + ' ' + u + '²';
+    if (!r) html = `<span class="t">${_t('Mierz')}</span><span class="lbl">${_t('kliknij pierwszy punkt')}</span>`;
+    else if (r.area != null) { html = `<span class="t">${_t('Mierz')}</span>${fld(_t('Pole'), fA(r.area), true)}${fld(_t('Obwód'), fmtLength(r.per))}`; copy = `${_t('Pole')} ${fA(r.area)}, ${_t('Obwód')} ${fmtLength(r.per)}`; }
+    else {
+      html = `<span class="t">${_t('Mierz')}</span>` + (r.seg != null ? fld(_t('Odcinek'), fmtLength(r.seg), true) : '') + fld(_t('Razem'), fmtLength(r.total))
+        + (r.seg != null ? fld(_t('Kąt'), (Math.round(r.ang * 1800 / Math.PI) / 10).toFixed(1).replace('.', DEC) + '°') + fld('Δx; Δy', fmtLength(r.dx) + '; ' + fmtLength(r.dy)) : '');
+      copy = (r.seg != null ? `${_t('Odcinek')} ${fmtLength(r.seg)}, ` : '') + `${_t('Razem')} ${fmtLength(r.total)}`;
+    }
+    if (copy) html += `<button class="tbs" data-copy>${_t('Kopiuj wynik')}</button>`;
+  }
+  el._copy = copy;
+  if (el._html !== html) { el.innerHTML = html; el._html = html; }
+}
 function showHatchBar() {
   const hs = selHatches(), onSel = hs.length && hs.every(e => e.t === 'hatch');
   let el = $('#hatchBar');
@@ -1227,7 +1270,7 @@ function openExport() {
     <div class="row"><span class="lbl w72">${_t('Arkusze')}</span><div class="seg stretch grow"><button data-all="0" class="${all ? '' : 'on'}" ${cur ? '' : 'disabled'}>${_t('Ten')}</button><button data-all="1" class="${all ? 'on' : ''}" ${exp.kind === 'png' ? 'disabled' : ''}>${_t`Wszystkie (${app.doc.sheets.length})`}</button></div></div>
     <div class="row"><span class="lbl w72">${_t('Kolory')}</span><div class="seg stretch grow"><button data-mono="0" class="${exp.mono ? '' : 'on'}">${_t('Warstw')}</button><button data-mono="1" class="${exp.mono ? 'on' : ''}">${_t('Czarno-białe')}</button></div></div>
     <div class="hr"></div><p class="note">${exp.kind === 'pdf' ? _t('Kreski w milimetrach jak w pasku kreski, okna w swoich skalach. Wszystkie arkusze trafiają do jednego pliku, każdy na osobnej stronie.') : _t`Obraz arkusza „${esc(pngSheet.name)}” w 200 dpi.`}</p>
-    <div class="row" style="justify-content:flex-end"><button class="primary" id="expGo">${exp.kind === 'pdf' ? _t('Zapisz PDF…') : _t('Zapisz PNG…')}</button></div>`;
+    <div class="row" style="justify-content:flex-end;gap:6px"><button class="tbs" id="expPrint">${_t('Drukuj…')}</button><button class="primary" id="expGo">${exp.kind === 'pdf' ? _t('Zapisz PDF…') : _t('Zapisz PNG…')}</button></div>`;
   pop.hidden = false;
   const r = $('#pdfBtn').getBoundingClientRect();
   pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 8)) + 'px'; pop.style.top = (r.bottom + 6) + 'px';
@@ -1237,6 +1280,7 @@ $('#exportPop').addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   if (b.dataset.k) exp.kind = b.dataset.k; else if (b.dataset.all) exp.all = b.dataset.all === '1'; else if (b.dataset.mono) exp.mono = b.dataset.mono === '1';
   else if (b.id === 'expGo') { closePops(); return runExport(); }
+  else if (b.id === 'expPrint') { closePops(); return printSheets(); }
   openExport();
 });
 async function runExport() {
@@ -1252,6 +1296,36 @@ async function runExport() {
     }
   } catch (err) { toast(_t`Nie udało się zapisać: ${esc(err.message)}`, 5000); }
   finally { syncSpace(); }
+}
+// Drukowanie: arkusze jako obrazy (do 300 dpi, duże formaty mniej, żeby zmieścić się w pamięci) na stronach w rozmiarze
+// arkusza (@page z nazwą dla każdego formatu) w ukrytej ramce; okno drukowania jest systemowe. Skala jest dokładna, gdy
+// w oknie drukowania wybrano „rzeczywisty rozmiar / 100%”.
+async function printSheets() {
+  // te same arkusze, które pokazuje okienko („Wszystkie” tylko przy PDF)
+  const sheets = exp.kind === 'pdf' && (exp.all || !app.sheet()) ? app.doc.sheets : [app.sheet() || app.doc.sheets[0]];
+  toast(_t('Przygotowuję wydruk…'), 1500);
+  let fr = null;
+  const urls = [];
+  try {
+    const pages = [];
+    for (const [i, sh] of sheets.entries()) {
+      const [W, H] = sheetSize(sh), sq = (W / 0.0254) * (H / 0.0254), dpi = Math.max(100, Math.min(300, Math.floor(Math.sqrt(60e6 / sq))));
+      const url = URL.createObjectURL(await sheetPng(sh, dpi, exp.mono)); urls.push(url);
+      pages.push({ url, w: W * 1000, h: H * 1000, n: 'p' + i });
+    }
+    const css = pages.map(p => `@page ${p.n}{size:${p.w}mm ${p.h}mm;margin:0} .${p.n}{page:${p.n};width:${p.w}mm;height:${p.h}mm}`).join('\n');
+    const html = `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0}div{break-after:page;overflow:hidden}div:last-child{break-after:auto}img{display:block;width:100%;height:100%}${css}</style></head><body>${pages.map(p => `<div class="${p.n}"><img src="${p.url}"></div>`).join('')}</body></html>`;
+    fr = document.createElement('iframe');
+    fr.style.cssText = 'position:fixed;left:-10000px;top:0;width:10px;height:10px;border:0';
+    document.body.append(fr);
+    await new Promise(res => { fr.onload = res; fr.srcdoc = html; });
+    await Promise.all([...fr.contentDocument.images].map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })));
+    const done = () => { fr.remove(); urls.forEach(u => URL.revokeObjectURL(u)); };
+    fr.contentWindow.addEventListener('afterprint', () => setTimeout(done, 500));
+    fr.contentWindow.focus(); if (!app._noPrint) fr.contentWindow.print();   // _noPrint: sprawdziany w przeglądarce bez okna drukowania
+    setTimeout(() => { if (fr.isConnected) done(); }, 10 * 60 * 1000);
+    app._printFrame = fr;   // do sprawdzianów
+  } catch (err) { fr?.remove(); urls.forEach(u => URL.revokeObjectURL(u)); toast(_t`Nie udało się przygotować wydruku: ${esc(err.message)}`, 5000); }
 }
 // arkusz jako obraz: te same polecenia rysowania co ekran i PDF
 function sheetPng(sh, dpi, mono) {

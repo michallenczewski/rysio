@@ -83,7 +83,7 @@ export function fixDoc(d) {
   if (!['m', 'cm', 'mm'].includes(doc.units)) doc.units = 'm';
   return doc;
 }
-const ENT_TYPES = new Set(['line', 'pline', 'circle', 'arc', 'text', 'dim', 'vp', 'ins', 'hatch']);
+const ENT_TYPES = new Set(['line', 'pline', 'circle', 'arc', 'text', 'dim', 'adim', 'vp', 'ins', 'hatch']);
 // przestrzeń definicji bloku
 export const blockSpace = id => 'b' + id;
 

@@ -1,7 +1,8 @@
 // Rysowanie elementów przez „pióro”. CanvasPen rysuje na płótnie, PdfPen (pdf.js) zapisuje wektorowy PDF — te same
 // polecenia, więc wydruk wygląda jak ekran. Grubości, wzory kresek i wysokości tekstu są w milimetrach papieru.
+import { DEC } from './i18n.js';
 import { LTYPES, strokeOf } from './model.js';
-import { V, sweep, dimGeom, textBox, plineParts, hasBulge, LINE_GAP, DIM_H, DIM_TICK, DIM_EXT, insXf, blockEnts } from './geom.js';
+import { V, sweep, dimGeom, adimGeom, arrowSegs, textBox, plineParts, hasBulge, LINE_GAP, DIM_H, DIM_TICK, DIM_EXT, insXf, blockEnts } from './geom.js';
 import { isShown } from './model.js';
 import { hatchSegs } from './hatch.js';
 
@@ -106,11 +107,17 @@ export function traceEnt(pen, e) {
   else if (e.t === 'arc') pen.arc(e.c, e.r, e.a0, e.a1);
   else if (e.t === 'vp') pen.poly([e.a, [e.b[0], e.a[1]], e.b, [e.a[0], e.b[1]]], true);
   else if (e.t === 'dim') { const g = dimGeom(e); pen.line(g.d1, g.d2); }
+  else if (e.t === 'adim') { const g = adimGeom(e); for (const [a, b] of g.lines) pen.line(a, b); for (const q of g.arcs) pen.arc(q.c, q.r, q.a0, q.a1); }
   else if (e.t === 'text') { const b = textBox(e); pen.poly([[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]], true); }
 }
 
 // Element w jego kresce. o: { ppm, scale (skala przestrzeni), ink, thin, exact (PDF: bez ograniczeń grubości),
 // color (wymuszony kolor), mono (czarno-białe), fmt (liczba wymiaru → tekst), alpha }
+// napis wymiaru kątowego / promienia / średnicy: „41°”, „R 0,80”, „Ø 1,60”
+export function adimText(g, fmt) {
+  if (g.kind === 'ang') { const d = Math.round(g.value * 1800 / Math.PI) / 10; return String(d).replace('.', DEC) + '°'; }
+  return (g.kind === 'dia' ? 'Ø ' : 'R ') + fmt(g.value);
+}
 export function drawEnt(pen, doc, e, o) {
   if (e.t === 'vp') return;   // okno rysuje widok (zawartość i ramkę osobno)
   if (e.t === 'ins') {
@@ -126,6 +133,16 @@ export function drawEnt(pen, doc, e, o) {
   const width = mm => o.exact ? mm * f : strokePx(mm, pen.ppm, o.scale, o.thin);
   const dash = lt => o.exact ? (LTYPES[lt] || LTYPES.solid).dash.map(v => v * f) : dashPx(lt, pen.ppm, o.scale);
   if (e.t === 'text') { pen.style({ color: col, alpha: o.alpha ?? 1 }); pen.text(e.p, e.s, e.h * k, e.align || 'l', e.rot || 0); return; }
+  if (e.t === 'adim') {
+    const g = adimGeom(e, k), fmt = o.fmt || (v => v.toFixed(2));
+    pen.style({ width: width(st.w), color: col, alpha: o.alpha ?? 1 });
+    for (const [a, b] of g.lines) pen.line(a, b);
+    for (const q of g.arcs) pen.arc(q.c, q.r, q.a0, q.a1);
+    for (const ar of g.arrows) for (const [a, b] of arrowSegs(ar, k)) pen.line(a, b);
+    pen.style({ color: col, alpha: o.alpha ?? 1 });
+    pen.text(g.text.p, adimText(g, fmt), g.text.h, 'c', g.text.ang);
+    return;
+  }
   if (e.t === 'dim') {
     const g = dimGeom(e), u = V.norm(V.sub(g.d2, g.d1)), dir = (u[0] || u[1]) ? u : [1, 0];
     pen.style({ width: width(st.w), color: col, alpha: o.alpha ?? 1 });

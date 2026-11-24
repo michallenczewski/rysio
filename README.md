@@ -23,13 +23,16 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 
 - Zakładki na dole: Model i dowolna liczba arkuszy (+). Arkusz ma format A4–A0, poziomo albo pionowo, i ramkę z tabelką; nazwę, format i ramkę zmienia przycisk formatu na dole, a pola tabelki — przycisk „Tabelka” (projekt, projektant i data są wspólne dla wszystkich arkuszy, rysunek i numer — osobne).
 - Okno (O) pokazuje fragment modelu w swojej skali; pasek nad zaznaczonym oknem zmienia skalę, ukrywa warstwy tylko w tym oknie i blokuje widok. Dwuklik w okno pozwala przesunąć w nim model.
+- Mierz (L): odcinki z sumą, kątem i Δx; Δy na pasku u góry; kliknięcie w pierwszy punkt daje pole i obwód obrysu, ⇧ + klik (Shift + klik) — pole i obwód zamkniętej polilinii, prostokąta albo okręgu; „Kopiuj wynik” wkleja wynik jako tekst. Nic nie trafia do rysunku.
+- Wymiar (U) ma pasek z rodzajem: liniowy, kątowy (dwie linie i miejsce łuku), promień i średnica (łuk albo okrąg i miejsce opisu).
 - Tekst (Y) i wymiar (U) w modelu i na arkuszu; wysokość w milimetrach wydruku, taka sama w każdym oknie i skali. Wymiar: dwa punkty i miejsce linii, potem łańcuch; drugie naciśnięcie U — poziomo, pionowo albo równolegle.
-- Eksport (⌘P / Ctrl+P): wektorowy PDF w skali (ten arkusz albo wszystkie w jednym pliku, czarno-biały albo w kolorach warstw) i PNG 200 dpi.
+- Eksport (⌘P / Ctrl+P): wektorowy PDF w skali (ten arkusz albo wszystkie w jednym pliku, czarno-biały albo w kolorach warstw) i PNG 200 dpi. „Drukuj…” otwiera okno drukowania systemu ze stronami w formacie arkuszy (obraz do 300 dpi) — w oknie drukowania wybierz rzeczywisty rozmiar / 100%.
 
 ## Zmienianie (etap 3)
 
 - Obróć (E), odbij (⇧E / Shift+E), skaluj (R) — na zaznaczeniu; kąt i skala z klawiatury albo myszą; ⌥ (Ctrl w Windows) robi kopię.
 - Odsunięcie (T): linie, łuki, okręgi i polilinie (także z łukami); odległość wpisana z klawiatury.
+- Fazuj: drugie naciśnięcie G (albo przycisk na pasku narożnika) — dwie linie albo narożnik polilinii ścięty odcinkiem; odległość wpisana z klawiatury, dwie różne po średniku (0,3;0,5).
 - Zaokrąglij narożnik (G): dwie linie, linia i łuk, dwa łuki (także okrąg, który zostaje cały) albo jedno kliknięcie w polilinię przy narożniku; promień wpisany z klawiatury; promień 0 łączy elementy w ostry narożnik.
 - Przytnij (X): klik w kawałek między przecięciami go usuwa. Wydłuż (⇧X / Shift+X): klik w linię blisko końca dosuwa ją do najbliższego elementu. W obu przeciągnięcie przez kilka kawałków robi to z nimi wszystkimi naraz.
 - Polilinie mogą mieć łuki (powstają przy odsunięciu, przycinaniu i z plików DXF).

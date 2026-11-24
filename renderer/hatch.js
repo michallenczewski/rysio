@@ -109,7 +109,7 @@ export function buildFaces(ents, rect) {
   let segs = [], truncated = false;
   const ftol = rect ? Math.hypot(rect[2] - rect[0], rect[3] - rect[1]) / 4000 : 1e-3;
   for (const e of ents) {
-    if (e.t === 'text' || e.t === 'dim' || e.t === 'hatch' || e.t === 'vp') continue;
+    if (e.t === 'text' || e.t === 'dim' || e.t === 'adim' || e.t === 'hatch' || e.t === 'vp') continue;
     if (rect && !boxHit(bbox(e), rect)) continue;
     if (segs.length > 150000) { truncated = true; break; }
     for (const s of flatten(e, ftol)) if (V.dist(s[0], s[1]) > 1e-9) segs.push(s);

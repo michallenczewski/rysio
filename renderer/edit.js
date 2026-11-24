@@ -37,6 +37,8 @@ export function transformed(e, T) {
       }
       return { a: T.f(e.a), b: T.f(e.b), o: T.f(e.o), dir };
     }
+    // wymiar kątowy: punkty; promień / średnica: środek, miejsce opisu i promień ze skalą
+    case 'adim': return e.k === 'ang' ? { c: T.f(e.c), a: T.f(e.a), b: T.f(e.b), o: T.f(e.o) } : { c: T.f(e.c), o: T.f(e.o), r: e.r * T.k };
     // wstawienie bloku: punkt, obrót, skala i odbicie (odbicie w osi pod kątem α: obrót' = 2α − obrót + π, odbicie się przełącza)
     case 'ins': return T.mirror ? { p: T.f(e.p), rot: normAng(2 * T.axisAng - (e.rot || 0) + Math.PI), s: (e.s || 1) * T.k, mx: !e.mx } : { p: T.f(e.p), rot: normAng((e.rot || 0) + T.rot), s: (e.s || 1) * T.k };
     case 'hatch': return { loops: e.loops.map(L => L.map(q => T.f(q))), ang: normAng(T.mirror ? 2 * T.axisAng - (e.ang || 0) : (e.ang || 0) + T.rot) };
@@ -56,7 +58,7 @@ export function explodeIns(e) {
     const { id, sp, ...rest } = ch;
     const n = { ...rest, ...patch };
     // wysokość tekstu i wymiaru rośnie razem z blokiem (w bloku jest w mm wydruku przy skali 1)
-    if ((ch.t === 'text' || ch.t === 'dim') && T.k !== 1) n.h = (ch.h || (ch.t === 'dim' ? 2.5 : 3)) * T.k;
+    if ((ch.t === 'text' || ch.t === 'dim' || ch.t === 'adim') && T.k !== 1) n.h = (ch.h || (ch.t === 'text' ? 3 : 2.5)) * T.k;
     // tekst tak, jak rysuje go pióro bloku: kierunek przeniesiony, w odbitym bloku odwrócony z zamienionym wyrównaniem
     if (ch.t === 'text') {
       const a = e.mx ? (e.rot || 0) + Math.PI - (ch.rot || 0) - Math.PI : (e.rot || 0) + (ch.rot || 0);
@@ -433,6 +435,7 @@ export function gripsOf(e) {
     case 'arc': return [g('a0', arcStart(e)), g('a1', arcEnd(e)), g('r', arcMid(e)), g('mv', e.c)];
     case 'text': return [g('mv', e.p)];
     case 'dim': return [g('a', e.a), g('b', e.b), g('o', dimGeom(e).mid)];
+    case 'adim': return [g('o', e.o)];
     case 'vp': return [g('a', e.a), g('b', e.b)];
     case 'ins': return [g('mv', e.p)];
   }

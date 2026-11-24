@@ -16,8 +16,9 @@ Rysowanie:
 Zmienianie:
 - zaznacz, przesuń, kopiuj, obróć, odbij, skaluj, usuń
 - schowek: ⌘C / ⌘X / ⌘V (Ctrl+C / Ctrl+X / Ctrl+V) — kopiowanie i wycinanie zaznaczenia także do innego rysunku i drugiego okna; wklejana kopia trzyma się kursora, między modelem a arkuszem przelicza się skala
+- mierzenie odległości i pola (L), bez zapisu w rysunku
 - odsunięcie (offset)
-- zaokrąglenie narożnika (fillet) — z promieniem; promień 0 łączy linie w narożnik
+- zaokrąglenie narożnika (fillet) — z promieniem; promień 0 łączy linie w narożnik; także łuki i narożniki polilinii; fazowanie (chamfer) — drugie naciśnięcie G
 - przytnij (trim) i wydłuż (extend) — klik w kawałek do usunięcia albo w koniec do wydłużenia, bez wcześniejszego wskazywania krawędzi tnących; to dwa osobne narzędzia — przytnij (X) i wydłuż (⇧X); przeciągnięcie przez kilka kawałków działa jak pędzel
 
 Porządek:
@@ -52,9 +53,9 @@ Pomoc w rysowaniu:
 - Arkusz ma format (A4–A0, poziomo/pionowo) i ramkę z tabelką.
 - Na arkuszu stawia się okna (rzutnie) pokazujące fragment modelu w zadanej skali; każde okno może mieć inną skalę i inne widoczne warstwy.
 - Na arkuszu można też rysować i pisać bezpośrednio (tytuły, opisy, legenda).
-- Wyjście: PDF wektorowy w skali i PNG.
+- Wyjście: PDF wektorowy w skali, PNG i drukowanie na drukarce.
 
-Prosty tekst i podstawowe wymiary (liniowy, łańcuch) są potrzebne, żeby arkusz dało się opisać — zaplanuj je razem z layoutami, w najprostszej postaci.
+Prosty tekst (także w kilku wierszach) i wymiary (liniowy, łańcuch, kątowy, promień, średnica) są potrzebne, żeby arkusz dało się opisać — zaplanuj je razem z layoutami, w najprostszej postaci.
 
 ## Pliki
 

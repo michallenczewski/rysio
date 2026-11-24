@@ -238,6 +238,7 @@ body.mini .toolbar{top:52px}
 .toolbar .pats button.on{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1.5px var(--sel)}
 .toolbar .fld{height:28px;border-radius:7px;background:var(--soft);display:flex;align-items:center;gap:6px;padding:0 8px 0 10px;font-variant-numeric:tabular-nums}
 .toolbar .fld em{font-style:normal;color:var(--muted)}
+.toolbar .fld.big{font-weight:600}
 .toolbar .fld input{width:46px;border:0;background:none;font:inherit;color:var(--text);outline:none;padding:0}
 .toolbar .fld input[data-b]{width:120px}
 .toolbar .tbs.pri{background:var(--ink);color:var(--card)}
