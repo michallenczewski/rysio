@@ -230,3 +230,20 @@ body.mini .toolbar{top:52px}
 .reading.typed u{text-decoration:none;border-right:1.5px solid var(--sel);padding-right:1px}
 #miniBadge{-webkit-app-region:drag}
 #miniBadge .click{-webkit-app-region:no-drag}
+
+/* --- etap 4: kreskowanie i bloki --- */
+.toolbar.right{left:auto;right:12px}
+.toolbar .pats{display:flex;gap:3px;padding:2px;border-radius:8px;background:var(--soft)}
+.toolbar .pats button{width:30px;height:26px;border-radius:6px;display:grid;place-items:center;color:var(--text2)}
+.toolbar .pats button.on{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1.5px var(--sel)}
+.toolbar .fld{height:28px;border-radius:7px;background:var(--soft);display:flex;align-items:center;gap:6px;padding:0 8px 0 10px;font-variant-numeric:tabular-nums}
+.toolbar .fld em{font-style:normal;color:var(--muted)}
+.toolbar .fld input{width:46px;border:0;background:none;font:inherit;color:var(--text);outline:none;padding:0}
+.toolbar .fld input[data-b]{width:120px}
+.toolbar .tbs.pri{background:var(--ink);color:var(--card)}
+#blocksPop .blocks{display:grid;grid-template-columns:repeat(3,96px);gap:8px;max-height:60vh;overflow:auto}
+#blocksPop .blk{border-radius:9px;background:var(--soft);padding:6px 6px 5px;display:flex;flex-direction:column;gap:3px;text-align:left}
+#blocksPop .blk:hover,#blocksPop .blk.on{box-shadow:0 0 0 1.5px var(--sel)}
+#blocksPop .blk img{width:84px;height:56px;background:var(--card);border-radius:6px}
+#blocksPop .blk b{font-weight:500;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#blocksPop .blk span{font-size:10.5px;color:var(--muted)}

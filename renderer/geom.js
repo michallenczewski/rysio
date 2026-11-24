@@ -84,6 +84,66 @@ export function dimGeom(e) {
   } else { d1 = [e.a[0], e.o[1]]; d2 = [e.b[0], e.o[1]]; }
   return { d1, d2, value: V.dist(d1, d2), mid: V.lerp(d1, d2, 0.5) };
 }
+/* ---------- bloki (etap 4) ---------- */
+// Definicje bloków zna program (setBlocks po każdej zmianie rysunku); geometria wstawienia to elementy bloku
+// przeniesione przekształceniem wstawienia: q = p + R(rot) · s · (mx ? [−x, y] : [x, y]).
+let BLOCKS = new Map(), BREV = 0, HIDDEN = new Set();
+export function setBlocks(doc) {
+  const m = new Map();
+  HIDDEN = new Set((doc.layers || []).filter(L => !L.visible).map(L => L.id));   // elementy bloku na ukrytych warstwach nie przyciągają
+  for (const b of doc.blocks || []) m.set(b.id, []);
+  for (const e of doc.ents) if (typeof e.sp === 'string' && e.sp[0] === 'b') { const l = m.get(+e.sp.slice(1)); if (l) l.push(e); }
+  BLOCKS = m; BREV++;
+}
+export const blockEnts = id => BLOCKS.get(id) || [];
+// przekształcenie wstawienia: f — punkt, k — skala, rot — obrót, flip — odbicie, ang — kąt kierunku po przekształceniu
+export function insXf(e) {
+  const c = Math.cos(e.rot || 0), s = Math.sin(e.rot || 0), k = e.s || 1, m = e.mx ? -1 : 1, P = e.p;
+  return {
+    f: q => { const x = q[0] * k * m, y = q[1] * k; return [P[0] + x * c - y * s, P[1] + x * s + y * c]; },
+    inv: q => { const dx = q[0] - P[0], dy = q[1] - P[1], x = (dx * c + dy * s) / k, y = (-dx * s + dy * c) / k; return [x * m, y]; },
+    k, rot: e.rot || 0, flip: !!e.mx,
+    ang: a => e.mx ? (e.rot || 0) + Math.PI - a : (e.rot || 0) + a
+  };
+}
+const xfPart = (q, X) => {
+  if (q.k === 'seg') return { k: 'seg', a: X.f(q.a), b: X.f(q.b) };
+  if (q.full) return { k: 'arc', c: X.f(q.c), r: q.r * X.k, a0: 0, a1: TAU, full: true };
+  const a0 = normAng(X.ang(q.a0)), a1 = normAng(X.ang(q.a1));
+  return { k: 'arc', c: X.f(q.c), r: q.r * X.k, ...(X.flip ? { a0: a1, a1: a0 } : { a0, a1 }) };
+};
+let insDepth = 0;
+const insCache = new WeakMap();
+// części, końce i środki elementów bloku w położeniu wstawienia (pamiętane do następnej zmiany rysunku)
+function insGeo(e) {
+  const key = BREV + '|' + e.b + '|' + e.p + '|' + e.rot + '|' + e.s + '|' + e.mx;
+  const c = insCache.get(e); if (c && c.key === key) return c;
+  const X = insXf(e), out = { key, parts: [], ends: [], mids: [] };
+  if (insDepth < 8) {
+    insDepth++;
+    try {
+      for (const ch of blockEnts(e.b)) {
+        // jak poza blokiem: tekst, wymiar i kreskowanie nie przyciągają i nie ograniczają kreskowania
+        if (ch.t === 'hatch' || ch.t === 'text' || ch.t === 'dim' || HIDDEN.has(ch.layer)) continue;
+        for (const q of partsOf(ch)) out.parts.push(xfPart(q, X));
+        for (const q of endpoints(ch)) out.ends.push(X.f(q));
+        for (const q of midpoints(ch)) out.mids.push(X.f(q));
+        if (ch.t === 'circle' || ch.t === 'arc') out.mids.push(X.f(ch.c));
+      }
+    } finally { insDepth--; }
+  }
+  insCache.set(e, out); return out;
+}
+// zamknięte obwody kreskowania: lista pętli punktów; parzysta liczba przecięć = na zewnątrz (otwory)
+export function inLoops(loops, p) {
+  let inside = false;
+  for (const L of loops) for (let i = 0, j = L.length - 1; i < L.length; j = i++) {
+    const a = L[i], b = L[j];
+    if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+  }
+  return inside;
+}
+
 const rectSegs = b => { const c = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]]; return c.map((p, i) => ({ k: 'seg', a: p, b: c[(i + 1) % 4] })); };
 const vpBox = e => [Math.min(e.a[0], e.b[0]), Math.min(e.a[1], e.b[1]), Math.max(e.a[0], e.b[0]), Math.max(e.a[1], e.b[1])];
 export { vpBox };
@@ -126,6 +186,8 @@ const partBox = q => q.k === 'seg' ? boxOf([q.a, q.b]) : bbox({ t: 'arc', c: q.c
 
 // „krzywe” elementu: odcinki i łuki w jednej postaci
 export function partsOf(e) {
+  if (e.t === 'ins') return insGeo(e).parts;
+  if (e.t === 'hatch') { const out = []; for (const L of e.loops) for (let i = 0; i < L.length; i++) out.push({ k: 'seg', a: L[i], b: L[(i + 1) % L.length] }); return out; }
   if (e.t === 'text') return rectSegs(textBox(e));
   if (e.t === 'vp') return rectSegs(vpBox(e));
   if (e.t === 'dim') { const g = dimGeom(e); return [{ k: 'seg', a: g.d1, b: g.d2 }, { k: 'seg', a: e.a, b: g.d1 }, { k: 'seg', a: e.b, b: g.d2 }]; }
@@ -135,6 +197,8 @@ export function partsOf(e) {
   return segsOf(e).map(([a, b]) => ({ k: 'seg', a, b }));
 }
 export function endpoints(e) {
+  if (e.t === 'ins') return [e.p, ...insGeo(e).ends];
+  if (e.t === 'hatch') return [];
   if (e.t === 'text') return [e.p];
   if (e.t === 'vp') { const b = vpBox(e); return [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]]; }
   if (e.t === 'dim') { const g = dimGeom(e); return [e.a, e.b, g.d1, g.d2]; }
@@ -144,7 +208,8 @@ export function endpoints(e) {
   return [];
 }
 export function midpoints(e) {
-  if (e.t === 'text') return [];
+  if (e.t === 'ins') return insGeo(e).mids;
+  if (e.t === 'text' || e.t === 'hatch') return [];
   if (e.t === 'dim') return [dimGeom(e).mid];
   if (e.t === 'vp') return rectSegs(vpBox(e)).map(q => V.lerp(q.a, q.b, 0.5));
   if (e.t === 'arc') return [arcMid(e)];
@@ -155,6 +220,8 @@ export const centerOf = e => (e.t === 'circle' || e.t === 'arc') ? e.c : null;
 
 // prostokąt obrysu [minX, minY, maxX, maxY]
 export function bbox(e) {
+  if (e.t === 'ins') { const g = insGeo(e); return g.parts.length ? g.parts.map(partBox).reduce(boxUnion, null) : [e.p[0], e.p[1], e.p[0], e.p[1]]; }
+  if (e.t === 'hatch') return boxOf(e.loops.flat());
   if (e.t === 'text') return textBox(e);
   if (e.t === 'vp') return vpBox(e);
   if (e.t === 'dim') { const g = dimGeom(e), m = DIM_H * 1.6 * ANNO; return boxGrow(boxOf([e.a, e.b, g.d1, g.d2]), m); }
@@ -195,8 +262,13 @@ export function closestOnArc(p, part) {
 export function nearestOn(e, p) {
   // w środek tekstu też się trafia
   if (e.t === 'text') { const b = textBox(e); if (p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3]) return { p: [...p], d: 0 }; }
+  // w kreskowanie trafia się też w środku (inside — wybierający daje wtedy pierwszeństwo liniom w pobliżu)
+  if (e.t === 'hatch' && inLoops(e.loops, p)) return { p: [...p], d: 0, inside: true };
+  return nearestOnParts(partsOf(e), p);
+}
+function nearestOnParts(parts, p) {
   let best = null, bd = Infinity;
-  for (const q of partsOf(e)) {
+  for (const q of parts) {
     const c = q.k === 'seg' ? closestOnSeg(p, q.a, q.b).p : closestOnArc(p, q);
     const d = V.dist(p, c); if (d < bd) { bd = d; best = c; }
   }
@@ -292,6 +364,8 @@ export function touchesRect(e, r) {
 // pola elementu po przesunięciu o d (do tx.set albo nowego elementu)
 export function moved(e, d) {
   const m = p => V.add(p, d);
+  if (e.t === 'ins') return { p: m(e.p) };
+  if (e.t === 'hatch') return { loops: e.loops.map(L => L.map(m)) };
   if (e.t === 'text') return { p: m(e.p) };
   if (e.t === 'dim') return { a: m(e.a), b: m(e.b), o: m(e.o) };
   if (e.t === 'vp') return { a: m(e.a), b: m(e.b) };     // okno przesuwa się po arkuszu, widok modelu w nim zostaje
@@ -301,6 +375,7 @@ export function moved(e, d) {
 }
 // długość elementu
 export function lengthOf(e) {
+  if (e.t === 'ins' || e.t === 'hatch') return 0;
   if (e.t === 'circle') return TAU * e.r;
   if (e.t === 'arc') return sweep(e.a0, e.a1) * e.r;
   if (e.t === 'pline') return plineParts(e).reduce((s, q) => s + (q.k === 'seg' ? V.dist(q.a, q.b) : sweep(q.a0, q.a1) * q.r), 0);

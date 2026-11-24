@@ -9,6 +9,8 @@ import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesS
 import { parseLength, parseLengths, fmtLength, fmtNum } from './units.js';
 import { isLive, isShown } from './model.js';
 import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, trimMany, gripsOf, gripMove } from './edit.js';
+import { buildFaces, regionAt } from './hatch.js';
+import { blockEnts } from './geom.js';
 
 const dirOf = (from, to) => { const d = V.norm(V.sub(to, from)); return d[0] || d[1] ? d : [1, 0]; };
 const deg = r => (r * 180 / Math.PI);
@@ -554,7 +556,80 @@ export function makeTools(app) {
     cancel() { if (this.a) { this.a = null; return true; } return false; }
   };
 
+  /* ---------- kreskowanie (H): klik w zamknięty obszar ---------- */
+  T.hatch = {
+    id: 'hatch', draw: false, region: null, _faces: null, _key: '',
+    opts: { pat: 'diag', ps: 1, ang: Math.PI / 4 },
+    base: () => null, label: () => null, reading: () => null,
+    hint: () => _t('<b>Kreskowanie:</b> kliknij wewnątrz zamkniętego obszaru — obrys podświetla się przed kliknięciem. Wzór, gęstość i kąt są na pasku u góry; gęstość jest w milimetrach wydruku, więc w każdej skali wygląda tak samo.'),
+    // ściany grafu linii w widocznej części rysunku (liczone raz na zmianę rysunku albo widoku)
+    faces() {
+      const v = app.view.rect, d = (v[2] - v[0]) * 0.15, rect = [v[0] - d, v[1] - d, v[2] + d, v[3] + d];
+      const key = app.rev + '|' + rect.map(x => x.toPrecision(5)).join(',');
+      if (this._key !== key) { this._faces = buildFaces(app.ents().filter(e => isShown(app.doc, e)), rect); this._key = key; }
+      return this._faces;
+    },
+    move(p) { this.region = regionAt(this.faces(), p); },
+    down(p) {
+      const r = regionAt(this.faces(), p);
+      if (!r) { app.toast(this._faces?.truncated ? _t('W widoku jest za dużo linii, żeby znaleźć obszar — przybliż rysunek do tego miejsca.') : _t('Tu nie ma zamkniętego obszaru — obrys musi się domykać (wystarczą przecięcia linii).')); return; }
+      const o = this.opts;
+      app.edit(_t('Kreskowanie'), tx => tx.add({ t: 'hatch', loops: r.loops, pat: o.pat, ps: o.ps, ang: o.ang, w: app.doc.cur.w ?? 0.13 }));
+      this.region = null;
+    },
+    preview() { return this.region ? [{ t: 'hatch', loops: this.region.loops, ...this.opts, ...app.newStroke(), w: app.doc.cur.w ?? 0.13, _ghost: true }] : []; },
+    highlight() { return new Set(); },
+    typed: () => false, enter: () => false, cancel() { if (this.region) { this.region = null; return true; } return false; }
+  };
+
+  /* ---------- bloki (K): z zaznaczeniem — utwórz blok, bez — wstawiaj ---------- */
+  // czy blok id zawiera (także głębiej) blok target — żeby nie wstawić bloku w samego siebie
+  const contains = (id, target, depth = 0) => id === target || (depth < 10 && blockEnts(id).some(e => e.t === 'ins' && contains(e.b, target, depth + 1)));
+  T.block = {
+    id: 'block', draw: true, mode: 'insert', cur: null, at: null, rot: 0, name: '', typeAnytime: true,
+    start() {
+      const sel = app.ents().filter(e => app.sel.has(e.id) && isLive(app.doc, e) && e.t !== 'vp');
+      if (typeof app.space === 'number' && app.space) { this.mode = 'none'; return; }
+      if (sel.length) { this.mode = 'create'; this.sel = sel.map(e => e.id); let n = app.doc.blocks.length + 1; while (app.doc.blocks.some(b => b.name === _t`Blok ${n}`)) n++; this.name = _t`Blok ${n}`; return; }
+      this.mode = 'insert'; this.rot = 0;
+      if (!app.doc.blocks.some(b => b.id === this.cur)) this.cur = app.doc.blocks[0]?.id ?? null;
+    },
+    base: () => null,
+    label() { return this.mode === 'insert' && this.cur ? _t('Obrót') : null; },
+    reading() { return this.mode === 'insert' && this.cur ? fmtDeg(this.rot) : null; },
+    hint() {
+      if (this.mode === 'none') return _t('<b>Bloki:</b> wstawia się je w modelu — przejdź do zakładki Model.');
+      if (this.mode === 'create') return _t`<b>Nowy blok z ${this.sel.length} el.:</b> nazwa jest na pasku u góry; kliknij punkt wstawienia — za ten punkt blok będzie się wstawiać.`;
+      if (!this.cur) return _t`<b>Bloki:</b> w rysunku nie ma jeszcze bloków — zaznacz elementy i naciśnij ${app.keyName('block') || _t('przycisk bloków')}, żeby utworzyć pierwszy.`;
+      return _t('<b>Wstaw blok:</b> kliknij miejsce (przyciąganie działa), wpisz kąt, żeby obrócić. Esc kończy.');
+    },
+    down(p) {
+      if (this.mode === 'create') {
+        const name = (this.name || '').trim() || _t('Blok');
+        if (app.doc.blocks.some(b => b.name === name)) { app.toast(_t`Blok „${escH(name)}” już jest — zmień nazwę na pasku.`); return; }
+        const id = Math.max(0, ...app.doc.blocks.map(b => b.id)) + 1, ids = this.sel.filter(i => app.doc.ents.some(e => e.id === i));
+        const ins = app.edit(_t('Utwórz blok'), tx => {
+          tx.setDoc({ blocks: [...app.doc.blocks, { id, name }] });
+          for (const i of ids) { const e = app.doc.ents.find(x => x.id === i); tx.set(i, { ...moved(e, [-p[0], -p[1]]), sp: 'b' + id }); }
+          return tx.add({ t: 'ins', b: id, p: [...p], rot: 0, s: 1, mx: false, w: null, lt: null });
+        });
+        this.cur = id; app.sel.clear(); app.setTool('select'); app.toast(_t`Utworzono blok „${escH(name)}”. Kliknij go, żeby zobaczyć pasek bloku; ${app.keyName('block') || _t('przycisk bloków')} wstawia kolejne.`, 2600);
+        void ins;
+        return;
+      }
+      if (this.mode !== 'insert' || !this.cur) return;
+      if (app.blockEdit && contains(this.cur, app.blockEdit.id)) { app.toast(_t('Bloku nie da się wstawić w niego samego.')); return; }
+      app.edit(_t('Wstaw blok'), tx => tx.add({ t: 'ins', b: this.cur, p: [...p], rot: this.rot, s: 1, mx: false, w: null, lt: null }));
+    },
+    move(p) { this.at = p; },
+    typed(s) { if (this.mode !== 'insert') return false; const v = parseFloat(String(s).replace(',', '.')); if (!Number.isFinite(v)) return false; this.rot = normDeg(v) * Math.PI / 180; return true; },
+    preview() { return this.mode === 'insert' && this.cur && this.at ? [{ t: 'ins', b: this.cur, p: this.at, rot: this.rot, s: 1, mx: false, ...app.newStroke(), _ghost: true }] : []; },
+    enter: () => false, cancel: () => false
+  };
+
   return T;
 }
+const normDeg = v => ((v % 360) + 360) % 360;
+const escH = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export { lengthOf };

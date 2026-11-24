@@ -86,6 +86,11 @@ export class View {
       drawFrame(pen, d, s.sheet, po);
       o.ink = '#1a1a19';
     }
+    // 0b) edycja bloku w miejscu: reszta rysunku jako przygaszone tło, przeniesione do układu bloku
+    if (s.ghost) {
+      const gp = pen.sub(s.ghost.map, s.ghost.k, s.ghost.tr), go = { ...o, scale: o.scale / s.ghost.k, annoK: o.scale / 1000, alpha: 0.22 };
+      for (const e of s.ghost.ents) drawEnt(gp, d, e, go);
+    }
     // 1) rysunek (bieżąca przestrzeń)
     for (const e of s.ents) {
       if (!isShown(d, e) || !boxHit(bbox(e), vr)) continue;

@@ -36,10 +36,15 @@ const rgb = hex => { const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.ex
 
 // Pióro PDF: te same polecenia co CanvasPen; map — przeliczenie punktu przestrzeni na metry papieru
 export class PdfPen {
-  constructor(out, map = p => p, k = 1) { this.out = out; this.map = map; this.k = k; this.st = {}; }
+  constructor(out, map = p => p, k = 1, tr = null) { this.out = out; this.map = map; this.k = k; this.st = {}; this.tr = tr; }
   get ppm() { return PT_PER_M * this.k; }
   P(p) { const q = this.map(p); return n(q[0] * PT_PER_M) + ' ' + n(q[1] * PT_PER_M); }
-  sub(map, k) { const m = this.map; const pen = new PdfPen(this.out, p => m(map(p)), this.k * k); pen.st = this.st; return pen; }
+  sub(map, k, tr = null) {
+    const m = this.map, t0 = this.tr, t = !tr ? t0 : !t0 ? tr : { ang: a => t0.ang(tr.ang(a)), flip: t0.flip !== tr.flip };
+    const pen = new PdfPen(this.out, p => m(map(p)), this.k * k, t); pen.st = this.st; return pen;
+  }
+  fill(loops) { this.apply(); this.out.push(loops.map(L => L.map((p, i) => this.P(p) + (i ? ' l' : ' m')).join(' ') + ' h').join(' ') + ' f*'); }
+  segs(list) { if (!list.length) return; this.apply(); for (let i = 0; i < list.length; i += 400) this.out.push(list.slice(i, i + 400).map(([a, b]) => `${this.P(a)} m ${this.P(b)} l`).join(' ') + ' S'); }
   style(s) { this.st = { width: 1, dash: [], color: '#000000', cap: 'butt', ...s }; }
   apply() {
     const s = this.st;
@@ -86,6 +91,7 @@ export class PdfPen {
   }
   // p — początek linii bazowej, h — wysokość wielkich liter w jednostkach przestrzeni (Helvetica: 0,718 wysokości czcionki)
   text(p, str, h, align = 'l', rot = 0) {
+    if (this.tr) { rot = this.tr.ang(rot); if (this.tr.flip) { rot -= Math.PI; align = align === 'l' ? 'r' : align === 'r' ? 'l' : 'c'; } }
     const size = h * this.k * PT_PER_M / 0.718; if (size < 0.5) return;
     const cs = Math.cos(rot), sn = Math.sin(rot);
     String(str).split('\n').forEach((line, i) => {

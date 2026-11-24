@@ -18,6 +18,7 @@ const SH = await import(R + 'sheet.js');
 const PDF = await import(R + 'pdf.js');
 const ED = await import(R + 'edit.js');
 const DXF = await import(R + 'dxf.js');
+const HT = await import(R + 'hatch.js');
 const { V } = G;
 
 const P = [];
@@ -454,7 +455,7 @@ przypadek('DXF: blok obrócony i odbity, tekst', 'wstawienie z obrotem 90° i sk
   const blk = ['0', 'BLOCK', '2', 'B1', '10', '0', '20', '0', '0', 'LINE', '8', '0', '10', '0', '20', '0', '11', '1', '21', '0', '0', 'ARC', '8', '0', '10', '0', '20', '0', '40', '1', '50', '0', '51', '90', '0', 'ENDBLK'];
   const t = dxfOf(['9', '$INSUNITS', '70', '6'], ['0', 'INSERT', '8', 'Ściany', '2', 'B1', '10', '5', '20', '5', '41', '-1', '42', '1', '50', '90',
     '0', 'TEXT', '8', 'Osie', '10', '1', '20', '2', '40', '0.25', '1', 'Pok\\U+00F3j %%c10', '50', '0'], blk);
-  const { doc } = DXF.parseDxf(t, { scale: 100 });
+  const { doc } = DXF.parseDxf(t, { scale: 100, blocks: false });
   const ln = doc.ents.find(e => e.t === 'line'), ar = doc.ents.find(e => e.t === 'arc'), tx = doc.ents.find(e => e.t === 'text');
   const r = v => v.map(x => +x.toFixed(6));
   const s0 = [ar.c[0] + Math.cos(ar.a0), ar.c[1] + Math.sin(ar.a0)], s1 = [ar.c[0] + Math.cos(ar.a1), ar.c[1] + Math.sin(ar.a1)];
@@ -487,7 +488,7 @@ przypadek('DXF: przypadki z przeglądu', 'mapa bez jednostek, elipsa i MTEXT z n
   const el = DXF.parseDxf(dxfOf(['9', '$INSUNITS', '70', '6'], ['0', 'ELLIPSE', '8', '0', '10', '100', '20', '0', '11', '10', '21', '0', '40', '0.5', '41', '0', '42', String(Math.PI / 2), '230', '-1',
     '0', 'MTEXT', '8', '0', '10', '100', '20', '0', '40', '1', '71', '7', '1', 'abc', '230', '-1', '0', 'TEXT', '8', '0', '10', '0', '20', '0', '40', '1', '1', 'ABCDEF', '72', '3', '11', '10', '21', '0']), { scale: 1000 }).doc;
   const blk = ['0', 'BLOCK', '2', 'B', '10', '0', '20', '0', '0', 'TEXT', '8', 'X', '10', '1', '20', '0', '40', '0.25', '1', 'D1', '0', 'ENDBLK', '0', 'BLOCK', '2', 'S', '10', '0', '20', '0', '0', 'LINE', '8', 'KONTUR', '10', '0', '20', '0', '11', '1', '21', '0', '0', 'ENDBLK'];
-  const mi = DXF.parseDxf(dxfOf(['9', '$INSUNITS', '70', '6'], ['0', 'INSERT', '8', '0', '2', 'B', '10', '0', '20', '0', '41', '-1', '0', 'INSERT', '8', 'Osie', '2', 'S', '10', '0', '20', '5'], blk), { scale: 100 }).doc;
+  const mi = DXF.parseDxf(dxfOf(['9', '$INSUNITS', '70', '6'], ['0', 'INSERT', '8', '0', '2', 'B', '10', '0', '20', '0', '41', '-1', '0', 'INSERT', '8', 'Osie', '2', 'S', '10', '0', '20', '5'], blk), { scale: 100, blocks: false }).doc;
   const pl = el.doc ?? el, e0 = el.ents.find(e => e.t === 'pline'), mt = el.ents.find(e => e.s === 'abc'), tf = el.ents.find(e => e.s === 'ABCDEF');
   const tm = mi.ents.find(e => e.t === 'text'), ks = mi.ents.find(e => e.t === 'line'), lay = id => mi.layers.find(L => L.id === id);
   const r = v => v.map(x => +x.toFixed(4));
@@ -498,6 +499,86 @@ przypadek('DXF: przypadki z przeglądu', 'mapa bez jednostek, elipsa i MTEXT z n
     'zamrożone wstawienie chowa blok': [(() => { const d = DXF.parseDxf(['0', 'SECTION', '2', 'TABLES', '0', 'TABLE', '2', 'LAYER', '0', 'LAYER', '2', 'MEBLE', '70', '1', '62', '3', '0', 'ENDTAB', '0', 'ENDSEC',
       '0', 'SECTION', '2', 'BLOCKS', ...blk, '0', 'ENDSEC', '0', 'SECTION', '2', 'ENTITIES', '0', 'INSERT', '8', 'MEBLE', '2', 'S', '10', '0', '20', '0', '0', 'ENDSEC', '0', 'EOF'].join('\n'), { scale: 50 }).doc;
       const L = d.layers.find(x => x.id === d.ents[0].layer); return [L.name, L.visible]; })(), ['MEBLE', false]] };
+});
+
+/* ---------- bloki i kreskowanie (etap 4) ---------- */
+const blockDoc = () => { const d = M.newDoc(); d.blocks = [{ id: 9, name: 'Stół' }];
+  d.ents = [{ id: 2, t: 'line', a: [0, 0], b: [2, 0], sp: 'b9', layer: 1, w: null, lt: null }, { id: 3, t: 'arc', c: [0, 0], r: 1, a0: 0, a1: Math.PI / 2, sp: 'b9', layer: 1, w: null, lt: null },
+    { id: 4, t: 'pline', pts: [[0, 1, 0.4], [1, 1]], closed: false, sp: 'b9', layer: 1, w: null, lt: null }];
+  G.setBlocks(d); return d; };
+const r4 = v => v.map(x => +(+x).toFixed(6));
+przypadek('blok: geometria wstawienia', 'wstawienie obrócone o 90° i przeskalowane ×2: końce linii i łuku tam, gdzie elementy po rozbiciu', () => {
+  blockDoc();
+  const ins = { t: 'ins', b: 9, p: [5, 5], rot: Math.PI / 2, s: 2, mx: false };
+  const ends = G.endpoints(ins).map(r4), ex = ED.explodeIns(ins), ln = ex.find(e => e.t === 'line'), ar = ex.find(e => e.t === 'arc');
+  return { 'linia po rozbiciu': [r4([...ln.a, ...ln.b]), [5, 5, 5, 9]], 'łuk po rozbiciu': [r4([...ar.c, ar.r, ar.a0, ar.a1]), r4([5, 5, 2, Math.PI / 2, Math.PI])],
+    'końce wstawienia = końce po rozbiciu': [ends.some(q => q[0] === 5 && q[1] === 9) && ends.some(q => q[0] === 3 && q[1] === 5), true], 'obrys': [r4(G.bbox(ins)), r4([3, 5, 5, 9])] };
+});
+przypadek('blok: odbicie wstawienia', 'odbite wstawienie wygląda tak samo jak odbite elementy (łuk i polilinia z wybrzuszeniem)', () => {
+  blockDoc();
+  const ins = { t: 'ins', b: 9, p: [1, 2], rot: 0.3, s: 1, mx: false }, T = ED.mirroring([3, 0], [4, 2]);
+  const mi = { ...ins, ...ED.transformed(ins, T) };
+  const a = ED.explodeIns(mi), b = ED.explodeIns(ins).map(e => ({ ...e, ...ED.transformed(e, T) }));
+  const pts = e => G.partsOf(e).flatMap(q => q.k === 'seg' ? [q.a, q.b] : [G.V.polar(q.c, q.r, q.a0), G.V.polar(q.c, q.r, q.a1), [q.r, 0]]).map(r4);
+  return { 'te same kształty': [a.map(pts), b.map(pts)], 'odbicie zapisane': [mi.mx, true] };
+});
+przypadek('kreskowanie: obszar z otworem', 'ściana między dwoma obrysami z przegrodą: klik w ścianę daje obrys zewnętrzny i otwór; klik w pokój — sam pokój', () => {
+  const P = pts => ({ t: 'pline', pts, closed: true });
+  const ents = [P([[0, 0], [8, 0], [8, 5], [0, 5]]), P([[0.3, 0.3], [7.7, 0.3], [7.7, 4.7], [0.3, 4.7]]), { t: 'line', a: [4, 0.3], b: [4, 4.7] }, { t: 'line', a: [9, 9], b: [10, 10] }];
+  const F = HT.buildFaces(ents, null), wall = HT.regionAt(F, [0.15, 2.5]), room = HT.regionAt(F, [6, 2]), out = HT.regionAt(F, [-1, -1]);
+  const area = L => Math.abs(L.reduce((s, a, i) => { const b = L[(i + 1) % L.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0) / 2);
+  return { 'ściana: pętle': [wall.loops.length, 2], 'pole ściany': [+(area(wall.loops[0]) - area(wall.loops[1])).toFixed(6), +(40 - 7.4 * 4.4).toFixed(6)], 'pokój': [+area(room.loops[0]).toFixed(6), +(3.7 * 4.4).toFixed(6)], 'poza': [out, null] };
+});
+przypadek('kreskowanie: kreski tylko w środku', 'ukośne kreski w ścianie z otworem — żadna nie wchodzi do otworu ani poza obrys; gęstość w mm wydruku', () => {
+  const h = { t: 'hatch', loops: [[[0, 0], [4, 0], [4, 3], [0, 3]], [[1, 1], [3, 1], [3, 2], [1, 2]]], pat: 'diag', ps: 1, ang: Math.PI / 4 };
+  const s50 = HT.hatchSegs(h, 0.05), s100 = HT.hatchSegs(h, 0.1);
+  const ok = s50.every(([a, b]) => { const m = G.V.lerp(a, b, 0.5); return G.inLoops(h.loops, m); });
+  return { 'są kreski': [s50.length > 20, true], 'wszystkie w środku': [ok, true], 'w 1:100 rzadziej niż w 1:50': [s100.length < s50.length, true],
+    'wszystkie wzory rysują': [HT.PATTERN_IDS.filter(p => p !== 'solid').map(p => HT.hatchSegs({ ...h, pat: p }, 0.05).length > 0), [true, true, true, true, true]] };
+});
+
+przypadek('DXF: bloki i kreskowania w obie strony', 'blok z pliku zostaje blokiem (obrót, odbicie); kreskowanie z łukiem w obwodzie; zapis i odczyt zachowuje bloki', () => {
+  const blk = ['0', 'BLOCK', '2', 'Okno', '10', '0', '20', '0', '0', 'LINE', '8', 'X', '10', '0', '20', '0', '11', '1', '21', '0', '0', 'ENDBLK'];
+  const hatch = ['0', 'HATCH', '8', 'H', '2', 'ANSI31', '70', '0', '91', '1', '92', '1', '93', '2', '72', '1', '10', '0', '20', '0', '11', '2', '21', '0',
+    '72', '2', '10', '1', '20', '0', '40', '1', '50', '0', '51', '180', '73', '1', '97', '0', '75', '0', '76', '1', '52', '0', '41', '1'];
+  const t = dxfOf(['9', '$INSUNITS', '70', '6'], ['0', 'INSERT', '8', 'Osie', '2', 'Okno', '10', '3', '20', '4', '41', '-2', '42', '2', '50', '30', ...hatch], blk);
+  const { doc } = DXF.parseDxf(t, { scale: 50 });
+  const ins = doc.ents.find(e => e.t === 'ins'), h = doc.ents.find(e => e.t === 'hatch');
+  G.setBlocks(doc);
+  const back = DXF.parseDxf(DXF.writeDxf(doc).text, { scale: 50 }).doc, ins2 = back.ents.find(e => e.t === 'ins');
+  return { 'blok': [doc.blocks.map(b => b.name), ['Okno']], 'wstawienie': [[ins.p, ins.s, ins.mx, +ins.rot.toFixed(6)], [[3, 4], 2, true, +(30 * Math.PI / 180).toFixed(6)]],
+    'elementy bloku w jego układzie': [doc.ents.filter(e => e.sp === 'b' + ins.b).map(e => [...e.a, ...e.b]), [[0, 0, 1, 0]]],
+    'kreskowanie: wzór i kąt': [[h.pat, +h.ang.toFixed(6)], ['diag', +(Math.PI / 4).toFixed(6)]], 'obwód z łukiem': [h.loops[0].length > 10, true],
+    'po zapisie i odczycie blok dalej blokiem': [[back.blocks.length, ins2.mx, ins2.s, +ins2.rot.toFixed(6)], [1, true, 2, +(30 * Math.PI / 180).toFixed(6)]],
+    'kreskowanie zapisane jako kreski': [back.ents.filter(e => e.t === 'line' && !e.sp).length > 5, true] };
+});
+
+przypadek('PDF: blok w skali i kreskowanie', 'blok z odcinkiem 1 m, obrócony o 90°, w oknie 1:100 ma w PDF-ie 10 mm; pełne kreskowanie to wypełnienie', () => {
+  const { d, h, sh } = arkusz();
+  h.edit('Blok', tx => { tx.setDoc({ blocks: [{ id: 77, name: 'B' }] }); tx.add({ t: 'line', a: [0, 0], b: [1, 0], sp: 'b77' }); tx.add({ t: 'ins', b: 77, p: [0.5, -0.4], rot: Math.PI / 2, s: 1, mx: false, sp: 0 });
+    tx.add({ t: 'hatch', loops: [[[0, 0], [0.3, 0], [0.3, 0.3]]], pat: 'solid', ps: 1, ang: 0, sp: 0 }); });
+  G.setBlocks(d);
+  const pdf = new TextDecoder('latin1').decode(PDF.makePdf(d, [sh], {}));
+  const segs = [...pdf.matchAll(/(-?[\d.]+) (-?[\d.]+) m (-?[\d.]+) (-?[\d.]+) l S/g)].map(m => [+m[1], +m[2], +m[3], +m[4]]);
+  const vert = segs.find(q => Math.abs(q[0] - q[2]) < 0.01 && Math.abs(Math.abs(q[3] - q[1]) - 10 * 72 / 25.4) < 0.05);
+  return { 'pionowy odcinek 10 mm (blok obrócony)': [!!vert, true], 'wypełnienie': [/ f\*/.test(pdf), true] };
+});
+
+przypadek('bloki: przypadki z przeglądu', 'blok w samym sobie z DXF i z pliku, ukryta warstwa w bloku, rozbicie odbitego tekstu, wiele okręgów przy kreskowaniu', () => {
+  const blkA = ['0', 'BLOCK', '2', 'A', '10', '0', '20', '0', '0', 'LINE', '8', 'X', '10', '0', '20', '0', '11', '1', '21', '0', '0', 'INSERT', '8', 'X', '2', 'A', '10', '2', '20', '0', '0', 'ENDBLK'];
+  const dx = DXF.parseDxf(dxfOf(['9', '$INSUNITS', '70', '6'], ['0', 'INSERT', '8', '0', '2', 'A', '10', '0', '20', '0'], blkA), { scale: 50 }).doc;
+  const selfIns = dx.ents.filter(e => e.t === 'ins' && e.sp === 'b' + e.b).length;
+  const bad = M.fixDoc({ blocks: [{ id: 5, name: 'P' }], ents: [{ id: 1, t: 'line', a: [0, 0], b: [1, 0], sp: 'b5', layer: 1 }, { id: 2, t: 'ins', b: 5, p: [1, 0], sp: 'b5', layer: 1 }, { id: 3, t: 'ins', b: 5, p: [0, 0], layer: 1 }] });
+  const d = M.newDoc(); d.layers.push({ id: 7, name: 'meble', color: '#000000', visible: false, locked: false, w: 0.25, lt: 'solid' }); d.blocks = [{ id: 9, name: 'S' }];
+  d.ents = [{ id: 2, t: 'circle', c: [3, 3], r: 0.5, sp: 'b9', layer: 7 }, { id: 3, t: 'line', a: [0, 0], b: [1, 0], sp: 'b9', layer: 1 }, { id: 4, t: 'text', p: [1, 0], s: 'ABC', h: 3, align: 'l', rot: 0, sp: 'b9', layer: 1 }];
+  G.setBlocks(d);
+  const ins = { t: 'ins', b: 9, p: [0, 0], rot: 0, s: 1, mx: true };
+  const tx = ED.explodeIns(ins).find(e => e.t === 'text');
+  const circles = []; for (let i = 0; i < 600; i++) circles.push({ t: 'circle', c: [20 + (i % 30), 20 + Math.floor(i / 30)], r: 0.3 });
+  const room = HT.regionAt(HT.buildFaces([...circles, { t: 'pline', pts: [[0, 0], [5, 0], [5, 5], [0, 5]], closed: true }], [-1, -1, 60, 60]), [2, 2]);
+  return { 'DXF: blok w samym sobie pominięty': [selfIns, 0], 'plik: pętla usunięta': [bad.ents.filter(e => e.t === 'ins' && e.sp).length, 0],
+    'ukryta warstwa w bloku nie przyciąga': [r4(G.bbox(ins)), r4([-1, 0, 0, 0])], 'odbity tekst po rozbiciu jak na ekranie': [[r4(tx.p), +tx.rot.toFixed(6), tx.align], [[-1, 0], 0, 'r']],
+    '600 okręgów nie psuje szukania obszaru': [!!room, true] };
 });
 
 /* ---------- uruchomienie ---------- */

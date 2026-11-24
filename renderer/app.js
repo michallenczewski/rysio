@@ -1,10 +1,12 @@
 // Rysio — okno programu: stan, mysz i klawiatura, paski, okienka warstw i kreski, zapis. Opis: ARCHITEKTURA.md.
 import { _t, translateDom, lang, LANGS, setLang } from './i18n.js';
 import { newDoc, fixDoc, History, serialize, strokeOf, layerOf, isLive, isShown, WEIGHTS, LTYPES, LTYPE_IDS, LAYER_COLORS, SCALES, spaceOf, newSheet, sheetSize, PAPER } from './model.js';
-import { V, bbox, boxHit, boxGrow, boxUnion, nearestOn, setAnno, vpBox, textBox } from './geom.js';
+import { V, bbox, boxHit, boxGrow, boxUnion, nearestOn, setAnno, vpBox, textBox, setBlocks, blockEnts, insXf } from './geom.js';
+import { explodeIns } from './edit.js';
+import { PATTERNS, PATTERN_IDS } from './hatch.js';
+import { CanvasPen, drawEnt } from './draw.js';
 import { vpMap, titleScales, drawSheet } from './sheet.js';
 import { makePdf } from './pdf.js';
-import { CanvasPen } from './draw.js';
 import { View } from './view.js';
 import { Snapper, gridStep } from './snap.js';
 import { makeTools } from './tools.js';
@@ -77,6 +79,7 @@ const app = {
 // klawisz „kopii” i „pobierz z linii”: ⌥ na Macu, Ctrl w Windows (jak w Modo — Alt w Windows otwiera menu okna)
 app.altKey = e => !!e && (isMac ? e.altKey : e.ctrlKey);
 app.hist = new History(app.doc, info => afterChange(info));
+app.rev = 0; setBlocks(app.doc);
 app.view = new View($('#view'));
 app.snapper = new Snapper();
 app.tools = makeTools(app);
@@ -85,7 +88,9 @@ let snapRes = null, cursorModel = null, cursorScreen = null, hoverEnt = null, lo
 
 app.edit = (label, fn) => app.hist.edit(label, fn);
 // elementy bieżącej przestrzeni i jej skala (arkusz zawsze 1:1)
-app.ents = () => app.doc.ents.filter(e => spaceOf(e) === app.space);
+// przestrzeń, w której się pracuje: model (0), arkusz (numer) albo definicja edytowanego bloku ('b' + id)
+app.spaceKey = () => app.blockEdit ? 'b' + app.blockEdit.id : app.space;
+app.ents = () => { const k = app.spaceKey(); return app.doc.ents.filter(e => spaceOf(e) === k); };
 app.sheet = () => app.space ? app.doc.sheets.find(sh => sh.id === app.space) || null : null;
 app.spaceScale = () => app.space ? 1 : app.doc.scale;
 const UNITF = { m: [1, 2], cm: [0.01, 1], mm: [0.001, 0] };
@@ -95,7 +100,7 @@ app.fmtSheet = v => fmtU(v, 'mm');
 // przestrzeń, w której się pracuje: wysokość tekstu, jednostka wymiarów i to, gdzie trafiają nowe elementy
 function syncSpace() {
   setAnno(app.spaceScale() / 1000);
-  Object.defineProperty(app.doc, '_space', { value: app.space || 0, writable: true, configurable: true, enumerable: false });
+  Object.defineProperty(app.doc, '_space', { value: app.spaceKey() || 0, writable: true, configurable: true, enumerable: false });
   setUnit(app.space ? 'mm' : app.doc.units, false);
 }
 app.modelCenter = () => { setAnno(app.doc.scale / 1000); let b = null; for (const e of app.doc.ents) if (!spaceOf(e) && isShown(app.doc, e)) b = boxUnion(b, bbox(e)); syncSpace(); return b ? [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2] : [0, 0]; };
@@ -107,7 +112,9 @@ app.pick = (p, { locked = false } = {}) => {
   let best = null, bd = Infinity;
   for (const e of app.ents()) {
     if (!(locked ? isShown(app.doc, e) : isLive(app.doc, e)) || !boxHit(boxGrow(bbox(e), tol), probe)) continue;
-    const n = nearestOn(e, p); if (n && n.d <= tol && n.d < bd) { bd = n.d; best = e; }
+    const n = nearestOn(e, p); if (!n) continue;
+    const d = n.inside ? tol * 0.95 : n.d;   // środek kreskowania przegrywa z linią w pobliżu
+    if (d <= tol && d < bd) { bd = d; best = e; }
   }
   return best;
 };
@@ -126,11 +133,14 @@ function spaceOfOps(ops = []) {
   return null;
 }
 function afterChange(info) {
+  app.rev++; setBlocks(app.doc);
+  // edytowany blok mógł zniknąć (cofnięcie utworzenia)
+  if (app.blockEdit && !app.doc.blocks.some(b => b.id === app.blockEdit.id)) { const be = app.blockEdit; app.blockEdit = null; app.hist.limit = be.limit; Object.assign(app.view, be.view); app.view.needs = true; syncSpace(); }
   // ciągnięty uchwyt: przerwij, gdy element zniknął, został zablokowany albo ukryty, albo zmiana przyszła z cofnięcia
   const gr = app.tools.select.grip;
   if (gr) { const e = app.doc.ents.find(x => x.id === gr.e.id); if (info?.undo || info?.redo || !e || !isLive(app.doc, e)) app.tools.select.cancel(); else gr.e = e; }
   // zaznaczenie bez usuniętych elementów
-  for (const id of [...app.sel]) { const e = app.doc.ents.find(x => x.id === id); if (!e || !isLive(app.doc, e) || spaceOf(e) !== app.space) app.sel.delete(id); }
+  for (const id of [...app.sel]) { const e = app.doc.ents.find(x => x.id === id); if (!e || !isLive(app.doc, e) || spaceOf(e) !== app.spaceKey()) app.sel.delete(id); }
   // arkusz mógł zniknąć (usunięcie, cofnięcie dodania arkusza) — pełne przejście do modelu
   if (app.space && !app.sheet()) setSpace(0, true);
   // cofnięcie albo ponowienie zmiany z innej przestrzeni pokazuje tę przestrzeń
@@ -211,7 +221,7 @@ function updateCursor(sx, sy, e) {
   cursorScreen = [sx, sy];
   const raw = app.view.toModel(sx, sy);
   if (tool.draw) {
-    const shown = app.ents().filter(x => isShown(app.doc, x) && x.t !== 'text' && x.id !== app.hideEnt && x.id !== app.dragEnt).concat(tool.snapEnts?.() || []);
+    const shown = app.ents().filter(x => isShown(app.doc, x) && x.t !== 'text' && x.t !== 'hatch' && x.id !== app.hideEnt && x.id !== app.dragEnt).concat(tool.snapEnts?.() || []);
     snapRes = app.snapper.find(raw, { tol: app.tol(), ents: shown, base: tool.base(), lockDir, ortho: app.ortho, noSnap: false, grid: app.grid && !app.sheet() ? gridStep(app.view.ppm) : 0 });
     cursorModel = snapRes.p; hoverEnt = null;
   } else {
@@ -261,6 +271,7 @@ view.addEventListener('dblclick', e => {
   if (tool.grip) tool.cancel();
   const [x, y] = xy(e), p = app.view.toModel(x, y), hit = app.pick(p);
   if (hit && hit.t === 'text') return app.editText(hit);
+  if (hit && hit.t === 'ins' && tool.id === 'select') return startBlockEdit(hit);
   const vp = app.space && app.ents().filter(v => v.t === 'vp' && isLive(app.doc, v)).reverse().find(v => pointInBox(p, vpBox(v)));
   if (vp) {
     if (vp.locked) return toast(_t('Widok w tym oknie jest zablokowany — odblokuj go na pasku okna.'));
@@ -310,7 +321,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (closePops()) return;
     if (app.vpEdit) { app.vpEdit = null; refreshUi(); redraw(); return; }
-    if (!tool.cancel()) { if (tool.id !== 'select') setTool('select'); else if (app.sel.size) { app.sel.clear(); app.selectionChanged(); } }
+    if (!tool.cancel()) { if (tool.id !== 'select') setTool('select'); else if (app.sel.size) { app.sel.clear(); app.selectionChanged(); } else if (app.blockEdit) endBlockEdit(false); }
     refreshUi(); redraw(); return;
   }
   if (e.key === 'Enter') { if (tool.enter()) { refreshUi(); redraw(); } return; }
@@ -344,6 +355,7 @@ function frame() {
     fmt: app.space ? app.fmtSheet : app.fmtModel, fmtModel: app.fmtModel,
     hover: [...hi, ...(hoverEnt && !app.sel.has(hoverEnt.id) ? [hoverEnt] : [])], hoverColor: tool.id === 'eraser' || tool.id === 'trim' ? '#c0533f' : null,
     guides: snapRes ? snapRes.guides : [], snap: snapRes, marks: tool.draw ? app.snapper.refPts : [],
+    ghost: blockGhost(),
     preview: cursorScreen || !tool.draw ? tool.preview() : [], grips: tool.grips ? tool.grips() : null, box: tool.box, path: tool.path && tool.path.length > 1 ? tool.path : null
   });
   showSnapLabel(); showVpBar(); placeTextEd();
@@ -395,6 +407,7 @@ function refreshUi() {
   renderPills();
   if (tool.id === 'brush') showBrushBar();
   if (tool.id === 'trim') showTrimBar();
+  showHatchBar(); showBlockBar();
   if (app.mini) renderBadge();
   if (!$('#layersPop').hidden) renderLayersPop();
   if (!$('#strokePop').hidden) renderStrokePop();
@@ -432,7 +445,7 @@ function placePop(pop, anchor) {
 }
 function closePops() {
   let any = false;
-  for (const id of ['#layersPop', '#strokePop', '#menu', '#sheetPop', '#titlePop', '#exportPop']) if (!$(id).hidden) { $(id).hidden = true; any = true; }
+  for (const id of ['#layersPop', '#strokePop', '#menu', '#sheetPop', '#titlePop', '#exportPop', '#blocksPop']) { const el = $(id); if (el && !el.hidden) { el.hidden = true; any = true; } }
   document.querySelectorAll('.pill.open, .tb.open').forEach(b => b.classList.remove('open'));
   colorFor = null; renaming = null; strokeTarget = 'auto';
   return any;
@@ -575,10 +588,156 @@ function renderBadge() {
   const k = app.keyName('mini');
   $('#miniExit').innerHTML = k ? `<kbd>${esc(k)}</kbd> ${_t('pełny widok')}` : _t('pełny widok: Widok → Tryb minimalny');
   const name = tool.badge?.() || (ACTIONS.find(a => a.id === tool.id) || {}).name || '';
-  const spName = app.space ? (app.sheet()?.name || _t('Arkusz')) : _t('Model');
+  const spName = app.blockEdit ? _t`Blok „${blockName(app.blockEdit.id)}”` : app.space ? (app.sheet()?.name || _t('Arkusz')) : _t('Model');
   el.innerHTML = `<span class="click" data-space title="${_t('Następna zakładka')}">${esc(spName)}</span><span class="sep"></span><span class="t">${esc(name)}</span><span class="sep"></span>
     <span class="click" data-open="layer">${$('#layerPill').innerHTML}</span>
     <span class="click" data-open="stroke">${$('#strokePill').innerHTML}</span>`;
+}
+
+/* ---------- kreskowanie: pasek wzoru (narzędzie H albo zaznaczone kreskowania) ---------- */
+const PAT_SVG = {
+  diag: '<path d="M-2 18 18 -2M-2 10 10 -2M6 18 18 6M-2 26 26 -2" stroke="currentColor" stroke-width="1"/>',
+  cross: '<path d="M-2 18 18 -2M-2 10 10 -2M6 18 18 6M-2 2 18 22M-2 10 10 22M6 -2 26 18" stroke="currentColor" stroke-width=".9"/>',
+  conc: '<g fill="none" stroke="currentColor" stroke-width=".9"><path d="M3 4l3-1 1 3z"/><path d="M13 9l3 1-1 3z"/><circle cx="8" cy="12" r=".7"/><circle cx="17" cy="4" r=".6"/></g>',
+  ins: '<path d="M0 12 3 3 6 12 9 3 12 12 15 3 18 12 21 3" fill="none" stroke="currentColor" stroke-width="1"/>',
+  soil: '<path d="M2 12l3-3M4 12l3-3M6 12l3-3M12 6l3-3M14 6l3-3M16 6l3-3" stroke="currentColor" stroke-width="1"/>',
+  solid: '<rect x="2" y="2" width="18" height="12" rx="1" fill="currentColor" opacity=".8"/>'
+};
+const selHatches = () => tool.id === 'select' && app.sel.size ? app.ents().filter(e => app.sel.has(e.id)) : [];
+function showHatchBar() {
+  const hs = selHatches(), onSel = hs.length && hs.every(e => e.t === 'hatch');
+  let el = $('#hatchBar');
+  if (tool.id !== 'hatch' && !onSel) { el?.remove(); return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'hatchBar'; el.className = 'toolbar'; view.append(el);
+    el.addEventListener('pointerdown', e => e.stopPropagation());
+    el.addEventListener('click', e => { const b = e.target.closest('[data-pat]'); if (b) setHatch({ pat: b.dataset.pat }); });
+    el.addEventListener('change', e => {
+      const f = e.target.dataset.f; if (!f) return;
+      const v = parseFloat(String(e.target.value).replace(',', '.'));
+      if (!Number.isFinite(v) || (f === 'ps' && !(v > 0))) { refreshUi(); return; }
+      setHatch(f === 'ps' ? { ps: v } : { ang: ((v % 360) + 360) % 360 * Math.PI / 180 });
+    });
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); e.stopPropagation(); });
+  }
+  const o = onSel ? hs[0] : app.tools.hatch.opts;
+  const html = `<span class="t">${_t('Kreskowanie')}</span>
+    <div class="pats">${PATTERN_IDS.map(id => `<button data-pat="${id}" class="${o.pat === id ? 'on' : ''}" title="${PATTERNS[id].name}"><svg width="22" height="16" viewBox="0 0 22 16"><defs><clipPath id="cp-${id}"><rect width="22" height="16" rx="2"/></clipPath></defs><g clip-path="url(#cp-${id})">${PAT_SVG[id]}</g></svg></button>`).join('')}</div>
+    <span class="lbl">${PATTERNS[o.pat]?.name || ''}</span>
+    <label class="fld"><em>${_t('Skala')}</em><input data-f="ps" value="${fmtNum(o.ps || 1)}" inputmode="decimal"></label>
+    <label class="fld"><em>${_t('Kąt')}</em><input data-f="ang" value="${fmtNum(Math.round((o.ang || 0) * 180 / Math.PI * 10) / 10)}" inputmode="decimal">°</label>
+    ${onSel ? `<span class="lbl">${hs.length > 1 ? _t`zmienia ${hs.length} zaznaczone` : _t('zmienia zaznaczone')}</span>` : ''}`;
+  if (el._html !== html && !el.contains(document.activeElement)) { el.innerHTML = html; el._html = html; }
+}
+const fmtNum = v => String(+(+v).toFixed(3)).replace('.', ',');
+function setHatch(patch) {
+  const hs = selHatches();
+  if (tool.id !== 'hatch' && hs.length && hs.every(e => e.t === 'hatch')) app.edit(_t('Kreskowanie'), tx => hs.forEach(e => tx.set(e.id, patch)));
+  else { const o = app.tools.hatch.opts; if (patch.pat && patch.pat !== o.pat) patch.ang = PATTERNS[patch.pat].ang * Math.PI / 180; Object.assign(o, patch); }
+  refreshUi(); redraw();
+}
+
+/* ---------- bloki: pasek (wstawianie, nowy blok, zaznaczony blok, edycja w miejscu) ---------- */
+const blockName = id => (app.doc.blocks.find(b => b.id === id) || {}).name || '?';
+const insCount = id => app.doc.ents.filter(e => e.t === 'ins' && e.b === id).length;
+function blockThumb(id, w = 160, h = 108) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ents = blockEnts(id); let b = null; for (const e of ents) b = boxUnion(b, bbox(e));
+  if (!b) return c.toDataURL();
+  const bw = Math.max(b[2] - b[0], 1e-6), bh = Math.max(b[3] - b[1], 1e-6), k = Math.min((w - 16) / bw, (h - 16) / bh);
+  const cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2;
+  const pen = new CanvasPen(c.getContext('2d'), { toScreen: p => [w / 2 + (p[0] - cx) * k, h / 2 - (p[1] - cy) * k], ppm: k });
+  const ink = getComputedStyle(document.body).getPropertyValue('--ink').trim() || '#1a1a19';
+  for (const e of ents) drawEnt(pen, app.doc, e, { ppm: k, ink, thin: true, scale: app.doc.scale });
+  return c.toDataURL();
+}
+function selIns() { if (tool.id !== 'select' || app.sel.size !== 1 || app.blockEdit) return null; const e = app.ents().find(x => app.sel.has(x.id)); return e && e.t === 'ins' ? e : null; }
+function showBlockBar() {
+  const bt = tool.id === 'block' ? app.tools.block : null, si = selIns(), be = app.blockEdit;
+  let el = $('#blockBar');
+  if (!bt && !si && !be) { el?.remove(); return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'blockBar'; el.className = 'toolbar'; view.append(el);
+    el.addEventListener('pointerdown', e => e.stopPropagation());
+    el.addEventListener('click', onBlockBar);
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); e.stopPropagation(); });
+    el.addEventListener('input', e => { if (e.target.dataset.b === 'newname') app.tools.block.name = e.target.value; });
+    el.addEventListener('change', e => {
+      if (e.target.dataset.b !== 'rename') return;
+      const ins = selIns(), name = e.target.value.trim(); if (!ins || !name) { refreshUi(); return; }
+      if (app.doc.blocks.some(b => b.name === name && b.id !== ins.b)) { toast(_t`Blok „${esc(name)}” już jest.`); refreshUi(); return; }
+      app.edit(_t('Nazwa bloku'), tx => tx.setDoc({ blocks: app.doc.blocks.map(b => b.id === ins.b ? { ...b, name } : b) }));
+    });
+  }
+  el.classList.toggle('right', !!(be || (si && !bt)));
+  let html;
+  if (be) html = `<span class="t">${_t`Edycja bloku „${esc(blockName(be.id))}”`}</span><span class="lbl">${_t`zmiana obejmie wszystkie wstawienia (${insCount(be.id)})`}</span>
+    <button class="tbs pri" data-b="done">${_t('Gotowe')}</button><button class="tbs" data-b="cancel">${_t('Anuluj')}</button>`;
+  else if (bt && bt.mode === 'create') html = `<span class="t">${_t('Nowy blok')}</span><label class="fld"><em>${_t('Nazwa')}</em><input data-b="newname" value="${esc(bt.name)}"></label><span class="lbl">${_t('kliknij punkt wstawienia')}</span>`;
+  else if (bt && bt.mode === 'insert') html = `<span class="t">${_t('Bloki')}</span>` + (bt.cur ? `<button class="tbs" data-b="pick">${esc(blockName(bt.cur))} ${chev}</button><span class="lbl">${_t('klik wstawia · cyfry wpisują obrót')}</span>` : `<span class="lbl">${_t('nie ma jeszcze bloków')}</span>`);
+  else if (bt) { el.remove(); return; }
+  else html = `<span class="t">${_t('Blok')}</span><label class="fld"><input data-b="rename" value="${esc(blockName(si.b))}" title="${_t('Nazwa bloku')}"></label><span class="lbl">${_t`${insCount(si.b)} w rysunku`}</span>
+    <button class="tbs" data-b="edit">${_t('Edytuj w miejscu')}</button><button class="tbs" data-b="explode">${_t('Rozbij')}</button>` + (app.doc.blocks.length > 1 ? `<button class="tbs" data-b="swap">${_t('Zamień na…')} ${chev}</button>` : '');
+  if (el._html !== html && !el.contains(document.activeElement)) { el.innerHTML = html; el._html = html; }
+}
+function onBlockBar(e) {
+  const b = e.target.closest('[data-b]'); if (!b) return;
+  e.stopPropagation();
+  const act = b.dataset.b;
+  if (act === 'done') return endBlockEdit(false);
+  if (act === 'cancel') return endBlockEdit(true);
+  if (act === 'pick') return openBlocksPop(b, id => { app.tools.block.cur = id; refreshUi(); redraw(); });
+  const ins = selIns(); if (!ins) return;
+  if (act === 'edit') return startBlockEdit(ins);
+  if (act === 'explode') {
+    const ids = [];
+    app.edit(_t('Rozbij blok'), tx => { tx.del(ins.id); for (const n of explodeIns(ins)) ids.push(tx.add({ ...n, sp: ins.sp }).id); });
+    app.sel = new Set(ids); app.selectionChanged(); return;
+  }
+  if (act === 'swap') return openBlocksPop(b, id => { if (id !== ins.b) app.edit(_t('Zamień blok'), tx => tx.set(ins.id, { b: id })); }, ins.b);
+}
+function openBlocksPop(anchor, onPick, skip = null) {
+  let pop = $('#blocksPop');
+  if (!pop) { pop = document.createElement('section'); pop.id = 'blocksPop'; pop.className = 'pop'; pop.hidden = true; document.body.append(pop); pop.addEventListener('pointerdown', e => e.stopPropagation()); }
+  const was = !pop.hidden; closePops(); if (was) return;
+  const list = app.doc.blocks.filter(b => b.id !== skip);
+  pop.innerHTML = `<div class="row"><span class="ttl grow">${_t('Bloki w rysunku')}</span></div><div class="blocks">${list.map(b => { const n = insCount(b.id);
+    return `<button class="blk${app.tools.block.cur === b.id && !skip ? ' on' : ''}" data-id="${b.id}"><img src="${blockThumb(b.id)}" alt=""><b translate="no">${esc(b.name)}</b><span>${n ? _t`${n} w rysunku` : _t('nieużywany')}</span></button>`; }).join('')}</div>
+    <div class="lbl" style="padding:2px 4px">${_t`Nowy blok: zaznacz elementy i naciśnij ${app.keyName('block') || 'K'}.`}</div>`;
+  pop.onclick = e => { const x = e.target.closest('[data-id]'); if (!x) return; closePops(); onPick(+x.dataset.id); };
+  placePop(pop, anchor);
+}
+// edycja w miejscu: pracujemy w układzie bloku, reszta rysunku jest przygaszonym tłem (przeniesionym odwrotnie)
+function startBlockEdit(ins) {
+  if (app.space) { toast(_t('Bloki edytuje się w modelu.')); return; }
+  if (app.blockEdit) { toast(_t('Najpierw zakończ edycję tego bloku (Gotowe), potem edytuj blok w nim.')); return; }
+  for (let i = 0; i < 3 && tool.cancel(); i++);
+  // w czasie edycji historia nie gubi najstarszych wpisów — „Anuluj” musi cofnąć dokładnie to, co zrobiono w bloku
+  app.blockEdit = { id: ins.b, insId: ins.id, ins: JSON.parse(JSON.stringify(ins)), undoLen: app.hist.undoStack.length, limit: app.hist.limit, view: { cx: app.view.cx, cy: app.view.cy, ppm: app.view.ppm } };
+  app.hist.limit = Infinity;
+  app.sel.clear(); syncSpace(); setTool('select');
+  // ten sam fragment rysunku co przed wejściem: środek i powiększenie przeliczone do układu bloku
+  const X = insXf(ins), c = X.inv([app.view.cx, app.view.cy]);
+  app.view.cx = c[0]; app.view.cy = c[1]; app.view.ppm = app.view.ppm * X.k; app.view.needs = true;
+  refreshUi(); redraw();
+}
+function endBlockEdit(cancel) {
+  const be = app.blockEdit; if (!be) return;
+  for (let i = 0; i < 3 && tool.cancel(); i++);
+  if (cancel) while (app.hist.undoStack.length > be.undoLen && app.blockEdit) app.hist.undo();
+  app.blockEdit = null; app.sel.clear(); syncSpace(); app.hist.limit = be.limit;
+  Object.assign(app.view, be.view); app.view.needs = true;
+  if (app.doc.ents.some(e => e.id === be.insId)) app.sel.add(be.insId);
+  if (!blockEnts(be.id).length && app.doc.blocks.some(b => b.id === be.id)) toast(_t('Blok jest pusty — jego wstawień nie widać.'), 3000);
+  setTool('select'); refreshUi(); redraw();
+}
+function blockGhost() {
+  const be = app.blockEdit; if (!be) return null;
+  const ins = app.doc.ents.find(e => e.id === be.insId) || be.ins, X = insXf(ins);
+  // tylko to, co widać: prostokąt widoku przeniesiony do układu modelu
+  const v = app.view.rect, cs = [[v[0], v[1]], [v[2], v[1]], [v[2], v[3]], [v[0], v[3]]].map(X.f);
+  const wr = [Math.min(...cs.map(q => q[0])), Math.min(...cs.map(q => q[1])), Math.max(...cs.map(q => q[0])), Math.max(...cs.map(q => q[1]))];
+  return { ents: app.doc.ents.filter(e => !spaceOf(e) && e.id !== be.insId && isShown(app.doc, e) && boxHit(bbox(e), wr)), map: X.inv, k: 1 / X.k, tr: { ang: a => X.flip ? X.rot + Math.PI - a : a - X.rot, flip: X.flip } };
 }
 
 /* ---------- pasek przycinania ---------- */
@@ -628,7 +787,7 @@ function markDirty(v) {
 }
 function setFile(path, name) { app.file.path = path; app.file.name = name || _t('Bez nazwy'); $('#fileName').textContent = app.file.name; document.title = app.file.name + ' — Rysio'; }
 function loadDoc(doc, { path = null, name = null, dirty = false } = {}) {
-  app.doc = doc; app.hist.reset(doc); app.sel.clear();
+  app.doc = doc; app.hist.reset(doc); app.sel.clear(); app.blockEdit = null; app.rev++; setBlocks(doc);
   app.space = 0; app.vpEdit = null; for (const k of Object.keys(viewMemo)) delete viewMemo[k]; syncSpace(); renderTabs();
   setFile(path, name); markDirty(dirty);
   setTool('select'); fitSpace(); refreshUi(); redraw();
@@ -805,6 +964,7 @@ function fitSpace() {
   else app.view.fitDoc(app.doc, app.ents());
 }
 function setSpace(id, force = false) {
+  if (app.blockEdit && (id !== app.space || force)) endBlockEdit(false);
   if (id === app.space && !force) return;
   viewMemo[app.space] = { cx: app.view.cx, cy: app.view.cy, ppm: app.view.ppm };
   if (tool.cancel) for (let i = 0; i < 3 && tool.cancel(); i++);

@@ -1,6 +1,6 @@
 // Zmienianie geometrii (etap 3): obrót, odbicie, skala, odsunięcie, zaokrąglenie narożnika, przycinanie i wydłużanie.
 // Same obliczenia, bez okna — wyniki to pola elementów do app.edit(); sprawdzane w scripts/sprawdziany.mjs.
-import { V, EPS, angOf, normAng, sweep, onArcAngle, bulgeOf, plineParts, partsOf, intersect, lineCircle, circleCircle, closestOnSeg, endpoints, lengthOf as lengthOfE, arcStart, arcEnd, arcMid, moved, dimGeom } from './geom.js';
+import { V, EPS, angOf, normAng, sweep, onArcAngle, bulgeOf, plineParts, partsOf, intersect, lineCircle, circleCircle, closestOnSeg, endpoints, lengthOf as lengthOfE, arcStart, arcEnd, arcMid, moved, dimGeom, blockEnts } from './geom.js';
 import { lineX } from './snap.js';
 
 const TAU = Math.PI * 2;
@@ -37,8 +37,36 @@ export function transformed(e, T) {
       }
       return { a: T.f(e.a), b: T.f(e.b), o: T.f(e.o), dir };
     }
+    // wstawienie bloku: punkt, obrót, skala i odbicie (odbicie w osi pod kątem α: obrót' = 2α − obrót + π, odbicie się przełącza)
+    case 'ins': return T.mirror ? { p: T.f(e.p), rot: normAng(2 * T.axisAng - (e.rot || 0) + Math.PI), s: (e.s || 1) * T.k, mx: !e.mx } : { p: T.f(e.p), rot: normAng((e.rot || 0) + T.rot), s: (e.s || 1) * T.k };
+    case 'hatch': return { loops: e.loops.map(L => L.map(q => T.f(q))), ang: normAng(T.mirror ? 2 * T.axisAng - (e.ang || 0) : (e.ang || 0) + T.rot) };
     default: return null;
   }
+}
+// przekształcenie wstawienia w postaci T (do transformed): odbicie x → −x, potem obrót = odbicie w osi pod kątem (obrót + π) / 2
+export function insT(e) {
+  const c = Math.cos(e.rot || 0), s = Math.sin(e.rot || 0), k = e.s || 1, m = e.mx ? -1 : 1;
+  return { f: q => { const x = q[0] * k * m, y = q[1] * k; return [e.p[0] + x * c - y * s, e.p[1] + x * s + y * c]; }, rot: e.rot || 0, mirror: !!e.mx, axisAng: ((e.rot || 0) + Math.PI) / 2, k };
+}
+// rozbicie wstawienia: kopie elementów bloku w położeniu wstawienia (bez id i przestrzeni)
+export function explodeIns(e) {
+  const T = insT(e), out = [];
+  for (const ch of blockEnts(e.b)) {
+    const patch = transformed(ch, T); if (!patch) continue;
+    const { id, sp, ...rest } = ch;
+    const n = { ...rest, ...patch };
+    // wysokość tekstu i wymiaru rośnie razem z blokiem (w bloku jest w mm wydruku przy skali 1)
+    if ((ch.t === 'text' || ch.t === 'dim') && T.k !== 1) n.h = (ch.h || (ch.t === 'dim' ? 2.5 : 3)) * T.k;
+    // tekst tak, jak rysuje go pióro bloku: kierunek przeniesiony, w odbitym bloku odwrócony z zamienionym wyrównaniem
+    if (ch.t === 'text') {
+      const a = e.mx ? (e.rot || 0) + Math.PI - (ch.rot || 0) - Math.PI : (e.rot || 0) + (ch.rot || 0);
+      n.rot = normAng(a); if (n.rot > Math.PI) n.rot -= TAU;
+      if (e.mx) n.align = ch.align === 'r' ? 'l' : ch.align === 'c' ? 'c' : 'r';
+    }
+    if (ch.t === 'hatch') n.ps = (ch.ps || 1) * T.k;   // gęstość jak w przeskalowanym bloku
+    out.push(n);
+  }
+  return out;
 }
 
 /* ---------- odsunięcie ---------- */
@@ -325,6 +353,7 @@ export function gripsOf(e) {
     case 'text': return [g('mv', e.p)];
     case 'dim': return [g('a', e.a), g('b', e.b), g('o', dimGeom(e).mid)];
     case 'vp': return [g('a', e.a), g('b', e.b)];
+    case 'ins': return [g('mv', e.p)];
   }
   return [];
 }

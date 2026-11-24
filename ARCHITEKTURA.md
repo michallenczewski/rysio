@@ -54,6 +54,10 @@ Etap 2 dodał:
 
 **Tekst i wymiary w każdej skali.** Wysokość tekstu i liczby wymiaru jest w milimetrach wydruku i przelicza się według skali przestrzeni: w modelu 1:50 napis 3,5 mm ma 0,175 m, w oknie 1:100 ma na papierze nadal 3,5 mm. Geometria liczy to przez `ANNO` z `geom.js` (metry na mm papieru), które program ustawia przy zmianie przestrzeni, a rysowanie okna — na czas rysowania zawartości.
 
+**Bloki (etap 4).** Definicja bloku to `doc.blocks: [{ id, name }]`; jej elementy leżą w zwykłym `doc.ents` z `sp: 'b' + id`, we własnym układzie (punkt wstawienia w zerze). Dzięki temu edycja w miejscu to po prostu praca w innej „przestrzeni” (`app.spaceKey()`), z cofaniem i wszystkimi narzędziami bez zmian. Wstawienie to `{ t: 'ins', b, p, rot, s, mx }` — punkt, obrót, skala jednakowa w obu kierunkach i odbicie w osi X bloku. Geometria wstawienia (`partsOf`, końce, środki, obrys) liczy się z elementów bloku przeniesionych przekształceniem `insXf` i jest pamiętana do następnej zmiany rysunku (`setBlocks` po każdej zmianie); dlatego przyciąganie, zaznaczanie, przecięcia i gumka działają na blokach bez osobnego kodu. Rysowanie: pióro z przekształceniem (`pen.sub(f, k, tr)`), łuki jako krzywe Béziera przez przeliczone punkty, więc obrót i odbicie nie psują łuków; odbity tekst zostaje czytelny. Elementy bloku mają własne warstwy i kreski (bez „warstwy 0” jak w AutoCAD-zie). Bloki są tylko w modelu.
+
+**Kreskowanie (etap 4).** `{ t: 'hatch', loops, pat, ps, ang }` — pętle punktów (zasada parzystości: otwory), wzór (`diag`, `cross`, `conc`, `ins`, `soil`, `solid`), mnożnik gęstości i kąt. Wzory są w milimetrach wydruku (`hatch.js`), kreski liczą się przy rysowaniu i są pamiętane. Obszar pod kliknięciem: wszystkie widoczne krzywe → odcinki, podział w przecięciach, usunięcie wiszących końców, obejście ścian grafu; obszar to najmniejsza ściana z punktem, a osobne kształty w niej to otwory. Kreskowanie nie jest związane z liniami (przesunięcie ściany go nie zmienia).
+
 **Łuki w polilinii (etap 3).** Wierzchołek polilinii może mieć trzeci element: `[x, y, b]`, gdzie `b` to wybrzuszenie jak w DXF (`tan(θ/4)`, dodatnie — przeciwnie do wskazówek zegara) dla odcinka do następnego wierzchołka. `plineParts()` w `geom.js` zamienia polilinię na kolejne odcinki i łuki; z tego korzystają rysowanie, przyciąganie, przecięcia, odsunięcie i przycinanie. Prostokąt i zwykła polilinia nadal mają same punkty `[x, y]`.
 
 `hatch`, `insert` + `blocks` — etap 4.
@@ -100,7 +104,8 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 | `renderer/model.js` | rysunek, warstwy, kreski, `edit()` i historia cofania, `fixDoc()` |
 | `renderer/geom.js` | geometria bez okna: odległości, przecięcia, rzuty, styczne, łuk przez trzy punkty, obrysy, trafienia |
 | `renderer/draw.js` | rysowanie elementów przez „pióro” (płótno albo PDF): kreski, tekst, wymiar |
-| `renderer/dxf.js` | odczyt DXF do elementów (warstwy z kolorem, rodzajem i grubością linii; bloki i wymiary rozbite; jednostki z `$INSUNITS`) i zapis modelu do DXF R12 |
+| `renderer/dxf.js` | odczyt DXF do elementów (warstwy z kolorem, rodzajem i grubością linii; nazwane bloki bez zniekształceń jako bloki, pozostałe i wymiary rozbite; kreskowania; jednostki z `$INSUNITS`) i zapis modelu do DXF R12 (bloki jako BLOCK/INSERT, kreskowania jako kreski) |
+| `renderer/hatch.js` | kreskowanie: wzory w mm wydruku, kreski przycięte do pętli, szukanie obszaru pod kliknięciem |
 | `renderer/dwg.js` | DWG przez LibreDWG → tekst DXF → `dxf.js` (z Modo) |
 | `renderer/edit.js` | zmienianie geometrii: obrót, odbicie, skala (`transformed`), odsunięcie (`offsetEnt`, także polilinii z łukami), zaokrąglenie dwóch linii (`filletLines`), przycinanie i wydłużanie jednym kliknięciem (`trimOrExtend`) i wielu kawałków jednym przeciągnięciem (`trimMany`, tryb auto / trim / extend), uchwyty (`gripsOf`, `gripMove`) |
 | `renderer/sheet.js` | arkusz: okna z modelem w skali (przeliczanie arkusz ↔ model), ramka z tabelką, skale do tabelki |
@@ -156,6 +161,8 @@ PDF powstaje bez biblioteki (zob. wyżej).
 ## Sygnały, że trzeba wrócić do tematu
 
 - **Przerysowanie całości przy każdym ruchu myszy** — wystarczy do kilkunastu tysięcy elementów. Przy podkładach (etap 5) trzeba będzie rysować rysunek do bufora, a na wierzch tylko kursor i podgląd, oraz dodać indeks przestrzenny.
+- **Kreskowanie nie jest skojarzone** z obrysem — po zmianie ścian trzeba je narysować na nowo. Szukanie obszaru bierze pod uwagę widoczną część rysunku (z zapasem 15%).
+- **Wstawienie bloku ma jedną skalę** (bez osobnej X i Y); takie wstawienia z DXF są rozbijane.
 - **Uchwyty** nie mają wpisywania długości z klawiatury — tylko przeciąganie albo klik w nowe miejsce, z przyciąganiem i kierunkami.
 - **Zaokrąglanie działa na dwóch pojedynczych liniach** — nie na wierzchołkach polilinii ani na łukach. Polilinię trzeba by najpierw rozbić (polecenie, którego jeszcze nie ma).
 - **Odsunięcie polilinii** łączy części przez przecięcie ich przedłużeń (ostre narożniki); gdy przedłużenia się nie przecinają (np. łuk i odcinek, które się rozjechały), oba odsunięte końce łączy prosty odcinek. Odsunięcie, przy którym któraś część zmieniłaby kierunek (figura by się wywinęła), program odrzuca.

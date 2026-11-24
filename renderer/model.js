@@ -24,6 +24,9 @@ export function newDoc() {
     ents: [], next: 2,
     // arkusze (etap 2): elementy arkusza leżą w doc.ents z polem sp = numer arkusza, w metrach papieru (1 mm = 0,001)
     sheets: [],
+    // bloki (etap 4): definicja to { id, name }; jej elementy leżą w doc.ents z polem sp = 'b' + id, w układzie bloku
+    // (punkt wstawienia w zerze); wstawienie to element { t: 'ins', b: id, p, rot, s, mx } — mx: odbicie w osi X bloku
+    blocks: [],
     project: { projekt: '', projektant: '', data: '' }
   };
 }
@@ -58,19 +61,31 @@ export function fixDoc(d) {
   const maxId = Math.max(0, ...doc.ents.map(e => e.id || 0), ...doc.layers.map(L => L.id));
   for (const e of doc.ents) if (!e.id) e.id = 0;
   let n = maxId + 1; for (const e of doc.ents) if (!e.id) e.id = n++;
-  doc.next = Math.max(doc.next || 1, n, ...(Array.isArray(d.sheets) ? d.sheets.map(sh => (sh && sh.id || 0) + 1) : []));
+  doc.next = Math.max(doc.next || 1, n, ...(Array.isArray(d.sheets) ? d.sheets.map(sh => (sh && sh.id || 0) + 1) : []), ...(Array.isArray(d.blocks) ? d.blocks.map(b => (b && b.id || 0) + 1) : []));
   doc.cur = Object.assign({ layer: doc.layers[0].id, w: null, lt: null }, doc.cur);
   if (!doc.layers.some(L => L.id === doc.cur.layer)) doc.cur.layer = doc.layers[0].id;
   doc.sheets = (Array.isArray(doc.sheets) ? doc.sheets : []).filter(sh => sh && sh.id).map(sh => Object.assign(newSheet(sh.id, 1), sh, { title: Object.assign({ rysunek: '', nr: '' }, sh.title) }));
   doc.project = Object.assign({ projekt: '', projektant: '', data: '' }, doc.project);
   // elementy z nieistniejących arkuszy i okna poza arkuszem znikają
-  doc.ents = doc.ents.filter(e => (!e.sp || doc.sheets.some(sh => sh.id === e.sp)) && (e.t !== 'vp' || e.sp));
+  doc.blocks = (Array.isArray(doc.blocks) ? doc.blocks : []).filter(b => b && b.id && typeof b.name === 'string');
+  const blockSp = new Set(doc.blocks.map(b => 'b' + b.id));
+  doc.ents = doc.ents.filter(e => (!e.sp || doc.sheets.some(sh => sh.id === e.sp) || blockSp.has(e.sp)) && (e.t !== 'vp' || typeof e.sp === 'number'));
+  doc.ents = doc.ents.filter(e => e.t !== 'ins' || doc.blocks.some(b => b.id === e.b));
+  // wstawienia tworzące pętlę (blok w samym sobie) usuwamy
+  const inside = new Map(doc.blocks.map(b => [b.id, doc.ents.filter(e => e.t === 'ins' && e.sp === 'b' + b.id).map(e => e.b)]));
+  const reaches = (from, to, seen = new Set()) => from === to || (!seen.has(from) && (seen.add(from), (inside.get(from) || []).some(x => reaches(x, to, seen))));
+  doc.ents = doc.ents.filter(e => !(e.t === 'ins' && typeof e.sp === 'string' && reaches(e.b, +e.sp.slice(1))));
+  for (const e of doc.ents) if (e.t === 'ins') { e.rot = +e.rot || 0; e.s = e.s > 0 ? e.s : 1; e.mx = !!e.mx; }
+  for (const e of doc.ents) if (e.t === 'hatch') { e.loops = (e.loops || []).filter(l => Array.isArray(l) && l.length > 2); if (!(e.ps > 0)) e.ps = 1; e.ang = +e.ang || 0; }
+  doc.ents = doc.ents.filter(e => e.t !== 'hatch' || e.loops.length);
   for (const e of doc.ents) if (e.t === 'vp') { e.hidden = Array.isArray(e.hidden) ? e.hidden : []; if (!(e.scale > 0)) e.scale = 100; }
   if (!(doc.scale > 0)) doc.scale = 50;
   if (!['m', 'cm', 'mm'].includes(doc.units)) doc.units = 'm';
   return doc;
 }
-const ENT_TYPES = new Set(['line', 'pline', 'circle', 'arc', 'text', 'dim', 'vp']);
+const ENT_TYPES = new Set(['line', 'pline', 'circle', 'arc', 'text', 'dim', 'vp', 'ins', 'hatch']);
+// przestrzeń definicji bloku
+export const blockSpace = id => 'b' + id;
 
 export const layerOf = (doc, e) => doc.layers.find(L => L.id === e.layer) || doc.layers[0];
 // kreska elementu po uwzględnieniu „jak warstwa”

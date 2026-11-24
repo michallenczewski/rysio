@@ -5,7 +5,8 @@
 //   Elipsy i splajny zamieniają się w polilinie. Współrzędne zostają takie jak w pliku (w metrach).
 import { _t } from './i18n.js';
 import { newDoc, fixDoc, WEIGHTS, LTYPES } from './model.js';
-import { V, dimGeom, LINE_GAP, DIM_EXT, DIM_TICK, DIM_H } from './geom.js';
+import { V, dimGeom, LINE_GAP, DIM_EXT, DIM_TICK, DIM_H, setAnno, ANNO } from './geom.js';
+import { hatchSegs } from './hatch.js';
 
 const TAU = Math.PI * 2;
 const UNIT_M = { 1: 0.0254, 2: 0.3048, 4: 0.001, 5: 0.01, 6: 1, 14: 0.1 };
@@ -196,7 +197,21 @@ export function parseDxf(input, o = {}) {
   const out = [], skipped = {};
   const skip = t => { skipped[t] = (skipped[t] || 0) + 1; };
   const LIMIT = 300000;
-  const add = (e, base) => { if (out.length < LIMIT) out.push({ ...e, layer: base.layer, w: base.w, lt: base.lt }); };
+  let SP = null;   // przestrzeń, do której trafiają elementy (null — model, 'b' + id — definicja bloku)
+  const add = (e, base) => { if (out.length < LIMIT) out.push({ ...e, layer: base.layer, w: base.w, lt: base.lt, ...(SP ? { sp: SP } : {}) }); };
+  // bloki: nazwany blok wstawiany bez zniekształceń staje się blokiem Rysia (definicja raz, potem wstawienia)
+  const defs = new Map(), defining = new Set(); let nextBlock = 1;
+  // inherit — wstawienie, które pierwsze użyło bloku: elementy bloku na warstwie „0” i z kreską BYBLOCK biorą jego warstwę i kreskę
+  // (Rysio nie ma warstwy „0” zmieniającej się z wstawieniem — przybliżenie wystarczające dla typowych plików)
+  const defOf = (name, depth, inherit) => {
+    if (defining.has(name)) return -1;   // blok w samym sobie (bezpośrednio albo przez inne bloki) — pomijamy
+    if (defs.has(name)) return defs.get(name);
+    const b = blocks.get(name); if (!b) return null;
+    const id = nextBlock++; defs.set(name, id); defining.add(name);
+    const keep = SP; SP = 'b' + id;
+    try { emit(b.ents, [u, 0, 0, u, -b.base[0] * u, -b.base[1] * u], inherit, depth + 1); } finally { SP = keep; defining.delete(name); }
+    return id;
+  };
 
   const emit = (ents, M, inherit, depth) => {
     if (depth > 10) return;
@@ -324,6 +339,20 @@ export function parseDxf(input, o = {}) {
           let T = M;
           if (e.type === 'INSERT') {
             const sx = g(41, 1), sy = g(42, 1), rot = g(50) * Math.PI / 180, cs = Math.cos(rot), sn = Math.sin(rot);
+            const frozen = !!((layerInfo.get(lname) || {}).flags & 1) || !!(inherit && inherit.frozen);
+            const plain = M[1] === 0 && M[2] === 0 && M[0] === M[3] && M[0] > 0;   // bez obrotu i odbicia z zewnątrz
+            if (o.blocks !== false && plain && !frozen && !/^\*/.test(gs(2)) && g(230, 1) > 0 && Math.max(1, g(70, 1) | 0) === 1 && Math.max(1, g(71, 1) | 0) === 1 && Math.abs(Math.abs(sx) - Math.abs(sy)) <= 1e-9 * Math.abs(sx) && sx) {
+              const bid = defOf(gs(2), depth, { name: lname, w: base.w, lt: base.lt, frozen: false });
+              if (bid === -1) { skip(_t('blok w samym sobie')); break; }
+              if (bid) {
+                let rr = rot, mx = false;
+                if (sx < 0 && sy < 0) rr += Math.PI; else if (sx < 0) mx = true; else if (sy < 0) { mx = true; rr += Math.PI; }
+                add({ t: 'ins', b: bid, p: P(M, [g(10), g(20)]), rot: r6(((rr % TAU) + TAU) % TAU), s: r6(Math.abs(sx)), mx }, base);
+                if (g(66) === 1) while (j + 1 < ents.length && ents[j + 1].type === 'ATTRIB') { j++; emit([ents[j]], M, null, depth + 1); }
+                if (j + 1 < ents.length && ents[j + 1].type === 'SEQEND') j++;
+                break;
+              }
+            }
             const L = [cs * sx, sn * sx, -sn * sy, cs * sy, g(10), g(20)];
             T = mul(mul(ocs, L), [1, 0, 0, 1, -b.base[0], -b.base[1]]);
             const cols = Math.max(1, g(70, 1) | 0), rows = Math.max(1, g(71, 1) | 0);
@@ -339,6 +368,15 @@ export function parseDxf(input, o = {}) {
           emit(b.ents, T, { name: lname, w: base.w, lt: base.lt, frozen: !!((layerInfo.get(lname) || {}).flags & 1) || !!(inherit && inherit.frozen) }, depth + 1);   // wymiar: jego rysunek leży w bloku *D…
           break;
         }
+        case 'HATCH': {
+          const loops = hatchLoops(c).map(L => L.map(q => P(ocs, q))).filter(L => L.length > 2);
+          if (!loops.length) { skip('HATCH'); break; }
+          const nm = (gs(2) || '').toUpperCase(), solid = g(70) === 1 || nm === 'SOLID';
+          const pat = solid ? 'solid' : /CONC|SAND/.test(nm) ? 'conc' : /EARTH/.test(nm) ? 'soil' : /INSUL/.test(nm) ? 'ins' : /ANSI37|ANSI38|NET|CROSS|SQUARE/.test(nm) ? 'cross' : 'diag';
+          const baseAng = /ANSI3[1-8]/.test(nm) ? 45 : 0;
+          add({ t: 'hatch', loops, pat, ps: 1, ang: r6(((baseAng + g(52)) % 360 + 360) % 360 * Math.PI / 180) }, { ...base, w: base.w ?? 0.13 });
+          break;
+        }
         case 'ATTDEF': case 'SEQEND': case 'VERTEX': case 'POINT': case 'VIEWPORT': break;
         default: skip(e.type);
       }
@@ -350,18 +388,67 @@ export function parseDxf(input, o = {}) {
   // zapisujemy w doc.origin — zapis DXF dodaje je z powrotem
   let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
   const seen = p => { if (p[0] < lo[0]) lo[0] = p[0]; if (p[1] < lo[1]) lo[1] = p[1]; if (p[0] > hi[0]) hi[0] = p[0]; if (p[1] > hi[1]) hi[1] = p[1]; };
-  for (const e of out) for (const q of e.t === 'line' ? [e.a, e.b] : e.t === 'pline' ? e.pts : e.t === 'text' ? [e.p] : [e.c]) seen(q);
+  const ptsOf = e => e.t === 'line' ? [e.a, e.b] : e.t === 'pline' ? e.pts : e.t === 'text' || e.t === 'ins' ? [e.t === 'ins' ? e.p : e.p] : e.t === 'hatch' ? e.loops.flat() : [e.c];
+  for (const e of out) if (!e.sp) for (const q of ptsOf(e)) seen(q);
   const mid = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2];
   if (isFinite(mid[0]) && Math.max(Math.abs(mid[0]), Math.abs(mid[1])) > 100000) {
     const o0 = [Math.round(mid[0] / 1000) * 1000, Math.round(mid[1] / 1000) * 1000], sh = q => { const r = [r6(q[0] - o0[0]), r6(q[1] - o0[1])]; return q.length > 2 ? [...r, q[2]] : r; };
-    for (const e of out) { if (e.t === 'line') { e.a = sh(e.a); e.b = sh(e.b); } else if (e.t === 'pline') e.pts = e.pts.map(sh); else if (e.t === 'text') e.p = sh(e.p); else e.c = sh(e.c); }
+    for (const e of out) { if (e.sp) continue; if (e.t === 'line') { e.a = sh(e.a); e.b = sh(e.b); } else if (e.t === 'pline') e.pts = e.pts.map(sh); else if (e.t === 'text' || e.t === 'ins') e.p = sh(e.p); else if (e.t === 'hatch') e.loops = e.loops.map(L => L.map(sh)); else e.c = sh(e.c); }
     doc.origin = o0;
   }
+  doc.blocks = [...defs].map(([name, id]) => ({ id, name: cleanText(name, false) }));
+  // numery bloków nie mogą się zderzyć z numerami elementów i warstw — przenumerowujemy je za nimi
+  const bmap = new Map(doc.blocks.map(b => [b.id, nextId++])); for (const b of doc.blocks) b.id = bmap.get(b.id);
+  for (const e of out) { if (e.t === 'ins') e.b = bmap.get(e.b); if (e.sp) e.sp = 'b' + bmap.get(+e.sp.slice(1)); }
   doc.ents = out.map(e => ({ ...e, id: nextId++ }));
   doc.next = nextId;
   doc.cur = { layer: (doc.layers.find(L => L.visible && !L.locked) || doc.layers[0]).id, w: null, lt: null };   // rysujemy na warstwie widocznej i odblokowanej
   if (!doc.ents.length && !Object.keys(skipped).length) throw new Error(_t('W pliku nie ma rysunku.'));
-  return { doc: fixDoc(doc), info: { count: doc.ents.length, skipped, units: fileUnits, guessed, truncated: out.length >= LIMIT } };
+  return { doc: fixDoc(doc), info: { count: doc.ents.filter(e => !e.sp).length, blocks: doc.blocks.length, skipped, units: fileUnits, guessed, truncated: out.length >= LIMIT } };
+}
+// obwody kreskowania z kodów HATCH: ścieżki-polilinie (z wybrzuszeniami) i ścieżki z krawędzi (odcinki, łuki, elipsy, splajny)
+function hatchLoops(c) {
+  const out = []; let i = c.findIndex(x => x[0] === 91); if (i < 0) return out;
+  const nPaths = parseInt(c[i][1], 10); i++;
+  const num = () => parseFloat(c[i++][1]);
+  const want = code => { while (i < c.length && c[i][0] !== code) i++; return i < c.length; };
+  for (let k = 0; k < nPaths; k++) {
+    if (!want(92)) break;
+    const flag = parseInt(c[i++][1], 10), pts = [];
+    if (flag & 2) {
+      want(72); const hasB = num() === 1; want(73); i++; want(93); const n = num(), vs = [];
+      for (let v = 0; v < n; v++) { want(10); const x = num(); want(20); const y = num(); let b = 0; if (hasB && c[i] && c[i][0] === 42) b = num(); vs.push({ x, y, b }); }
+      for (let v = 0; v < vs.length; v++) { const p = [vs[v].x, vs[v].y], q = vs[(v + 1) % vs.length]; if (!v) pts.push(p); pts.push(...bulgePts(p, [q.x, q.y], vs[v].b)); }
+      pts.pop();
+    } else {
+      want(93); const nE = num();
+      for (let ed = 0; ed < nE; ed++) {
+        want(72); const type = num(); let seg = [];
+        if (type === 1) { want(10); const x0 = num(); want(20); const y0 = num(); want(11); const x1 = num(); want(21); const y1 = num(); seg = [[x0, y0], [x1, y1]]; }
+        else if (type === 2) {
+          want(10); const cx = num(); want(20); const cy = num(); want(40); const r = num(); want(50); let a0 = num(); want(51); let a1 = num(); want(73); const ccw = num() === 1;
+          if (ccw) seg = arcPts([cx, cy], r, a0 * Math.PI / 180, a1 * Math.PI / 180);
+          else seg = arcPts([cx, cy], r, -a1 * Math.PI / 180, -a0 * Math.PI / 180).reverse();   // łuk zgodnie ze wskazówkami: kąty podane jak dla odbitego
+        } else if (type === 3) {
+          want(10); const cx = num(); want(20); const cy = num(); want(11); const mx = num(); want(21); const my = num(); want(40); const ratio = num(); want(50); let t0 = num() * Math.PI / 180; want(51); let t1 = num() * Math.PI / 180; want(73); const ccw = num() === 1;
+          if (!ccw) { const a = -t1, b = -t0; t0 = a; t1 = b; }
+          while (t1 <= t0) t1 += TAU;
+          const n = Math.max(8, Math.ceil((t1 - t0) / (Math.PI / 36))), mn = [-my * ratio, mx * ratio];
+          for (let m = 0; m <= n; m++) { const t = t0 + (t1 - t0) * m / n; seg.push([cx + mx * Math.cos(t) + mn[0] * Math.sin(t), cy + my * Math.cos(t) + mn[1] * Math.sin(t)]); }
+          if (!ccw) seg.reverse();
+        } else if (type === 4) {
+          want(94); const deg = num() | 0; want(95); const nk = num(); want(96); const nc = num(); const knots = [], ctl = [];
+          for (let m = 0; m < nk; m++) { want(40); knots.push(num()); }
+          for (let m = 0; m < nc; m++) { want(10); const x = num(); want(20); ctl.push([x, num()]); }
+          seg = splinePts(ctl, knots, deg, false);
+        } else break;
+        for (const q of seg) if (!pts.length || !s1(pts[pts.length - 1], q)) pts.push(q);
+      }
+      if (pts.length > 1 && s1(pts[0], pts[pts.length - 1])) pts.pop();
+    }
+    if (pts.length > 2) out.push(pts);
+  }
+  return out;
 }
 function guessExtent(ents) {   // rozpiętość osobno w X i w Y (mapy mają X i Y różne o miliony)
   const lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
@@ -402,8 +489,8 @@ export function writeDxf(doc) {
   put(0, 'TABLE', 2, 'STYLE', 70, 1, 0, 'STYLE', 2, 'STANDARD', 70, 0, 40, 0, 41, 1, 50, 0, 71, 0, 42, 2.5, 3, 'txt', 4, '', 0, 'ENDTAB');
   put(0, 'ENDSEC');
 
-  put(0, 'SECTION', 2, 'ENTITIES');
-  const O = Array.isArray(doc.origin) ? doc.origin : [0, 0];   // przesunięcie rysunku z importu (współrzędne geodezyjne)
+  const O0 = Array.isArray(doc.origin) ? doc.origin : [0, 0];   // przesunięcie rysunku z importu (współrzędne geodezyjne)
+  let O = O0;   // w definicjach bloków bez przesunięcia
   const Q = p => [num((p[0] + O[0]) * U), num((p[1] + O[1]) * U)];
   const head = (t, e) => { put(0, t, 8, names.get(e.layer) || '0'); if (e.lt) put(6, LT_OUT[e.lt] || 'CONTINUOUS'); };
   const line = (e, a, b) => { head('LINE', e); const A = Q(a), B = Q(b); put(10, A[0], 20, A[1], 30, 0, 11, B[0], 21, B[1], 31, 0); };
@@ -416,10 +503,23 @@ export function writeDxf(doc) {
       if (align === 'c' || align === 'r') put(72, align === 'c' ? 1 : 2, 11, A[0], 21, A[1], 31, 0);
     });
   };
-  let n = 0;
-  for (const e of doc.ents) {
-    if (e.sp || e.t === 'vp' || !doc.layers.some(L => L.id === e.layer)) continue;
-    n++;
+  const bnames = new Map(), bused = new Set();
+  for (const b of doc.blocks || []) { let nm = layerName(b.name), m = 2; while (bused.has(nm.toUpperCase())) nm = layerName(b.name) + '_' + m++; bused.add(nm.toUpperCase()); bnames.set(b.id, nm); }
+  const keepAnno = ANNO; setAnno(k);
+  const write = e => {
+    if (e.t === 'vp' || !doc.layers.some(L => L.id === e.layer)) return false;
+    if (e.t === 'ins') {
+      if (!bnames.has(e.b)) return false;
+      const A = Q(e.p), s = e.s || 1;
+      head('INSERT', e); put(2, bnames.get(e.b), 10, A[0], 20, A[1], 30, 0, 41, num(e.mx ? -s : s), 42, num(s), 43, num(s), 50, num((e.rot || 0) * 180 / Math.PI));
+      return true;
+    }
+    if (e.t === 'hatch') {
+      // R12 nie ma kreskowań: zapisujemy ich kreski (pełne — obrys)
+      if (e.pat === 'solid') for (const L of e.loops) { head('POLYLINE', e); put(66, 1, 10, 0, 20, 0, 30, 0, 70, 1); for (const v of L) { const A = Q(v); put(0, 'VERTEX', 8, names.get(e.layer) || '0', 10, A[0], 20, A[1], 30, 0); } put(0, 'SEQEND', 8, names.get(e.layer) || '0'); }
+      else for (const [a, b] of hatchSegs(e, k)) line(e, a, b);
+      return true;
+    }
     if (e.t === 'line') line(e, e.a, e.b);
     else if (e.t === 'pline') {
       head('POLYLINE', e); put(66, 1, 10, 0, 20, 0, 30, 0, 70, e.closed ? 1 : 0);
@@ -440,7 +540,18 @@ export function writeDxf(doc) {
       const val = doc.units === 'mm' ? String(Math.round(g.value * 1000)) : doc.units === 'cm' ? (g.value * 100).toFixed(1).replace('.', ',') : g.value.toFixed(2).replace('.', ',');
       text(e, V.add(g.mid, V.mul(up, 1 * k)), val, (e.h || DIM_H) * k, 'c', ang);
     }
+    return true;
+  };
+  // bloki (R12: BLOCK … ENDBLK, punkt wstawienia w zerze)
+  if (bnames.size) {
+    put(0, 'SECTION', 2, 'BLOCKS'); O = [0, 0];
+    for (const b of doc.blocks) { put(0, 'BLOCK', 8, '0', 2, bnames.get(b.id), 70, 0, 10, 0, 20, 0, 30, 0, 3, bnames.get(b.id)); for (const e of doc.ents) if (e.sp === 'b' + b.id) write(e); put(0, 'ENDBLK', 8, '0'); }
+    put(0, 'ENDSEC'); O = O0;
   }
+  put(0, 'SECTION', 2, 'ENTITIES');
+  let n = 0;
+  for (const e of doc.ents) if (!e.sp && write(e)) n++;
+  setAnno(keepAnno);
   put(0, 'ENDSEC', 0, 'EOF');
   return { text: o.join('\r\n') + '\r\n', count: n, units };
 }

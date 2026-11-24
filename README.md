@@ -33,9 +33,10 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 - Przytnij / wydłuż (X): klik w kawałek między przecięciami go usuwa, klik przy końcu linii dosuwa ją do najbliższego elementu. Przeciągnięcie przez kilka kawałków robi to z nimi wszystkimi naraz; pasek u góry ustala tryb: sam wybiera, tylko przytnij, tylko wydłuż.
 - Polilinie mogą mieć łuki (powstają przy odsunięciu, przycinaniu i z plików DXF).
 
-- DXF i DWG: Plik → Otwórz wczytuje rysunek CAD jako nowy rysunek (warstwy z kolorami, rodzajami i grubościami linii; bloki i wymiary rozbite na linie i teksty; kreskowania jeszcze pomijane; z DWG teksty mogą nie przejść). Plik → Eksport DXF zapisuje model w jednostkach rysunku (DXF R12 — bez grubości linii i bez arkuszy; nazwy warstw bez polskich liter i spacji, bo R12 ich nie przyjmuje).
+- DXF i DWG: Plik → Otwórz wczytuje rysunek CAD jako nowy rysunek (warstwy z kolorami, rodzajami i grubościami linii; nazwane bloki zostają blokami, wymiary są rozbijane na linie i teksty; kreskowania wchodzą z wzorem i kątem; z DWG teksty mogą nie przejść). Plik → Eksport DXF zapisuje model w jednostkach rysunku (DXF R12 — bez grubości linii i bez arkuszy; bloki jako bloki, kreskowania jako kreski; nazwy warstw bez polskich liter i spacji, bo R12 ich nie przyjmuje).
 
-Następny etap: bloki i kreskowanie — patrz `OPIS.md` i `makieta/bloki-kreskowanie.html`.
+- Kreskowanie (H): klik wewnątrz zamkniętego obszaru (także z otworami — np. ściana między dwoma obrysami); obrys podświetla się przed kliknięciem. Sześć wzorów (ukośne, krzyżowe, beton, izolacja, grunt, pełne), skala i kąt na pasku u góry; gęstość w milimetrach wydruku. Zaznaczone kreskowania zmienia ten sam pasek.
+- Bloki (K): z zaznaczeniem — nowy blok (nazwa na pasku, klik w punkt wstawienia); bez zaznaczenia — wstawianie (wybór z miniaturami, cyfry wpisują obrót). Zaznaczony blok: nazwa, Edytuj w miejscu (też dwuklik), Rozbij, Zamień na… W edycji reszta rysunku jest przygaszona; Gotowe albo Esc kończy, Anuluj cofa zmiany. Przesuń, obróć, odbij, skaluj i kopiuj działają na blokach.
 
 ## Nawigacja
 

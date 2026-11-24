@@ -1,7 +1,9 @@
 // Rysowanie elementów przez „pióro”. CanvasPen rysuje na płótnie, PdfPen (pdf.js) zapisuje wektorowy PDF — te same
 // polecenia, więc wydruk wygląda jak ekran. Grubości, wzory kresek i wysokości tekstu są w milimetrach papieru.
 import { LTYPES, strokeOf } from './model.js';
-import { V, sweep, dimGeom, textBox, plineParts, hasBulge, LINE_GAP, DIM_H, DIM_TICK, DIM_EXT } from './geom.js';
+import { V, sweep, dimGeom, textBox, plineParts, hasBulge, LINE_GAP, DIM_H, DIM_TICK, DIM_EXT, insXf, blockEnts } from './geom.js';
+import { isShown } from './model.js';
+import { hatchSegs } from './hatch.js';
 
 export const PX_PER_MM = 96 / 25.4;   // ekran przy 100%: 1 mm ≈ 3,78 px
 
@@ -26,8 +28,19 @@ export function inkColor(color, ink) {
 }
 
 // Pióro ekranowe: współrzędne przestrzeni (metry, Y w górę) → piksele płótna przez widok (v.toScreen, v.ppm).
+// Łuki rysujemy krzywymi Béziera przez przeliczone punkty — dzięki temu pióro może mieć dowolne przekształcenie
+// (obrót, odbicie, skalę wstawionego bloku) i łuki zostają łukami.
+const bezTo = (c, P, cc, r, a0, sw) => {
+  const parts = Math.max(1, Math.ceil(Math.abs(sw) / (Math.PI / 2) - 1e-9)), d = sw / parts, kk = 4 / 3 * Math.tan(d / 4);
+  for (let i = 0; i < parts; i++) {
+    const t0 = a0 + i * d, t1 = t0 + d, p3 = [cc[0] + r * Math.cos(t1), cc[1] + r * Math.sin(t1)], p0 = [cc[0] + r * Math.cos(t0), cc[1] + r * Math.sin(t0)];
+    const q1 = P([p0[0] - kk * r * Math.sin(t0), p0[1] + kk * r * Math.cos(t0)]), q2 = P([p3[0] + kk * r * Math.sin(t1), p3[1] - kk * r * Math.cos(t1)]), q3 = P(p3);
+    c.bezierCurveTo(q1[0], q1[1], q2[0], q2[1], q3[0], q3[1]);
+  }
+};
 export class CanvasPen {
-  constructor(ctx, view) { this.c = ctx; this.v = view; }
+  // tr — przekształcenie kątów tekstu: { ang(a) — kąt po przekształceniu, flip — odbicie }
+  constructor(ctx, view, tr = null) { this.c = ctx; this.v = view; this.tr = tr; }
   get ppm() { return this.v.ppm; }
   style({ width = 1, dash = [], color = '#000', alpha = 1, cap = 'butt' }) {
     const c = this.c; c.lineWidth = width; c.setLineDash(dash); c.lineDashOffset = 0; c.strokeStyle = color; c.fillStyle = color; c.globalAlpha = alpha; c.lineCap = cap; c.lineJoin = 'miter';
@@ -39,8 +52,11 @@ export class CanvasPen {
     this.path(() => { pts.forEach((p, i) => { const s = this.v.toScreen(p); i ? this.c.lineTo(s[0], s[1]) : this.c.moveTo(s[0], s[1]); }); if (closed) this.c.closePath(); });
   }
   // łuk przeciwnie do wskazówek zegara od a0 do a1 (oś Y przestrzeni jest odwrócona względem ekranu)
-  arc(c, r, a0, a1) { const s = this.v.toScreen(c), R = r * this.v.ppm; this.path(() => this.c.arc(s[0], s[1], R, -a0, -(a0 + sweep(a0, a1)), true)); }
-  circle(c, r) { const s = this.v.toScreen(c); this.path(() => this.c.arc(s[0], s[1], r * this.v.ppm, 0, Math.PI * 2)); }
+  arc(c, r, a0, a1) { const P = p => this.v.toScreen(p), s0 = P(V.polar(c, r, a0)); this.path(() => { this.c.moveTo(s0[0], s0[1]); bezTo(this.c, P, c, r, a0, sweep(a0, a1)); }); }
+  circle(c, r) { const P = p => this.v.toScreen(p), s0 = P([c[0] + r, c[1]]); this.path(() => { this.c.moveTo(s0[0], s0[1]); bezTo(this.c, P, c, r, 0, Math.PI * 2); this.c.closePath(); }); }
+  // wypełnienie pętli (zasada parzystości — otwory zostają puste)
+  fill(loops) { const c = this.c; c.beginPath(); for (const L of loops) L.forEach((p, i) => { const s = this.v.toScreen(p); i ? c.lineTo(s[0], s[1]) : c.moveTo(s[0], s[1]); }); c.closePath(); c.fill('evenodd'); }
+  segs(list) { if (!list.length) return; const c = this.c; c.beginPath(); for (const [a, b] of list) { const A = this.v.toScreen(a), B = this.v.toScreen(b); c.moveTo(A[0], A[1]); c.lineTo(B[0], B[1]); } c.stroke(); }
   // polilinia z łukami jako jedna ścieżka (ciągły wzór kreski, porządne narożniki)
   parts(list, closed) {
     if (!list.length) return;
@@ -49,14 +65,16 @@ export class CanvasPen {
       const s0 = P(list[0].from); c.moveTo(s0[0], s0[1]);
       for (const q of list) {
         if (q.k === 'seg') { const s = P(q.to); c.lineTo(s[0], s[1]); continue; }
-        const s = P(q.c), R = q.r * this.v.ppm, a0 = Math.atan2(q.from[1] - q.c[1], q.from[0] - q.c[0]), sw = sweep(q.a0, q.a1);
-        c.arc(s[0], s[1], R, -a0, q.ccw ? -(a0 + sw) : -(a0 - sw), q.ccw);
+        const a0 = Math.atan2(q.from[1] - q.c[1], q.from[0] - q.c[0]), sw = sweep(q.a0, q.a1);
+        bezTo(c, P, q.c, q.r, a0, q.ccw ? sw : -sw);
       }
       if (closed) c.closePath();
     });
   }
   // tekst: p — początek linii bazowej, h — wysokość wielkich liter w jednostkach przestrzeni, rot — obrót w radianach
   text(p, str, h, align = 'l', rot = 0) {
+    // w odbitym bloku napis zostaje czytelny: kierunek odwrócony, wyrównanie zamienione
+    if (this.tr) { rot = this.tr.ang(rot); if (this.tr.flip) { rot -= Math.PI; align = align === 'l' ? 'r' : align === 'r' ? 'l' : 'c'; } }
     const c = this.c, s = this.v.toScreen(p), px = h * this.v.ppm / 0.72;
     if (px < 0.8) return;
     c.save(); c.translate(s[0], s[1]); c.rotate(-rot);
@@ -65,7 +83,11 @@ export class CanvasPen {
     c.restore();
   }
   // pióro dla innej przestrzeni (okno arkusza): map — punkt tej przestrzeni → punkt bieżącej, k — skala długości
-  sub(map, k) { const v = this.v; return new CanvasPen(this.c, { toScreen: p => v.toScreen(map(p)), ppm: v.ppm * k }); }
+  sub(map, k, tr = null) {
+    const v = this.v, t0 = this.tr;
+    const t = !tr ? t0 : !t0 ? tr : { ang: a => t0.ang(tr.ang(a)), flip: t0.flip !== tr.flip };
+    return new CanvasPen(this.c, { toScreen: p => v.toScreen(map(p)), ppm: v.ppm * k }, t);
+  }
   clip(box, fn) {   // box w jednostkach przestrzeni
     const a = this.v.toScreen([box[0], box[3]]), b = this.v.toScreen([box[2], box[1]]), c = this.c;
     c.save(); c.beginPath(); c.rect(a[0], a[1], b[0] - a[0], b[1] - a[1]); c.clip(); fn(); c.restore();
@@ -73,7 +95,11 @@ export class CanvasPen {
 }
 
 // sam kształt elementu (styl ustawia wołający); tekst i wymiar rysuje drawEnt
+let depth = 0;
+const insPen = (pen, e) => { const X = insXf(e); return { X, pen: pen.sub(X.f, X.k, X) }; };
 export function traceEnt(pen, e) {
+  if (e.t === 'ins') { if (depth > 8) return; depth++; try { const { pen: sp } = insPen(pen, e); for (const ch of blockEnts(e.b)) traceEnt(sp, ch); } finally { depth--; } return; }
+  if (e.t === 'hatch') { for (const L of e.loops) pen.poly(L, true); return; }
   if (e.t === 'line') pen.line(e.a, e.b);
   else if (e.t === 'pline') { if (hasBulge(e)) pen.parts(plineParts(e), e.closed); else pen.poly(e.pts, e.closed); }
   else if (e.t === 'circle') pen.circle(e.c, e.r);
@@ -87,7 +113,14 @@ export function traceEnt(pen, e) {
 // color (wymuszony kolor), mono (czarno-białe), fmt (liczba wymiaru → tekst), alpha }
 export function drawEnt(pen, doc, e, o) {
   if (e.t === 'vp') return;   // okno rysuje widok (zawartość i ramkę osobno)
-  const st = strokeOf(doc, e), k = o.scale / 1000;   // metry przestrzeni na milimetr papieru
+  if (e.t === 'ins') {
+    // elementy bloku w położeniu wstawienia; grubości kresek zostają jak na papierze, tekst rośnie razem z blokiem
+    if (depth > 8) return; depth++;
+    try { const { X, pen: sp } = insPen(pen, e), oo = { ...o, scale: o.scale / X.k, annoK: (o.annoK ?? o.scale / 1000) }; for (const ch of blockEnts(e.b)) if (isShown(doc, ch) && !(o.hidden && o.hidden.includes(ch.layer))) drawEnt(sp, doc, ch, oo); }
+    finally { depth--; }
+    return;
+  }
+  const st = strokeOf(doc, e), k = o.annoK ?? o.scale / 1000;   // metry przestrzeni na milimetr papieru
   const col = o.color || (o.mono ? '#000000' : inkColor(st.color, o.ink));
   const f = pxPerPaperMM(pen.ppm, o.scale);
   const width = mm => o.exact ? mm * f : strokePx(mm, pen.ppm, o.scale, o.thin);
@@ -112,6 +145,12 @@ export function drawEnt(pen, doc, e, o) {
     const h = (e.h || DIM_H) * k;
     pen.style({ color: col, alpha: o.alpha ?? 1 });
     pen.text(V.add(g.mid, V.mul(up, 1 * k)), (o.fmt || (v => v.toFixed(2)))(g.value), h, 'c', ang);
+    return;
+  }
+  if (e.t === 'hatch') {
+    if (e.pat === 'solid') { pen.style({ color: col, alpha: (o.alpha ?? 1) * 0.85 }); pen.fill(e.loops); return; }
+    pen.style({ width: width(st.w), color: col, alpha: o.alpha ?? 1 });
+    pen.segs(hatchSegs(e, k));
     return;
   }
   pen.style({ width: width(st.w), dash: dash(st.lt), color: col, alpha: o.alpha ?? 1, cap: st.lt === 'dot' ? 'round' : 'butt' });

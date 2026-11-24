@@ -39,7 +39,7 @@ export function drawViewports(pen, doc, sh, o) {
       for (const x of doc.ents) {
         if (spaceOf(x) !== 0 || !isShown(doc, x) || e.hidden.includes(x.layer)) continue;
         if (!boxHit(bbox(x), mb)) continue;
-        drawEnt(sub, doc, x, { ...o, scale: e.scale, fmt: o.fmtModel });
+        drawEnt(sub, doc, x, { ...o, scale: e.scale, fmt: o.fmtModel, hidden: e.hidden });
       }
     });
     setAnno(keep);
