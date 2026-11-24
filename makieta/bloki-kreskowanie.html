@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rysio — bloki i kreskowanie</title>
+<style>
+/* Makieta etapu 4. Kolory i paski jak w renderer/style.css. */
+:root{--bg:#f7f7f5;--text:#1a1a19;--text2:#4a4945;--muted:#706f6a;--soft:#efeeea;--hover:#ecebe7;--line:#e6e5e1;--card:#fff;--paper:#fff;--ink:#1a1a19;--sel:#3f63a8;--snap:#b0489e;
+  --menush:0 0 0 1px rgba(0,0,0,.06),0 10px 30px rgba(0,0,0,.10);--kbd:#f3f2ef}
+[data-theme=dark]{--bg:#161616;--text:#e9e9e7;--text2:#c4c4c1;--muted:#8d8d89;--soft:#222221;--hover:#242423;--line:#2a2a29;--card:#1d1d1c;--paper:#1d1d1c;--ink:#e4e4e1;--sel:#7d9ad6;--snap:#d48bc6;
+  --menush:0 0 0 1px rgba(255,255,255,.07),0 12px 36px rgba(0,0,0,.5);--kbd:#2e2e2d}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--text);font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:18px;display:flex;flex-direction:column;gap:14px}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+kbd{font:500 11px/1 -apple-system,system-ui,sans-serif;background:var(--kbd);border-radius:4px;padding:2px 5px;color:var(--text2)}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.top h1{font-size:15px;font-weight:600;margin:0}
+.seg{display:flex;gap:2px;padding:2px;border-radius:8px;background:var(--soft)}
+.seg button{height:26px;padding:0 10px;border-radius:6px;color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px}
+.seg button.on{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.view{position:relative;height:560px;border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px var(--line);background:var(--paper)}
+.view svg.plan{position:absolute;inset:0;width:100%;height:100%}
+.toolbar{position:absolute;z-index:6;left:12px;top:10px;display:flex;align-items:center;gap:8px;height:40px;padding:0 6px 0 12px;border-radius:10px;background:var(--card);box-shadow:var(--menush);font-size:12px;white-space:nowrap}
+.toolbar .t{font-weight:500}
+.lbl{color:var(--muted);font-size:12px}
+.tbs{height:28px;padding:0 10px;border-radius:7px;background:var(--soft);font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px}
+.tbs.pri{background:var(--ink);color:var(--card)}
+.fld{height:28px;border-radius:7px;background:var(--soft);display:flex;align-items:center;gap:6px;padding:0 10px;font-variant-numeric:tabular-nums}
+.fld em{font-style:normal;color:var(--muted)}
+.pats{display:flex;gap:3px;padding:2px;border-radius:8px;background:var(--soft)}
+.pats button{width:30px;height:26px;border-radius:6px;display:grid;place-items:center}
+.pats button.on{background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1.5px var(--sel)}
+.pop{position:absolute;z-index:8;background:var(--card);border-radius:12px;box-shadow:var(--menush);padding:12px;display:flex;flex-direction:column;gap:8px;font-size:12px}
+.pop .ttl{font-weight:600;font-size:13px}
+.blocks{display:grid;grid-template-columns:repeat(3,92px);gap:8px}
+.blk{border-radius:9px;background:var(--soft);padding:6px 6px 5px;display:flex;flex-direction:column;gap:3px;cursor:pointer}
+.blk:hover{box-shadow:0 0 0 1.5px var(--sel)}
+.blk svg{width:80px;height:54px;background:var(--card);border-radius:6px}
+.blk b{font-weight:500;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blk span{font-size:10.5px;color:var(--muted)}
+.hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--text2);background:var(--card);padding:6px 10px;border-radius:8px;box-shadow:0 0 0 1px var(--line)}
+.hint b{font-weight:600}
+.legend{font-size:12px;color:var(--text2);max-width:1000px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px 22px}
+.legend b{color:var(--text)}
+.st{display:none}.st.on{display:block}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Etap 4 — bloki i kreskowanie</h1>
+  <div class="seg" id="tabs">
+    <button data-s="hatch" class="on">Kreskowanie (H)</button>
+    <button data-s="lib">Bloki: wstawianie (K)</button>
+    <button data-s="sel">Zaznaczony blok</button>
+    <button data-s="edit">Edycja bloku w miejscu</button>
+  </div>
+  <div class="seg" id="theme"><button data-t="light" class="on">Jasny</button><button data-t="dark">Ciemny</button></div>
+</div>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <pattern id="p-diag" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="var(--ink)" stroke-width=".9"/></pattern>
+    <pattern id="p-cross" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V8M0 0H8" stroke="var(--ink)" stroke-width=".8"/></pattern>
+    <pattern id="p-conc" width="22" height="22" patternUnits="userSpaceOnUse"><g fill="none" stroke="var(--ink)" stroke-width=".8"><path d="M3 5l3 -2 2 3z"/><circle cx="15" cy="7" r="1"/><path d="M12 15l4 1-1 3z"/><circle cx="5" cy="16" r=".8"/><circle cx="19" cy="18" r=".6"/></g></pattern>
+    <pattern id="p-ins" width="16" height="16" patternUnits="userSpaceOnUse"><path d="M0 8 C4 0 4 0 8 8 S12 16 16 8" fill="none" stroke="var(--ink)" stroke-width=".8"/></pattern>
+    <pattern id="p-soil" width="18" height="10" patternUnits="userSpaceOnUse"><path d="M0 10L6 4M5 10L11 4" stroke="var(--ink)" stroke-width=".8"/></pattern>
+  </defs>
+</svg>
+
+<div class="view" id="view">
+  <svg class="plan" viewBox="0 0 1000 560" preserveAspectRatio="xMidYMid slice">
+    <g id="walls">
+      <rect x="230" y="140" width="520" height="300" fill="none" stroke="var(--ink)" stroke-width="2.4"/>
+      <rect x="248" y="158" width="484" height="264" fill="none" stroke="var(--ink)" stroke-width="1.2"/>
+      <path d="M490 158 V300 M490 340 V422" stroke="var(--ink)" stroke-width="1.6"/>
+    </g>
+    <!-- kreskowanie ścian (stan: kreskowanie) -->
+    <g class="st on" data-st="hatch">
+      <path d="M230 140H750V440H230Z M248 158V422H732V158Z" fill="url(#p-diag)" fill-rule="evenodd" opacity=".9"/>
+      <path d="M248 158H490V422H248Z" fill="var(--sel)" opacity=".07"/>
+      <path d="M248 158H490V422H248Z" fill="none" stroke="var(--sel)" stroke-width="1.4" stroke-dasharray="5 4"/>
+      <circle cx="370" cy="290" r="3" fill="var(--sel)"/>
+    </g>
+    <!-- bloki w rysunku -->
+    <g id="blocks">
+      <g transform="translate(290 158)"><rect x="0" y="-9" width="90" height="18" fill="var(--paper)" stroke="var(--ink)" stroke-width="1"/><path d="M0 0H90" stroke="var(--ink)" stroke-width=".8"/></g>
+      <g transform="translate(580 158)"><rect x="0" y="-9" width="90" height="18" fill="var(--paper)" stroke="var(--ink)" stroke-width="1"/><path d="M0 0H90" stroke="var(--ink)" stroke-width=".8"/></g>
+      <g transform="translate(560 330)" class="tbl"><rect x="0" y="0" width="90" height="60" rx="3" fill="none" stroke="var(--ink)" stroke-width="1.2"/><g fill="none" stroke="var(--ink)" stroke-width=".9"><rect x="10" y="-12" width="22" height="10" rx="2"/><rect x="56" y="-12" width="22" height="10" rx="2"/><rect x="10" y="62" width="22" height="10" rx="2"/><rect x="56" y="62" width="22" height="10" rx="2"/></g></g>
+    </g>
+    <!-- wstawiany blok za kursorem (stan: lib) -->
+    <g class="st" data-st="lib" opacity=".55" transform="translate(300 300)">
+      <rect x="0" y="0" width="90" height="60" rx="3" fill="none" stroke="var(--ink)" stroke-width="1.2"/><g fill="none" stroke="var(--ink)" stroke-width=".9"><rect x="10" y="-12" width="22" height="10" rx="2"/><rect x="56" y="-12" width="22" height="10" rx="2"/><rect x="10" y="62" width="22" height="10" rx="2"/><rect x="56" y="62" width="22" height="10" rx="2"/></g>
+      <rect x="-5" y="-5" width="10" height="10" fill="none" stroke="var(--snap)" stroke-width="1.6"/>
+    </g>
+    <!-- zaznaczony blok (stan: sel) -->
+    <g class="st" data-st="sel">
+      <rect x="552" y="310" width="106" height="92" fill="var(--sel)" opacity=".08"/>
+      <rect x="552" y="310" width="106" height="92" fill="none" stroke="var(--sel)" stroke-width="1.2" stroke-dasharray="4 3"/>
+      <rect x="556.5" y="326.5" width="7" height="7" fill="var(--paper)" stroke="var(--sel)" stroke-width="1.4"/>
+    </g>
+    <!-- edycja w miejscu: reszta przygaszona (stan: edit) -->
+    <g class="st" data-st="edit">
+      <rect x="0" y="0" width="1000" height="560" fill="var(--paper)" opacity=".72"/>
+      <g transform="translate(560 330)"><rect x="0" y="0" width="90" height="60" rx="3" fill="none" stroke="var(--ink)" stroke-width="1.6"/><g fill="none" stroke="var(--ink)" stroke-width="1.1"><rect x="10" y="-12" width="22" height="10" rx="2"/><rect x="56" y="-12" width="22" height="10" rx="2"/><rect x="10" y="62" width="22" height="10" rx="2"/><rect x="56" y="62" width="22" height="10" rx="2"/><circle cx="45" cy="30" r="12"/></g>
+        <path d="M-6 0h12M0 -6v12" stroke="var(--snap)" stroke-width="1.4"/></g>
+    </g>
+  </svg>
+
+  <!-- KRESKOWANIE -->
+  <div class="st on" data-st="hatch">
+    <div class="toolbar">
+      <span class="t">Kreskowanie</span>
+      <div class="pats" id="pats">
+        <button class="on" title="Ukośne"><svg width="22" height="16"><rect width="22" height="16" fill="url(#p-diag)"/></svg></button>
+        <button title="Krzyżowe"><svg width="22" height="16"><rect width="22" height="16" fill="url(#p-cross)"/></svg></button>
+        <button title="Beton"><svg width="22" height="16"><rect width="22" height="16" fill="url(#p-conc)"/></svg></button>
+        <button title="Izolacja"><svg width="22" height="16"><rect width="22" height="16" fill="url(#p-ins)"/></svg></button>
+        <button title="Grunt"><svg width="22" height="16"><rect width="22" height="16" fill="url(#p-soil)"/></svg></button>
+        <button title="Pełne"><svg width="22" height="16"><rect x="2" y="2" width="18" height="12" rx="1" fill="var(--ink)" opacity=".8"/></svg></button>
+      </div>
+      <span class="lbl" id="patName">Ukośne</span>
+      <span class="fld"><em>Skala</em>1</span>
+      <span class="fld"><em>Kąt</em>45°</span>
+    </div>
+    <div class="hint"><b>Kreskowanie:</b> kliknij wewnątrz zamkniętego obszaru — obrys podświetla się przed kliknięciem. Gęstość jest w milimetrach wydruku, więc w każdej skali wygląda tak samo.</div>
+  </div>
+
+  <!-- BLOKI: WSTAWIANIE -->
+  <div class="st" data-st="lib">
+    <div class="toolbar">
+      <span class="t">Bloki</span>
+      <button class="tbs">Okno 90 ▾</button>
+      <span class="fld"><em>Obrót</em>0°</span>
+      <span class="lbl">klik wstawia · cyfry wpisują obrót</span>
+    </div>
+    <div class="pop" style="left:62px;top:56px">
+      <div class="ttl">Bloki w rysunku</div>
+      <div class="blocks">
+        <div class="blk"><svg viewBox="0 0 80 54"><rect x="15" y="20" width="50" height="12" fill="none" stroke="var(--ink)"/><path d="M15 26H65" stroke="var(--ink)" stroke-width=".7"/></svg><b>Okno 90</b><span>2 w rysunku</span></div>
+        <div class="blk" style="box-shadow:0 0 0 1.5px var(--sel)"><svg viewBox="0 0 80 54"><rect x="22" y="15" width="36" height="24" rx="2" fill="none" stroke="var(--ink)"/><g fill="none" stroke="var(--ink)" stroke-width=".8"><rect x="26" y="9" width="10" height="5"/><rect x="44" y="9" width="10" height="5"/><rect x="26" y="40" width="10" height="5"/><rect x="44" y="40" width="10" height="5"/></g></svg><b>Stół 4 os.</b><span>1 w rysunku</span></div>
+        <div class="blk"><svg viewBox="0 0 80 54"><path d="M25 40V14H55" fill="none" stroke="var(--ink)"/><path d="M25 14A26 26 0 0 1 51 40" fill="none" stroke="var(--ink)" stroke-width=".7" stroke-dasharray="2 2"/></svg><b>Drzwi 80</b><span>nieużywany</span></div>
+      </div>
+      <div class="lbl">Z zaznaczenia: <kbd>K</kbd> → „Utwórz blok”, nazwa i punkt wstawienia.</div>
+    </div>
+    <div class="hint"><b>Wstaw blok:</b> kliknij miejsce (przyciąganie działa), wpisz kąt, żeby obrócić. Esc kończy.</div>
+  </div>
+
+  <!-- ZAZNACZONY BLOK -->
+  <div class="st" data-st="sel">
+    <div class="toolbar" style="left:auto;right:12px">
+      <span class="t">Blok „Stół 4 os.”</span><span class="lbl">1 w rysunku</span>
+      <button class="tbs">Edytuj w miejscu</button>
+      <button class="tbs">Rozbij</button>
+      <button class="tbs">Zamień na… ▾</button>
+    </div>
+    <div class="hint"><b>1 zaznaczone — blok.</b> Dwuklik edytuje w miejscu. Przesuń, obróć, odbij i skaluj działają jak na każdym elemencie.</div>
+  </div>
+
+  <!-- EDYCJA W MIEJSCU -->
+  <div class="st" data-st="edit">
+    <div class="toolbar">
+      <span class="t">Edycja bloku „Stół 4 os.”</span>
+      <span class="lbl">zmiana obejmie wszystkie wstawienia (1)</span>
+      <button class="tbs pri">Gotowe</button>
+      <button class="tbs">Anuluj</button>
+    </div>
+    <div class="hint"><b>Edycja bloku:</b> rysuj i zmieniaj jak zwykle — reszta rysunku jest przygaszona i nie da się jej ruszyć. Krzyżyk to punkt wstawienia. Esc albo „Gotowe” kończy.</div>
+  </div>
+</div>
+
+<div class="legend">
+  <div><b>Kreskowanie (H):</b> pasek z sześcioma wzorami (ukośne, krzyżowe, beton, izolacja, grunt, pełne), skalą i kątem. Klik w zamknięty obszar — także z otworami (ściana między dwoma obrysami). Kreskowanie leży na bieżącej warstwie, kolor z warstwy.</div>
+  <div><b>Bloki (K):</b> z zaznaczeniem K tworzy blok (nazwa + klik punktu wstawienia, zaznaczone elementy stają się jednym wstawieniem). Bez zaznaczenia K otwiera bloki w rysunku z miniaturami; klik wybiera, kolejne kliknięcia wstawiają.</div>
+  <div><b>Zaznaczony blok:</b> pasek z Edytuj w miejscu, Rozbij (z powrotem zwykłe linie) i Zamień na inny blok. Wszystkie zwykłe polecenia (W, E, R, ⇧E, S) działają na bloku.</div>
+  <div><b>Bez:</b> atrybutów, bloków dynamicznych, osobnego okna „menedżer bloków” — tylko ten mały wybór. DXF przenosi bloki i kreskowania w obie strony.</div>
+</div>
+
+<script>
+const names = ['Ukośne','Krzyżowe','Beton','Izolacja','Grunt','Pełne'];
+document.getElementById('pats').onclick = e => { const b = e.target.closest('button'); if (!b) return; [...e.currentTarget.children].forEach((x, i) => { x.classList.toggle('on', x === b); if (x === b) document.getElementById('patName').textContent = names[i]; }); };
+document.getElementById('tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); document.querySelectorAll('.st').forEach(x => x.classList.toggle('on', x.dataset.st === b.dataset.s)); };
+document.getElementById('theme').onclick = e => { const b = e.target.closest('button'); if (!b) return; document.documentElement.dataset.theme = b.dataset.t; document.querySelectorAll('#theme button').forEach(x => x.classList.toggle('on', x === b)); };
+</script>
+</body>
+</html>
