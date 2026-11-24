@@ -180,6 +180,8 @@ export function makeTools(app) {
       return true;
     },
     preview() { const pts = this.cur && this.pts.length ? [...this.pts, this.cur] : this.pts; return pts.length > 1 ? [{ t: 'pline', pts, closed: false, ...app.newStroke() }] : []; },
+    // już wskazane punkty i odcinki rysowanej polilinii też przyciągają (koniec, środek, przecięcie, kierunki)
+    snapEnts() { return this.pts.length > 1 ? [{ t: 'pline', id: -1, pts: this.pts, closed: false }] : []; },
     enter() { return this.pts.length ? this.finish(false) : false; },
     cancel() { return this.enter(); }
   };
@@ -226,7 +228,7 @@ export function makeTools(app) {
     cancel() { if (this.c) { this.c = null; return true; } return false; }
   };
 
-  /* ---------- łuk (B): przez trzy punkty; ⇧B albo Tab — ze środka ---------- */
+  /* ---------- łuk (B): przez trzy punkty; ⇧B albo drugie B — ze środka ---------- */
   T.arc = {
     id: 'arc', draw: true, mode: '3p', pts: [], cur: null,
     base() { return this.mode === 'c' ? (this.pts[0] || null) : (this.pts[this.pts.length - 1] || null); },
@@ -237,10 +239,11 @@ export function makeTools(app) {
       const a = arcCSE(this.pts[0], this.pts[1], this.cur); return a ? fmtDeg(sweep(a.a0, a.a1)) : null;
     },
     hint() {
-      const sw = _t('Tab zmienia sposób.');
+      const sw = _t`${app.againName('arc')} jeszcze raz zmienia sposób.`;
       if (this.mode === 'c') return [_t('<b>Łuk ze środka:</b> kliknij środek.'), _t('<b>Łuk ze środka:</b> kliknij początek albo wpisz promień.'), _t('<b>Łuk ze środka:</b> kliknij koniec albo wpisz kąt w stopniach (ujemny — zgodnie ze wskazówkami zegara).')][this.pts.length] + ' ' + sw;
       return [_t('<b>Łuk przez trzy punkty:</b> kliknij początek.'), _t('<b>Łuk przez trzy punkty:</b> kliknij punkt na łuku.'), _t('<b>Łuk przez trzy punkty:</b> kliknij koniec.')][this.pts.length] + ' ' + sw;
     },
+    badge() { return this.mode === 'c' ? _t('Łuk ze środka') : _t('Łuk przez trzy punkty'); },
     toggle() { this.mode = this.mode === 'c' ? '3p' : 'c'; this.pts = []; },
     down(p) {
       if (this.pts.length && V.dist(this.pts[this.pts.length - 1], p) < 1e-9) return;
@@ -488,17 +491,18 @@ export function makeTools(app) {
   };
 
   /* ---------- wymiar (U): dwa punkty i miejsce linii, potem łańcuch ---------- */
-  // kierunek: 'auto' wybiera poziomo / pionowo po położeniu kursora; Tab przełącza auto → poziomo → pionowo → równolegle
+  // kierunek: 'auto' wybiera poziomo / pionowo po położeniu kursora; drugie naciśnięcie U przełącza auto → poziomo → pionowo → równolegle
   T.dim = {
     id: 'dim', draw: true, a: null, b: null, chain: null, cur: null, mode: 'auto',
     base() { return this.chain ? this.chain.b : this.b || this.a; },
     label: () => null, reading() { const e = this.previewDim(); return e ? fmtLength(dimGeom(e).value) : null; },
     hint() {
       const m = { auto: _t('sam'), h: _t('poziomo'), v: _t('pionowo'), a: _t('równolegle') }[this.mode];
-      if (this.chain) return _t`<b>Wymiar:</b> kliknij kolejny punkt — łańcuch ciągnie się dalej. Esc kończy. Kierunek: ${m} (Tab).`;
-      if (this.b) return _t`<b>Wymiar:</b> kliknij miejsce linii wymiarowej. Kierunek: ${m} (Tab).`;
+      if (this.chain) return _t`<b>Wymiar:</b> kliknij kolejny punkt — łańcuch ciągnie się dalej. Esc kończy. Kierunek: ${m} (${app.againName('dim')} jeszcze raz zmienia).`;
+      if (this.b) return _t`<b>Wymiar:</b> kliknij miejsce linii wymiarowej. Kierunek: ${m} (${app.againName('dim')} jeszcze raz zmienia).`;
       return this.a ? _t('<b>Wymiar:</b> kliknij drugi punkt.') : _t('<b>Wymiar:</b> kliknij pierwszy punkt.');
     },
+    badge() { return _t('Wymiar') + ' · ' + { auto: _t('kierunek sam'), h: _t('poziomo'), v: _t('pionowo'), a: _t('równolegle') }[this.mode]; },
     dirFor(a, b, o) {
       if (this.mode !== 'auto') return this.mode;
       const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);

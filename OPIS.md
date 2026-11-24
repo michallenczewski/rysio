@@ -66,6 +66,7 @@ Prosty tekst i podstawowe wymiary (liniowy, łańcuch) są potrzebne, żeby arku
 - Ten sam język wizualny co Modo i Gapa: jasny papier, spokojne ikony, mało ramek, tryb ciemny.
 - Lewy pasek narzędzi (jak w Modo), u góry pasek kresek i warstwa, u dołu podpowiedź, pole wymiaru, skala, zakładki arkuszy.
 - Skróty w moim układzie (jak w Modo): Q zaznacz, W przesuń, E obróć, R skaluj, A linia, S gumka/usuń, D prostokąt, Z pokaż wszystko. Dla pozostałych narzędzi zaproponuj klawisze pod lewą rękę.
+- Tryb minimalny (Tab): sama kartka i mała plakietka z narzędziem, warstwą i kreską; wymiar wpisywany przy kursorze.
 - Opisy skrótów zgodne dla Maca (⌘/⌥) i Windows (Ctrl/Alt).
 
 ## Technika

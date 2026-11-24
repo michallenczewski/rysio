@@ -206,3 +206,27 @@ header button,header .seg,header input{-webkit-app-region:no-drag}
 .toolbar .pick{height:28px;padding:0 10px;border-radius:7px;color:var(--muted);font-size:12px}
 .toolbar .pick:hover{background:var(--soft);color:var(--text)}
 .toolbar .pick.on{background:var(--ink);color:var(--card)}
+
+/* --- tryb minimalny (Tab): sama kartka --- */
+body.mini{grid-template-columns:0 minmax(0,1fr);grid-template-rows:0 minmax(0,1fr) 0}
+body.mini header,body.mini #tools,body.mini #status{visibility:hidden;overflow:hidden}
+body.mini #view{margin:0;border-radius:0;box-shadow:none}
+#miniBadge{position:absolute;z-index:6;left:12px;top:10px;display:none;align-items:center;gap:2px;height:34px;padding:0 4px;border-radius:9px;background:var(--card);box-shadow:var(--menush);font-size:12px;opacity:.94}
+.frame-mac #miniBadge{left:86px}
+.fs.frame-mac #miniBadge{left:12px}
+body.mini #miniBadge{display:flex}
+#miniBadge > span{height:26px;padding:0 8px;border-radius:6px;display:flex;align-items:center;gap:7px;white-space:nowrap}
+#miniBadge .click{cursor:pointer}
+#miniBadge .click:hover{background:var(--soft)}
+#miniBadge .t{font-weight:500}
+#miniBadge .sep{width:1px;height:14px;background:var(--line);padding:0}
+#miniBadge .sub{color:var(--muted)}
+#miniBadge svg{flex:none}
+#miniExit{position:absolute;z-index:5;right:12px;bottom:10px;display:none;gap:6px;align-items:center;font-size:11px;color:var(--muted);pointer-events:none}
+body.mini #miniExit{display:flex}
+body.mini .toolbar{top:52px}
+.reading.typed{gap:6px;height:22px}
+.reading.typed em{font-style:normal;color:var(--muted)}
+.reading.typed u{text-decoration:none;border-right:1.5px solid var(--sel);padding-right:1px}
+#miniBadge{-webkit-app-region:drag}
+#miniBadge .click{-webkit-app-region:no-drag}

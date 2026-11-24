@@ -4,10 +4,11 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 
 ## Co już potrafi (etap 1)
 
-- Rysowanie: linia (A), polilinia (F), prostokąt (D), okrąg (V), łuk przez trzy punkty (B) i ze środka (⇧B; Tab przełącza sposób).
+- Rysowanie: linia (A), polilinia (F), prostokąt (D), okrąg (V), łuk przez trzy punkty (B) i ze środka (⇧B; drugie naciśnięcie B przełącza sposób).
 - Zmienianie: zaznacz (Q) — klik, ⇧ + klik, ramka w prawo (całe w ramce) i w lewo (wszystko, czego dotknie); przesuń (W), kopiuj (C), usuń (S albo Delete), cofnij i ponów.
 - Pędzel (M): przemalowuje istniejące linie tym, co jest w pastylkach u góry — kreskę, warstwę albo jedno i drugie — kliknięciem albo przeciągnięciem przez kilka naraz; przycisk „Pipeta” na pasku pędzla (albo ⌥ + klik na Macu, Ctrl + klik w Windows) bierze kreskę i warstwę z innej linii, a potem pędzel nadaje je kolejnym.
 - Przyciąganie z czytelnym znaczkiem i podpisem: koniec, środek, przecięcie, prostopadle, środek okręgu, styczna, najbliższy.
+- Tryb minimalny (Tab): znikają paski, zostaje kartka i plakietka w rogu z narzędziem, warstwą i kreską (kliknięcie otwiera wybór); wpisywany wymiar pokazuje się przy kursorze. Tab wraca do pełnego widoku, program pamięta wybór.
 - Siatka (I albo przełącznik na dole): wyłączona → kropki → linie; oczka co 1 cm … 10 m zależnie od przybliżenia, co dziesiąte wyraźniejsze; rysowanie przyciąga do węzłów. Tylko w modelu, nie trafia na wydruk.
 - Uchwyty: zaznaczone elementy mają kwadraciki na końcach, wierzchołkach, środkach i kwadrantach — przeciągnij albo kliknij i kliknij nowe miejsce (z przyciąganiem). Środek linii i środek okręgu przesuwają cały element.
 - Kierunki: poziom i pion od punktu, równolegle i prostopadle do linii, przy której był kursor, śledzenie od punktów; ⇧ trzyma kierunek; przełącznik „Kąty proste”.
@@ -21,7 +22,7 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 
 - Zakładki na dole: Model i dowolna liczba arkuszy (+). Arkusz ma format A4–A0, poziomo albo pionowo, i ramkę z tabelką; nazwę, format i ramkę zmienia przycisk formatu na dole, a pola tabelki — przycisk „Tabelka” (projekt, projektant i data są wspólne dla wszystkich arkuszy, rysunek i numer — osobne).
 - Okno (O) pokazuje fragment modelu w swojej skali; pasek nad zaznaczonym oknem zmienia skalę, ukrywa warstwy tylko w tym oknie i blokuje widok. Dwuklik w okno pozwala przesunąć w nim model.
-- Tekst (Y) i wymiar (U) w modelu i na arkuszu; wysokość w milimetrach wydruku, taka sama w każdym oknie i skali. Wymiar: dwa punkty i miejsce linii, potem łańcuch; Tab — poziomo, pionowo albo równolegle.
+- Tekst (Y) i wymiar (U) w modelu i na arkuszu; wysokość w milimetrach wydruku, taka sama w każdym oknie i skali. Wymiar: dwa punkty i miejsce linii, potem łańcuch; drugie naciśnięcie U — poziomo, pionowo albo równolegle.
 - Eksport (⌘P / Ctrl+P): wektorowy PDF w skali (ten arkusz albo wszystkie w jednym pliku, czarno-biały albo w kolorach warstw) i PNG 200 dpi.
 
 ## Zmienianie (etap 3)

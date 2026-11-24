@@ -66,6 +66,7 @@ for (const [id, n] of [['#undoBtn', 'undo'], ['#redoBtn', 'redo'], ['#thinBtn', 
 const app = {
   isMac, altName: isMac ? '⌥' : 'Ctrl', shiftName: isMac ? '⇧' : 'Shift', bsName: isMac ? '⌫' : 'Backspace',
   doc: newDoc(), sel: new Set(),
+  mini: (() => { try { return localStorage.getItem('rysio.mini') === '1'; } catch (e) { return false; } })(),
   thin: false, ortho: false, grid: (() => { try { const g = localStorage.getItem('rysio.grid'); return ['dots', 'lines'].includes(g) ? g : null; } catch (e) { return null; } })(),
   space: 0,                       // 0 — model, liczba — numer arkusza
   textH: 3.5, textAlign: 'l',     // wysokość (mm wydruku) i wyrównanie nowego tekstu
@@ -113,6 +114,8 @@ app.pick = (p, { locked = false } = {}) => {
 app.selectionChanged = () => { refreshUi(); redraw(); };
 // opis skrótu polecenia w bieżącym układzie (do podpowiedzi)
 app.keyName = id => { const k = keysFor(id, app.keys.over)[0]; return k ? prettyCombo(k, isMac) : ''; };
+// „X jeszcze raz” albo, gdy skrót skasowany, „przycisk narzędzia jeszcze raz”
+app.againName = id => app.keyName(id) || _t('przycisk narzędzia');
 app.refreshUi = () => refreshUi();
 // przestrzeń, której dotyczyła zmiana (pierwszy element w zapisie); null — zmiana nie dotyczyła elementów
 function spaceOfOps(ops = []) {
@@ -145,7 +148,7 @@ for (const id of TOOLBAR) {
   const a = ACTIONS.find(x => x.id === id), later = !!a.later;
   const b = document.createElement('button');
   b.className = 'ib' + (later ? ' later' : ''); b.dataset.tool = id; b.innerHTML = ic(id);
-  const name = id === 'arc' ? _t`Łuk (${app.shiftName} + klik — ze środka; Tab przełącza)` : a.name;
+  const name = id === 'arc' ? _t`Łuk (${app.shiftName} + klik — ze środka; drugie kliknięcie albo drugie B przełącza)` : a.name;
   b.setAttribute('aria-label', name); b.dataset.tip = name + (later ? _t(' — w kolejnej wersji') : ''); b.dataset.act = id;
   b.addEventListener('click', e => runAction(id === 'arc' && e.shiftKey ? 'arcC' : id));
   toolsEl.append(b);
@@ -174,7 +177,8 @@ app.cursorClass = () => { $('#view').className = tool.draw ? 'c-draw' : ''; };
 function runAction(id) {
   const a = ACTIONS.find(x => x.id === id);
   if (a && a.later) return toast(_t`${a.name} — w kolejnej wersji.`);
-  if (app.tools[id]) return setTool(id);
+  // ponowne naciśnięcie klawisza narzędzia zmienia jego sposób (łuk: trzy punkty / ze środka, wymiar: kierunek)
+  if (app.tools[id]) { if (tool.id === id && tool.toggle) { tool.toggle(); refreshUi(); redraw(); return; } return setTool(id); }
   switch (id) {
     case 'arcC': return setTool('arc', { arcMode: 'c' });
     case 'undo': { if (tool.undoInTool?.()) { refreshUi(); redraw(); return; } const l = app.hist.undo(); if (l) toast(_t`Cofnięto: ${l}`, 1200); return; }
@@ -185,6 +189,7 @@ function runAction(id) {
     case 'thin': app.thin = !app.thin; $('#thinBtn').setAttribute('aria-pressed', app.thin); redraw(); return;
     case 'ortho': app.ortho = !app.ortho; refreshUi(); return;
     case 'snapToggle': app.snapper.enabled = !app.snapper.enabled; refreshUi(); return;
+    case 'mini': return setMini(!app.mini);
     case 'grid': { const order = [null, 'dots', 'lines']; app.grid = order[(order.indexOf(app.grid) + 1) % 3]; try { localStorage.setItem('rysio.grid', app.grid || ''); } catch (e) {} if (app.grid && app.sheet()) toast(_t('Siatka jest tylko w modelu — na arkuszu jej nie ma.'), 1800); refreshUi(); redraw(); return; }
     case 'theme': { const order = ['auto', 'light', 'dark']; setTheme(order[(order.indexOf(themePref) + 1) % 3]); toast({ auto: _t('Wygląd automatyczny'), light: _t('Wygląd jasny'), dark: _t('Wygląd ciemny') }[themePref], 1200); return; }
     case 'new': return fileNew();
@@ -206,7 +211,7 @@ function updateCursor(sx, sy, e) {
   cursorScreen = [sx, sy];
   const raw = app.view.toModel(sx, sy);
   if (tool.draw) {
-    const shown = app.ents().filter(x => isShown(app.doc, x) && x.t !== 'text' && x.id !== app.hideEnt && x.id !== app.dragEnt);
+    const shown = app.ents().filter(x => isShown(app.doc, x) && x.t !== 'text' && x.id !== app.hideEnt && x.id !== app.dragEnt).concat(tool.snapEnts?.() || []);
     snapRes = app.snapper.find(raw, { tol: app.tol(), ents: shown, base: tool.base(), lockDir, ortho: app.ortho, noSnap: false, grid: app.grid && !app.sheet() ? gridStep(app.view.ppm) : 0 });
     cursorModel = snapRes.p; hoverEnt = null;
   } else {
@@ -309,8 +314,6 @@ window.addEventListener('keydown', e => {
     refreshUi(); redraw(); return;
   }
   if (e.key === 'Enter') { if (tool.enter()) { refreshUi(); redraw(); } return; }
-  if (e.key === 'Tab' && tool.id === 'dim') { e.preventDefault(); tool.toggle(); refreshUi(); redraw(); return; }
-  if (e.key === 'Tab' && tool.id === 'arc') { e.preventDefault(); tool.toggle(); refreshUi(); redraw(); return; }
   if (e.key === 'Backspace' && plain && tool.backspace?.()) { e.preventDefault(); refreshUi(); redraw(); return; }
   if (e.key === ' ' && plain) { spaceDown = true; view.classList.add('c-grab'); e.preventDefault(); return; }
   // ⇧ trzyma kierunek od punktu bazowego
@@ -319,6 +322,7 @@ window.addEventListener('keydown', e => {
     return;
   }
   const c = comboOf(e, isMac); if (!c) return;
+  if (e.key === 'Tab') e.preventDefault();   // Tab nie przenosi fokusu po przyciskach
   const id = app.keys.map.get(c);
   if (id) { e.preventDefault(); runAction(id); }
 });
@@ -355,9 +359,14 @@ function showSnapLabel() {
 function showReading() {
   let el = $('#reading');
   const r = cursorScreen && tool.reading ? tool.reading() : null;
-  if (!r || typing !== null) { el?.remove(); } else {
+  // w trybie minimalnym pole wymiaru jest przy kursorze: wpisywana wartość pokazuje się tam, gdzie patrzysz
+  const typed = app.mini && typing !== null;
+  if (!typed && (!r || typing !== null)) { el?.remove(); } else {
     if (!el) { el = document.createElement('div'); el.id = 'reading'; el.className = 'reading'; view.append(el); }
-    el.textContent = r; el.style.left = (cursorScreen[0] + 16) + 'px'; el.style.top = (cursorScreen[1] - 30) + 'px';
+    if (typed) el.innerHTML = `<em>${esc(tool.label() || '')}</em><u>${esc(typing)}</u>`; else el.textContent = r;
+    el.classList.toggle('typed', !!typed);
+    const at = cursorScreen || [view.clientWidth / 2 - 40, view.clientHeight - 30];
+    el.style.left = (at[0] + 16) + 'px'; el.style.top = (at[1] - 30) + 'px';
   }
   if (typing === null) $('#vcb').textContent = r || '';
 }
@@ -371,7 +380,8 @@ function refreshUi() {
   const vcb = $('#vcb');
   vcb.classList.toggle('typing', typing !== null);
   if (typing !== null) vcb.textContent = typing; else vcb.textContent = tool.reading?.() || '';
-  if (typing !== null) $('#reading')?.remove();
+  if (typing !== null && !app.mini) $('#reading')?.remove();
+  if (app.mini) showReading();
   $('#undoBtn').disabled = !app.hist.canUndo; $('#redoBtn').disabled = !app.hist.canRedo;
   $('#snapChip').classList.toggle('off', !app.snapper.enabled);
   $('#orthoChip').classList.toggle('off', !app.ortho);
@@ -385,6 +395,7 @@ function refreshUi() {
   renderPills();
   if (tool.id === 'brush') showBrushBar();
   if (tool.id === 'trim') showTrimBar();
+  if (app.mini) renderBadge();
   if (!$('#layersPop').hidden) renderLayersPop();
   if (!$('#strokePop').hidden) renderStrokePop();
 }
@@ -518,7 +529,7 @@ $('#strokePop').addEventListener('click', e => {
   else if (s.kind === 'sel') { const ids = s.si.ents.map(e => e.id); app.edit(_t('Kreska'), tx => ids.forEach(id => tx.set(id, patch))); }
   else { app.edit(_t('Kreska'), tx => tx.setDoc({ cur: { ...d.cur, ...patch } })); refreshUi(); }
 });
-document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop, .menu, .pill, #status .unit, #status .chip, #fileBtn, #setBtn, #pdfBtn, .toolbar')) closePops(); });
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop, .menu, .pill, #miniBadge, #status .unit, #status .chip, #fileBtn, #setBtn, #pdfBtn, .toolbar')) closePops(); });
 
 /* ---------- pasek pędzla ---------- */
 function showBrushBar() {
@@ -536,6 +547,39 @@ function showBrushBar() {
   $('#layerPill').classList.toggle('src', br.mode !== 'stroke'); $('#strokePill').classList.toggle('src', br.mode !== 'layer');
 }
 function hideBrushBar() { $('#brushBar')?.remove(); $('#layerPill').classList.remove('src'); $('#strokePill').classList.remove('src'); }
+
+/* ---------- tryb minimalny (Tab): sama kartka, plakietka z narzędziem, warstwą i kreską ---------- */
+function setMini(on) {
+  app.mini = on; document.body.classList.toggle('mini', on);
+  try { localStorage.setItem('rysio.mini', on ? '1' : ''); } catch (e) {}
+  closePops();
+  if (!on) { $('#miniBadge')?.remove(); $('#miniExit')?.remove(); }
+  refreshUi(); redraw();
+}
+function renderBadge() {
+  let el = $('#miniBadge');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'miniBadge'; view.append(el);
+    el.addEventListener('pointerdown', e => e.stopPropagation());
+    el.addEventListener('click', e => {
+      if (e.target.closest('[data-space]')) { const ids = [0, ...app.doc.sheets.map(s => s.id)]; setSpace(ids[(ids.indexOf(app.space) + 1) % ids.length]); refreshUi(); redraw(); return; }
+      const b = e.target.closest('[data-open]'); if (!b) return;
+      e.stopPropagation();
+      const pop = b.dataset.open === 'layer' ? $('#layersPop') : $('#strokePop'), was = !pop.hidden && (b.dataset.open === 'layer' || strokeTarget === 'auto');
+      closePops(); if (was) return;
+      if (b.dataset.open === 'layer') renderLayersPop(); else { strokeTarget = 'auto'; renderStrokePop(); }
+      placePop(pop, b);
+    });
+    const x = document.createElement('div'); x.id = 'miniExit'; view.append(x);
+  }
+  const k = app.keyName('mini');
+  $('#miniExit').innerHTML = k ? `<kbd>${esc(k)}</kbd> ${_t('pełny widok')}` : _t('pełny widok: Widok → Tryb minimalny');
+  const name = tool.badge?.() || (ACTIONS.find(a => a.id === tool.id) || {}).name || '';
+  const spName = app.space ? (app.sheet()?.name || _t('Arkusz')) : _t('Model');
+  el.innerHTML = `<span class="click" data-space title="${_t('Następna zakładka')}">${esc(spName)}</span><span class="sep"></span><span class="t">${esc(name)}</span><span class="sep"></span>
+    <span class="click" data-open="layer">${$('#layerPill').innerHTML}</span>
+    <span class="click" data-open="stroke">${$('#strokePill').innerHTML}</span>`;
+}
 
 /* ---------- pasek przycinania ---------- */
 function showTrimBar() {
@@ -868,7 +912,7 @@ function showVpBar() {
   if (el._html !== html) { el.innerHTML = html; el._html = html; }
   const b = vpBox(vp), a = app.view.toScreen([b[0], b[3]]);
   el.style.left = Math.max(8, Math.min(a[0], view.clientWidth - el.offsetWidth - 8)) + 'px';
-  el.style.top = Math.max(8, a[1] - 48) + 'px';
+  el.style.top = Math.max(app.mini ? 52 : 8, a[1] - 48) + 'px';
 }
 function onVpBar(e) {
   e.stopPropagation();
@@ -1015,6 +1059,7 @@ app.toast = toast;
 installTestApi(app, { loadDoc, setSpace, frame: () => frame(), getSnap: () => snapRes, getTool: () => tool, updateCursor, setTyping: v => { typing = v; refreshUi(); }, submitTyping });
 setFile(null, null);
 syncSpace(); renderTabs();
+if (app.mini) document.body.classList.add('mini');
 setTool('select');
 refreshUi();
 app.view.fit(null);

@@ -34,6 +34,7 @@ export const ACTIONS = [
   { group: _t('Widok'), id: 'extents', name: _t('Pokaż wszystko'), keys: ['Z'] },
   { group: _t('Widok'), id: 'thin', name: _t('Cienkie linie'), keys: [] },
   { group: _t('Widok'), id: 'ortho', name: _t('Tylko kąty proste'), keys: [] },
+  { group: _t('Widok'), id: 'mini', name: _t('Tryb minimalny — sama kartka'), keys: ['Tab'] },
   { group: _t('Widok'), id: 'grid', name: _t('Siatka: wyłączona / kropki / linie'), keys: ['I'] },
   { group: _t('Widok'), id: 'snapToggle', name: _t('Przyciąganie włącz / wyłącz'), keys: [] },
   { group: _t('Widok'), id: 'theme', name: _t('Wygląd: automatyczny / jasny / ciemny'), keys: ['Mod+Shift+D'] },
