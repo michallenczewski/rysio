@@ -6,7 +6,7 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 
 - Rysowanie: linia (A), polilinia (F), prostokąt (D), okrąg (V), łuk przez trzy punkty (B) i ze środka (⇧B; Tab przełącza sposób).
 - Zmienianie: zaznacz (Q) — klik, ⇧ + klik, ramka w prawo (całe w ramce) i w lewo (wszystko, czego dotknie); przesuń (W), kopiuj (C), usuń (S albo Delete), cofnij i ponów.
-- Pędzel (M): przemalowuje istniejące linie — kreskę, warstwę albo jedno i drugie — kliknięciem albo przeciągnięciem przez kilka naraz; ⌥ + klik na Macu (Ctrl + klik w Windows) pobiera kreskę i warstwę z linii.
+- Pędzel (M): przemalowuje istniejące linie tym, co jest w pastylkach u góry — kreskę, warstwę albo jedno i drugie — kliknięciem albo przeciągnięciem przez kilka naraz; ⌥ + klik na Macu (Ctrl + klik w Windows) to pipeta: przepisuje kreskę i warstwę linii do pastylek.
 - Przyciąganie z czytelnym znaczkiem i podpisem: koniec, środek, przecięcie, prostopadle, środek okręgu, styczna, najbliższy.
 - Kierunki: poziom i pion od punktu, równolegle i prostopadle do linii, przy której był kursor, śledzenie od punktów; ⇧ trzyma kierunek; przełącznik „Kąty proste”.
 - Wymiary wpisywane w trakcie: długość, `szer;wys` dla prostokąta, promień, kąt łuku; liczba bez jednostki jest w jednostce rysunku (m, cm, mm).

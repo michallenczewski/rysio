@@ -59,6 +59,7 @@ header button,header .seg,header input{-webkit-app-region:no-drag}
 .pill .sub{color:var(--muted);font-size:12px}
 .pill .selc{color:var(--sel);font-size:12px}
 .pill svg.chev{color:var(--muted);flex:none}
+.pill.src{box-shadow:0 0 0 1.5px var(--snap) inset}
 
 /* --- narzędzia --- */
 #tools{grid-column:1;grid-row:2/4;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0 12px;overflow:hidden}

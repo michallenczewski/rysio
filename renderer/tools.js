@@ -64,15 +64,16 @@ export function makeTools(app) {
 
   /* ---------- pędzel (M): przemalowuje kreskę i/lub warstwę ---------- */
   T.brush = {
-    id: 'brush', draw: false, path: null, done: new Set(), mode: 'both', carry: null,
+    // Pędzel maluje dokładnie tym, co jest w pastylkach u góry (doc.cur) — jedno źródło prawdy.
+    // ⌥ + klik (Ctrl w Windows) to pipeta: przepisuje kreskę i warstwę linii do pastylek.
+    id: 'brush', draw: false, path: null, done: new Set(), mode: 'both',
     base: () => null, label: () => null, reading: () => null,
-    hint() { return _t`<b>Pędzel:</b> klikaj linie albo przeciągnij przez kilka naraz. ${app.altName} + klik pobiera kreskę i warstwę z linii.`; },
+    hint() { return _t`<b>Pędzel:</b> maluje kreską i warstwą z pastylek u góry — klikaj linie albo przeciągnij przez kilka naraz. ${app.altName} + klik w linię przepisuje jej kreskę i warstwę do pastylek.`; },
     // co niesie pędzel: domyślnie bieżąca warstwa i kreska
-    start() { this.carry = null; },
-    getCarry() { if (!this.carry) { const c = app.doc.cur; this.carry = { layer: c.layer, w: c.w, lt: c.lt }; } if (!app.doc.layers.some(L => L.id === this.carry.layer)) this.carry.layer = app.doc.cur.layer; return this.carry; },
+    getCarry() { const c = app.doc.cur; return { layer: c.layer, w: c.w, lt: c.lt }; },
     patch() { const c = this.getCarry(), p = {}; if (this.mode !== 'layer') { p.w = c.w; p.lt = c.lt; } if (this.mode !== 'stroke') p.layer = c.layer; return p; },
     down(p, e) {
-      if (app.altKey(e)) { const s = app.pick(p, { locked: true }); if (s) { this.carry = { layer: s.layer, w: s.w, lt: s.lt }; app.refreshUi(); } return; }
+      if (app.altKey(e)) { const s = app.pick(p, { locked: true }); if (s) { app.edit(_t('Pipeta'), tx => tx.setDoc({ cur: { layer: s.layer, w: s.w ?? null, lt: s.lt ?? null } })); app.toast(_t('Kreska i warstwa linii są teraz w pastylkach u góry — pędzel nimi maluje.'), 2200); } return; }
       this.path = [p]; this.done = new Set(); const s = app.pick(p); if (s) this.done.add(s.id);
     },
     move(p) {

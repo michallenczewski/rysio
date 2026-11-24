@@ -33,7 +33,7 @@ Pomoc w rysowaniu:
 ## Grubości i rodzaje linii — ma być łatwo
 
 - U góry dwie pastylki: warstwa i kreska. Kreska otwiera wybór: grubości pokazane jako prawdziwe kreski (0,13 · 0,18 · 0,25 · 0,35 · 0,5 · 0,7 mm) i rodzaje (ciągła, kreskowa, osiowa, punktowa). Wybór dotyczy następnych elementów albo zaznaczenia. Z zaznaczeniem pastylka warstwy przenosi je na wybraną warstwę.
-- Pędzel (M): przemalowuje istniejące linie kliknięciem albo przeciągnięciem przez kilka naraz — kreskę, warstwę albo jedno i drugie; ⌥ + klik na Macu (Ctrl + klik w Windows, jak kopia w Modo) pobiera kreskę z linii.
+- Pędzel (M): przemalowuje istniejące linie kliknięciem albo przeciągnięciem przez kilka naraz — kreskę, warstwę albo jedno i drugie — tym, co jest w pastylkach u góry (pastylki dostają obwódkę). ⌥ + klik na Macu (Ctrl + klik w Windows) to pipeta: przepisuje kreskę i warstwę linii do pastylek.
 - Cyfry zawsze służą do wpisywania wartości (długość, `szer;wys`, promień, kąt) — nie zmieniają grubości.
 - Kreska może być „jak warstwa” albo ustawiona osobno na elemencie.
 - Na ekranie linie mają taką grubość jak na papierze w wybranej skali (z przełącznikiem „cienkie linie” do precyzyjnej pracy).

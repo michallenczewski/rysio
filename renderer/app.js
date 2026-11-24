@@ -446,7 +446,7 @@ $('#layersPop').addEventListener('click', e => {
     const L = app.edit(_t('Nowa warstwa'), tx => { const L = tx.addLayer({ name: _t`Warstwa ${n}`, color: LAYER_COLORS[(n - 1) % LAYER_COLORS.length] }); tx.setDoc({ cur: { ...d.cur, layer: L.id } }); return L; });
     renaming = L.id; renderLayersPop(); return;
   }
-  if (t.dataset.pick && !t.querySelector('input')) { app.edit(_t('Bieżąca warstwa'), tx => tx.setDoc({ cur: { ...d.cur, layer: num('pick') } })); app.tools.brush.carry = null; refreshUi(); return; }
+  if (t.dataset.pick && !t.querySelector('input')) { app.edit(_t('Bieżąca warstwa'), tx => tx.setDoc({ cur: { ...d.cur, layer: num('pick') } })); refreshUi(); return; }
   if (t.dataset.color) { colorFor = colorFor === num('color') ? null : num('color'); renderLayersPop(); return; }
   if (t.dataset.setcolor) { const id = +t.dataset.for; colorFor = null; app.edit(_t('Kolor warstwy'), tx => tx.setLayer(id, { color: t.dataset.setcolor })); return; }
   if (t.dataset.vis) { const L = d.layers.find(x => x.id === num('vis')); app.edit(L.visible ? _t('Ukryj warstwę') : _t('Pokaż warstwę'), tx => tx.setLayer(L.id, { visible: !L.visible })); if (!L.visible && L.id === d.cur.layer) toast(_t('Bieżąca warstwa jest ukryta — nowe elementy nie będą widoczne.')); pruneSel(); return; }
@@ -507,7 +507,7 @@ $('#strokePop').addEventListener('click', e => {
   if (!patch) return;
   if (s.kind === 'layer') app.edit(_t('Kreska warstwy'), tx => tx.setLayer(s.L.id, patch));
   else if (s.kind === 'sel') { const ids = s.si.ents.map(e => e.id); app.edit(_t('Kreska'), tx => ids.forEach(id => tx.set(id, patch))); }
-  else { app.edit(_t('Kreska'), tx => tx.setDoc({ cur: { ...d.cur, ...patch } })); app.tools.brush.carry = null; refreshUi(); }
+  else { app.edit(_t('Kreska'), tx => tx.setDoc({ cur: { ...d.cur, ...patch } })); refreshUi(); }
 });
 document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop, .menu, .pill, #status .unit, #status .chip, #fileBtn, #setBtn, #pdfBtn, .toolbar')) closePops(); });
 
@@ -519,10 +519,14 @@ function showBrushBar() {
   const w = c.w ?? L.w, lt = c.lt ?? L.lt;
   el.innerHTML = `<span class="t">${_t('Pędzel')}</span>
     <div class="seg">${[['both', _t('Kreska i warstwa')], ['stroke', _t('Tylko kreska')], ['layer', _t('Tylko warstwa')]].map(([m, n]) => `<button data-mode="${m}" class="${br.mode === m ? 'on' : ''}">${n}</button>`).join('')}</div>
-    <div class="smp">${sample(w, lt, 30)}<span>${wtxt(w)} ${LTYPES[lt].name}${c.w === null && c.lt === null ? ' <span class="lbl">(' + _t('jak warstwa') + ')</span>' : ''}</span><span class="lbl">·</span><i style="background:${L.color === '#1a1a19' ? 'var(--ink)' : L.color}"></i><span translate="no">${esc(L.name)}</span></div>
-    <span class="lbl" style="padding:0 6px"><kbd>${app.altName}</kbd> + ${_t('klik — pobierz z linii')}</span>`;
+    <span class="lbl">${_t('Maluje:')}</span>
+    <div class="smp">${br.mode !== 'stroke' ? `<i style="background:${L.color === '#1a1a19' ? 'var(--ink)' : L.color}"></i><span translate="no">${esc(L.name)}</span>` : ''}${br.mode === 'both' ? '<span class="lbl">·</span>' : ''}${br.mode !== 'layer' ? `${sample(w, lt, 30)}<span>${wtxt(w)} ${LTYPES[lt].name}${c.w === null && c.lt === null ? ' <span class="lbl">(' + _t('jak warstwa') + ')</span>' : ''}</span>` : ''}</div>
+    <span class="lbl">${_t('z pastylek u góry')}</span>
+    <span class="lbl" style="padding:0 6px"><kbd>${app.altName}</kbd> + ${_t('klik — pipeta')}</span>`;
+  // pastylki, z których maluje pędzel, dostają obwódkę
+  $('#layerPill').classList.toggle('src', br.mode !== 'stroke'); $('#strokePill').classList.toggle('src', br.mode !== 'layer');
 }
-function hideBrushBar() { $('#brushBar')?.remove(); }
+function hideBrushBar() { $('#brushBar')?.remove(); $('#layerPill').classList.remove('src'); $('#strokePill').classList.remove('src'); }
 
 /* ---------- pasek stanu: jednostka i skala ---------- */
 function showMenu(anchor, items, { up = false } = {}) {
@@ -561,7 +565,7 @@ function markDirty(v) {
 }
 function setFile(path, name) { app.file.path = path; app.file.name = name || _t('Bez nazwy'); $('#fileName').textContent = app.file.name; document.title = app.file.name + ' — Rysio'; }
 function loadDoc(doc, { path = null, name = null, dirty = false } = {}) {
-  app.doc = doc; app.hist.reset(doc); app.sel.clear(); app.tools.brush.carry = null;
+  app.doc = doc; app.hist.reset(doc); app.sel.clear();
   app.space = 0; app.vpEdit = null; for (const k of Object.keys(viewMemo)) delete viewMemo[k]; syncSpace(); renderTabs();
   setFile(path, name); markDirty(dirty);
   setTool('select'); fitSpace(); refreshUi(); redraw();
