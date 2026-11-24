@@ -1,10 +1,11 @@
-// DXF: odczyt do elementów Rysia i zapis rysunku (modelu) do DXF R12.
+// DXF: odczyt do elementów Rysia i zapis rysunku (model, arkusze, bloki) do DXF R2000.
 // Rozkład pliku na sekcje, tabela warstw, bloki i wstawienia — na wzór czytnika podkładu z Modo 0.4.2 (renderer/dxf.js),
 // ale tu wynikiem są prawdziwe elementy (linie, polilinie z łukami, okręgi, łuki, teksty), a nie odcinki podkładu.
 //   Bloki i wymiary są rozbijane na zwykłe elementy (Rysio nie ma jeszcze bloków); kreskowania na razie pomijamy.
 //   Elipsy i splajny zamieniają się w polilinie. Współrzędne zostają takie jak w pliku (w metrach).
 import { _t } from './i18n.js';
-import { newDoc, fixDoc, WEIGHTS, LTYPES } from './model.js';
+import { newDoc, fixDoc, WEIGHTS, LTYPES, sheetSize } from './model.js';
+import { drawFrame } from './sheet.js';
 import { V, dimGeom, LINE_GAP, DIM_EXT, DIM_TICK, DIM_H, setAnno, ANNO } from './geom.js';
 import { hatchSegs } from './hatch.js';
 
@@ -372,9 +373,10 @@ export function parseDxf(input, o = {}) {
           const loops = hatchLoops(c).map(L => L.map(q => P(ocs, q))).filter(L => L.length > 2);
           if (!loops.length) { skip('HATCH'); break; }
           const nm = (gs(2) || '').toUpperCase(), solid = g(70) === 1 || nm === 'SOLID';
-          const pat = solid ? 'solid' : /CONC|SAND/.test(nm) ? 'conc' : /EARTH/.test(nm) ? 'soil' : /INSUL/.test(nm) ? 'ins' : /ANSI37|ANSI38|NET|CROSS|SQUARE/.test(nm) ? 'cross' : 'diag';
+          const own = /^RYSIO_([A-Z]+)$/.exec(nm), ownPat = own && ['diag', 'cross', 'conc', 'ins', 'soil'].includes(own[1].toLowerCase()) ? own[1].toLowerCase() : null;
+          const pat = solid ? 'solid' : ownPat ? ownPat : /CONC|SAND/.test(nm) ? 'conc' : /EARTH/.test(nm) ? 'soil' : /INSUL/.test(nm) ? 'ins' : /ANSI37|ANSI38|NET|CROSS|SQUARE/.test(nm) ? 'cross' : 'diag';
           const baseAng = /ANSI3[1-8]/.test(nm) ? 45 : 0;
-          add({ t: 'hatch', loops, pat, ps: 1, ang: r6(((baseAng + g(52)) % 360 + 360) % 360 * Math.PI / 180) }, { ...base, w: base.w ?? 0.13 });
+          add({ t: 'hatch', loops, pat, ps: ownPat && g(41) > 0 ? g(41) : 1, ang: r6(((baseAng + g(52)) % 360 + 360) % 360 * Math.PI / 180) }, { ...base, w: base.w ?? 0.13 });
           break;
         }
         case 'ATTDEF': case 'SEQEND': case 'VERTEX': case 'POINT': case 'VIEWPORT': break;
@@ -402,6 +404,10 @@ export function parseDxf(input, o = {}) {
   for (const e of out) { if (e.t === 'ins') e.b = bmap.get(e.b); if (e.sp) e.sp = 'b' + bmap.get(+e.sp.slice(1)); }
   doc.ents = out.map(e => ({ ...e, id: nextId++ }));
   doc.next = nextId;
+  // pusta warstwa „0” (jest w każdym DXF) i ramka arkuszy z pliku Rysia — bez nich
+  const usedL = new Set(out.map(e => e.layer));
+  const drop = L => !usedL.has(L.id) && (L.name === '0' || (rysioUnits && /^RAMKA(_\d+)?$/.test(L.name)));
+  if (doc.layers.some(L => !drop(L))) doc.layers = doc.layers.filter(L => !drop(L));
   doc.cur = { layer: (doc.layers.find(L => L.visible && !L.locked) || doc.layers[0]).id, w: null, lt: null };   // rysujemy na warstwie widocznej i odblokowanej
   if (!doc.ents.length && !Object.keys(skipped).length) throw new Error(_t('W pliku nie ma rysunku.'));
   return { doc: fixDoc(doc), info: { count: doc.ents.filter(e => !e.sp).length, blocks: doc.blocks.length, skipped, units: fileUnits, guessed, truncated: out.length >= LIMIT } };
@@ -456,102 +462,279 @@ function guessExtent(ents) {   // rozpiętość osobno w X i w Y (mapy mają X i
   return Math.max(0, hi[0] - lo[0], hi[1] - lo[1]);
 }
 
-/* ---------- zapis: DXF R12 (AC1009) — czyta go każdy program CAD ---------- */
-// Zapisujemy model (bez arkuszy) w jednostkach rysunku (m, cm albo mm — mapa w metrach zostaje w metrach). Wymiary rozbijamy na linie i tekst. R12 nie zna grubości linii —
-// grubości zostają tylko w pliku .rysio (Rysio czyta je z DXF, gdy plik je ma).
+/* ---------- wspólne dla zapisu ---------- */
+// polskie litery w tekstach jako \U+XXXX (plik jest czystym ASCII)
 const esc = s => String(s).replace(/[^\x20-\x7e]/g, ch => ch === '\n' ? ' ' : '\\U+' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'));
-// nazwy warstw w R12: tylko litery A–Z, cyfry i $ - _ (polskie litery bez ogonków, reszta → _)
+// nazwy warstw i bloków: litery A–Z, cyfry i $ - _ (polskie litery bez ogonków, reszta → _) — pewne w każdym programie CAD
 const PL = { ą: 'a', ć: 'c', ę: 'e', ł: 'l', ń: 'n', ó: 'o', ś: 's', ź: 'z', ż: 'z', Ą: 'A', Ć: 'C', Ę: 'E', Ł: 'L', Ń: 'N', Ó: 'O', Ś: 'S', Ź: 'Z', Ż: 'Z' };
 const layerName = s => String(s).trim().replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, ch => PL[ch]).replace(/[^A-Za-z0-9$_-]/g, '_') || 'Warstwa';
 const num = v => { const x = Math.round(v * 1e6) / 1e6; return Object.is(x, -0) ? '0' : String(x); };
 
-export function writeDxf(doc) {
-  const units = ['m', 'cm', 'mm'].includes(doc.units) ? doc.units : 'm', U = { m: 1, cm: 100, mm: 1000 }[units], k = doc.scale / 1000;   // metry → jednostki pliku; metry modelu na milimetr wydruku
-  const o = [];
-  const put = (...a) => { for (const x of a) o.push(String(x)); };
-  put(999, 'Rysio - jednostki ' + units);
-  put(0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1009', 9, '$INSBASE', 10, 0, 20, 0, 30, 0, 9, '$LTSCALE', 40, 1, 9, '$DIMSCALE', 40, doc.scale, 0, 'ENDSEC');
-  // tabele: rodzaje linii (długości kresek w mm modelu dla skali rysunku), warstwy, styl tekstu
-  put(0, 'SECTION', 2, 'TABLES');
-  const lts = Object.entries(LT_OUT);
-  put(0, 'TABLE', 2, 'LTYPE', 70, lts.length);
-  for (const [id, name] of lts) {
-    const pat = LTYPES[id].dash.map((v, m) => (m % 2 ? -1 : 1) * v * k * U * (id === 'dot' && m % 2 === 0 ? 0 : 1));
-    put(0, 'LTYPE', 2, name, 70, 0, 3, esc(LTYPES[id].name), 72, 65, 73, pat.length, 40, num(pat.reduce((a, b) => a + Math.abs(b), 0)));
-    for (const v of pat) put(49, num(v));
-  }
-  put(0, 'ENDTAB');
-  const names = new Map(), used = new Set();
-  for (const L of doc.layers) { let n = layerName(L.name), m = 2; while (used.has(n.toUpperCase())) n = layerName(L.name) + '_' + m++; used.add(n.toUpperCase()); names.set(L.id, n); }
-  put(0, 'TABLE', 2, 'LAYER', 70, doc.layers.length);
-  for (const L of doc.layers) { const c = nearestAci(L.color); put(0, 'LAYER', 2, names.get(L.id), 70, L.locked ? 4 : 0, 62, L.visible ? c : -c, 6, LT_OUT[L.lt] || 'CONTINUOUS'); }
-  put(0, 'ENDTAB');
-  put(0, 'TABLE', 2, 'STYLE', 70, 1, 0, 'STYLE', 2, 'STANDARD', 70, 0, 40, 0, 41, 1, 50, 0, 71, 0, 42, 2.5, 3, 'txt', 4, '', 0, 'ENDTAB');
-  put(0, 'ENDSEC');
 
-  const O0 = Array.isArray(doc.origin) ? doc.origin : [0, 0];   // przesunięcie rysunku z importu (współrzędne geodezyjne)
-  let O = O0;   // w definicjach bloków bez przesunięcia
-  const Q = p => [num((p[0] + O[0]) * U), num((p[1] + O[1]) * U)];
-  const head = (t, e) => { put(0, t, 8, names.get(e.layer) || '0'); if (e.lt) put(6, LT_OUT[e.lt] || 'CONTINUOUS'); };
-  const line = (e, a, b) => { head('LINE', e); const A = Q(a), B = Q(b); put(10, A[0], 20, A[1], 30, 0, 11, B[0], 21, B[1], 31, 0); };
-  const text = (e, p, s, h, align, rot) => {
-    const dir = [Math.cos(rot), Math.sin(rot)], down = [dir[1], -dir[0]];
-    String(s).split('\n').forEach((ln, m) => {
-      if (!ln.trim()) return;
-      const q = V.add(p, V.mul(down, m * LINE_GAP * h)), A = Q(q);
-      head('TEXT', e); put(10, A[0], 20, A[1], 30, 0, 40, num(h * U), 1, esc(ln), 50, num(rot * 180 / Math.PI));
-      if (align === 'c' || align === 'r') put(72, align === 'c' ? 1 : 2, 11, A[0], 21, A[1], 31, 0);
-    });
-  };
+/* ---------- zapis: DXF R2000 (AC1015) ---------- */
+// Model i arkusze (arkusz = układ wydruku z oknami w skali i ramką), grubości linii (370), kreskowania jako HATCH
+// z opisem wzoru, wymiary jako DIMENSION z blokiem *D (wygląd jak w Rysiu). Model w jednostkach rysunku (m / cm / mm),
+// arkusze w milimetrach papieru. Struktura (tabele, słowniki, LAYOUT) jak w najprostszym pliku AutoCAD 2000.
+const LW = [0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211];
+const lwOf = mm => { const v = mm * 100; return LW.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a, 0); };
+const deg = r => r * 180 / Math.PI;
+
+// wzór kreskowania jako rodziny linii DXF (w układzie wzoru, mm wydruku × m): kąt (stopnie), punkt bazowy, przesunięcie kolejnej linii, kreski
+function patFamilies(pat, m) {
+  const r2 = Math.SQRT2;
+  if (pat === 'diag') return [{ a: 0, base: [0, 0], off: [0, 2 * m], dash: [] }];
+  if (pat === 'cross') return [{ a: 0, base: [0, 0], off: [0, 2 * m], dash: [] }, { a: 90, base: [0, 0], off: [2 * m, 0], dash: [] }];
+  if (pat === 'ins') { const w = 2 * m, h = 4 * m, L = Math.hypot(w, h); return [{ a: deg(Math.atan2(h, w)), base: [0, 0], off: [2 * w, 0], dash: [L, -L] }, { a: deg(Math.atan2(-h, w)), base: [w, h], off: [2 * w, 0], dash: [L, -L] }]; }
+  if (pat === 'soil') { const w = 5 * m, h = 3 * m, l = 1.4 * m * r2, per = 30 * m * r2; return [0, 1, 2].map(k => ({ a: 45, base: [k * 0.6 * m, 0], off: [w / 2, h], dash: [l, -(per - l)] })); }
+  if (pat === 'conc') {
+    // beton: regularna siatka małych trójkątów i kropek (w Rysiu kamyki są rozrzucone losowo — w DXF wzór musi się powtarzać)
+    const u = [5 * m, 0], v = [1 * m, 4 * m], t = 0.15, w = V.sub(v, u), Lu = V.len(u), Lv = V.len(v), Lw = V.len(w);
+    return [
+      { a: 0, base: [0, 0], off: v, dash: [t * Lu, -(1 - t) * Lu] },
+      { a: deg(Math.atan2(v[1], v[0])), base: [0, 0], off: u, dash: [t * Lv, -(1 - t) * Lv] },
+      { a: deg(Math.atan2(w[1], w[0])), base: V.mul(u, t), off: u, dash: [t * Lw, -(1 - t) * Lw] },
+      { a: 0, base: [2.5 * m, 2 * m], off: v, dash: [0, -Lu] },
+      { a: 0, base: [1.3 * m, 3 * m], off: v, dash: [0, -Lu] }
+    ];
+  }
+  return [];
+}
+
+export function writeDxf(doc) {
+  const units = ['m', 'cm', 'mm'].includes(doc.units) ? doc.units : 'm', U = { m: 1, cm: 100, mm: 1000 }[units], kM = doc.scale / 1000;
+  const O0 = Array.isArray(doc.origin) ? doc.origin : [0, 0];
+  const o = [], put = (...a) => { for (const x of a) o.push(String(x)); };
+  let hn = 0x20; const H = () => (hn++).toString(16).toUpperCase();
+
+  // stałe uchwyty
+  const h = { root: H(), groups: H(), layouts: H(), pstyles: H(), normal: H(), tVport: H(), tLtype: H(), tLayer: H(), tStyle: H(), tView: H(), tUcs: H(), tAppid: H(), tDim: H(), tBr: H(),
+    vpActive: H(), ltByBlock: H(), ltByLayer: H(), ltCont: H(), layer0: H(), stStd: H(), appAcad: H(), dimStd: H(), brModel: H(), brPaper: H(), loModel: H(), blkModel: H(), endModel: H() };
+
+  // warstwy, rodzaje linii, bloki — nazwy bez polskich liter (pewniejsze w starszych programach)
+  const lts = Object.entries(LT_OUT).filter(([id]) => id !== 'solid').map(([id, name]) => ({ id, name, h: H() }));
+  const ltName = lt => LT_OUT[lt] === 'CONTINUOUS' ? 'Continuous' : (LT_OUT[lt] || 'Continuous');
+  const names = new Map(), used = new Set(['0']), lh = new Map();
+  for (const L of doc.layers) { let n = layerName(L.name), m = 2; while (used.has(n.toUpperCase())) n = layerName(L.name) + '_' + m++; used.add(n.toUpperCase()); names.set(L.id, n); lh.set(L.id, H()); }
+  const frameLayer = (() => { let n = 'RAMKA', m = 2; while (used.has(n)) n = 'RAMKA_' + m++; used.add(n); return n; })(), frameH = H();
   const bnames = new Map(), bused = new Set();
-  for (const b of doc.blocks || []) { let nm = layerName(b.name), m = 2; while (bused.has(nm.toUpperCase())) nm = layerName(b.name) + '_' + m++; bused.add(nm.toUpperCase()); bnames.set(b.id, nm); }
-  const keepAnno = ANNO; setAnno(k);
-  const write = e => {
-    if (e.t === 'vp' || !doc.layers.some(L => L.id === e.layer)) return false;
-    if (e.t === 'ins') {
-      if (!bnames.has(e.b)) return false;
-      const A = Q(e.p), s = e.s || 1;
-      head('INSERT', e); put(2, bnames.get(e.b), 10, A[0], 20, A[1], 30, 0, 41, num(e.mx ? -s : s), 42, num(s), 43, num(s), 50, num((e.rot || 0) * 180 / Math.PI));
-      return true;
-    }
-    if (e.t === 'hatch') {
-      // R12 nie ma kreskowań: zapisujemy ich kreski (pełne — obrys)
-      if (e.pat === 'solid') for (const L of e.loops) { head('POLYLINE', e); put(66, 1, 10, 0, 20, 0, 30, 0, 70, 1); for (const v of L) { const A = Q(v); put(0, 'VERTEX', 8, names.get(e.layer) || '0', 10, A[0], 20, A[1], 30, 0); } put(0, 'SEQEND', 8, names.get(e.layer) || '0'); }
-      else for (const [a, b] of hatchSegs(e, k)) line(e, a, b);
-      return true;
-    }
-    if (e.t === 'line') line(e, e.a, e.b);
-    else if (e.t === 'pline') {
-      head('POLYLINE', e); put(66, 1, 10, 0, 20, 0, 30, 0, 70, e.closed ? 1 : 0);
-      for (const v of e.pts) { const A = Q(v); put(0, 'VERTEX', 8, names.get(e.layer) || '0', 10, A[0], 20, A[1], 30, 0); if (v[2]) put(42, num(v[2])); }
-      put(0, 'SEQEND', 8, names.get(e.layer) || '0');
-    } else if (e.t === 'circle') { head('CIRCLE', e); const C = Q(e.c); put(10, C[0], 20, C[1], 30, 0, 40, num(e.r * U)); }
-    else if (e.t === 'arc') { head('ARC', e); const C = Q(e.c); put(10, C[0], 20, C[1], 30, 0, 40, num(e.r * U), 50, num(e.a0 * 180 / Math.PI), 51, num(e.a1 * 180 / Math.PI)); }
-    else if (e.t === 'text') text(e, e.p, e.s, e.h * k, e.align || 'l', e.rot || 0);
-    else if (e.t === 'dim') {
-      // wymiar jako linie i tekst — tak, jak wygląda na rysunku
-      const g = dimGeom(e), d = V.norm(V.sub(g.d2, g.d1)), dir = (d[0] || d[1]) ? d : [1, 0];
-      line(e, V.sub(g.d1, V.mul(dir, DIM_EXT * k)), V.add(g.d2, V.mul(dir, DIM_EXT * k)));
-      for (const [p, q] of [[e.a, g.d1], [e.b, g.d2]]) { const v = V.sub(q, p), L = V.len(v); if (L < 1e-9) continue; const nn = V.mul(v, 1 / L), gap = Math.min(1 * k, L / 3); line(e, V.add(p, V.mul(nn, gap)), V.add(q, V.mul(nn, DIM_EXT * k))); }
+  for (const b of doc.blocks || []) { let nm = layerName(b.name), m = 2; while (bused.has(nm.toUpperCase()) || nm.startsWith('*')) nm = layerName(b.name) + '_' + m++; bused.add(nm.toUpperCase()); bnames.set(b.id, nm); }
+
+  // przestrzenie: model, arkusze (pierwszy — *Paper_Space, kolejne — *Paper_Space0…), bloki, bloki wymiarów *D
+  const sheets = doc.sheets.length ? doc.sheets : [null];
+  const spaces = sheets.map((sh, i) => ({ sh, name: i === 0 ? '*Paper_Space' : '*Paper_Space' + (i - 1), br: i === 0 ? h.brPaper : H(), lo: H(), blk: H(), end: H(), vp1: H() }));
+  const blocks = (doc.blocks || []).filter(b => bnames.has(b.id)).map(b => ({ b, name: bnames.get(b.id), br: H(), blk: H(), end: H() }));
+  const dimBlocks = [];   // { name, br, blk, end, body: [] } — uzupełniane przy zapisie wymiarów
+
+  // --- zapis elementów do bufora (każda przestrzeń osobno) ---
+  const keepAnno = ANNO;
+  // ctx: { owner, paper, O (przesunięcie), U (jednostki), k (metry przestrzeni na mm wydruku) }
+  const ents = (ctx, list, out) => {
+    const P = p => [num((p[0] + ctx.O[0]) * ctx.U), num((p[1] + ctx.O[1]) * ctx.U)];
+    const L = x => x * ctx.U;
+    const head = (t, e, extra) => {
+      out.push(0, t, 5, H(), 330, ctx.owner, 100, 'AcDbEntity'); if (ctx.paper) out.push(67, 1);
+      out.push(8, e._layerName || names.get(e.layer) || '0');
+      if (e.lt) out.push(6, ltName(e.lt));
+      if (e.w != null) out.push(370, lwOf(e.w));
+      if (extra) out.push(...extra);
+    };
+    const line = (e, a, b) => { const A = P(a), B = P(b); head('LINE', e); out.push(100, 'AcDbLine', 10, A[0], 20, A[1], 30, 0, 11, B[0], 21, B[1], 31, 0); };
+    const text = (e, p, s, hh, align, rot) => {
+      const dir = [Math.cos(rot), Math.sin(rot)], down = [dir[1], -dir[0]];
+      String(s).split('\n').forEach((ln, i) => {
+        if (!ln.trim()) return;
+        const A = P(V.add(p, V.mul(down, i * LINE_GAP * hh)));
+        head('TEXT', e); out.push(100, 'AcDbText', 10, A[0], 20, A[1], 30, 0, 40, num(L(hh)), 1, esc(ln), 50, num(deg(rot)), 7, 'Standard');
+        if (align === 'c' || align === 'r') out.push(72, align === 'c' ? 1 : 2, 11, A[0], 21, A[1], 31, 0);
+        out.push(100, 'AcDbText');
+      });
+    };
+    const dimLook = (e, g, sink) => {   // wymiar jak w Rysiu: linia, linie pomocnicze, kreseczki, liczba
+      const k = ctx.k, d = V.norm(V.sub(g.d2, g.d1)), dir = (d[0] || d[1]) ? d : [1, 0];
+      sink.line(V.sub(g.d1, V.mul(dir, DIM_EXT * k)), V.add(g.d2, V.mul(dir, DIM_EXT * k)));
+      for (const [p, q] of [[e.a, g.d1], [e.b, g.d2]]) { const v = V.sub(q, p), Ln = V.len(v); if (Ln < 1e-9) continue; const nn = V.mul(v, 1 / Ln), gap = Math.min(1 * k, Ln / 3); sink.line(V.add(p, V.mul(nn, gap)), V.add(q, V.mul(nn, DIM_EXT * k))); }
       const t = V.mul(V.norm(V.add(dir, V.perp(dir))), DIM_TICK * k);
-      for (const q of [g.d1, g.d2]) line(e, V.sub(q, t), V.add(q, t));
+      for (const q of [g.d1, g.d2]) sink.line(V.sub(q, t), V.add(q, t));
       let ang = Math.atan2(dir[1], dir[0]); if (ang > Math.PI / 2 + 1e-6 || ang <= -Math.PI / 2 + 1e-6) ang += Math.PI;
       const up = [-Math.sin(ang), Math.cos(ang)];
-      const val = doc.units === 'mm' ? String(Math.round(g.value * 1000)) : doc.units === 'cm' ? (g.value * 100).toFixed(1).replace('.', ',') : g.value.toFixed(2).replace('.', ',');
-      text(e, V.add(g.mid, V.mul(up, 1 * k)), val, (e.h || DIM_H) * k, 'c', ang);
+      sink.text(V.add(g.mid, V.mul(up, 1 * k)), dimText(g.value, ctx.paper), (e.h || DIM_H) * k, 'c', ang);
+      return V.add(g.mid, V.mul(up, 1 * k));
+    };
+    let n = 0;
+    for (const e of list) {
+      if (e.t === 'vp' || !doc.layers.some(Lr => Lr.id === e.layer)) continue;
+      n++;
+      if (e.t === 'line') line(e, e.a, e.b);
+      else if (e.t === 'pline') {
+        head('LWPOLYLINE', e); out.push(100, 'AcDbPolyline', 90, e.pts.length, 70, e.closed ? 1 : 0, 43, 0);
+        for (const v of e.pts) { const A = P(v); out.push(10, A[0], 20, A[1]); if (v[2]) out.push(42, num(v[2])); }
+      } else if (e.t === 'circle') { const C = P(e.c); head('CIRCLE', e); out.push(100, 'AcDbCircle', 10, C[0], 20, C[1], 30, 0, 40, num(L(e.r))); }
+      else if (e.t === 'arc') { const C = P(e.c); head('ARC', e); out.push(100, 'AcDbCircle', 10, C[0], 20, C[1], 30, 0, 40, num(L(e.r)), 100, 'AcDbArc', 50, num(deg(e.a0)), 51, num(deg(e.a1))); }
+      else if (e.t === 'text') text(e, e.p, e.s, e.h * ctx.k, e.align || 'l', e.rot || 0);
+      else if (e.t === 'ins') {
+        if (!bnames.has(e.b)) { n--; continue; }
+        const A = P(e.p), s = e.s || 1;
+        head('INSERT', e); out.push(100, 'AcDbBlockReference', 2, bnames.get(e.b), 10, A[0], 20, A[1], 30, 0, 41, num(e.mx ? -s : s), 42, num(s), 43, num(s), 50, num(deg(e.rot || 0)));
+      } else if (e.t === 'hatch') {
+        const solid = e.pat === 'solid', ang = e.ang || 0, m = ctx.k * (e.ps || 1) * ctx.U;
+        head('HATCH', e);
+        out.push(100, 'AcDbHatch', 10, 0, 20, 0, 30, 0, 210, 0, 220, 0, 230, 1, 2, solid ? 'SOLID' : 'RYSIO_' + String(e.pat).toUpperCase(), 70, solid ? 1 : 0, 71, 0, 91, e.loops.length);
+        e.loops.forEach((Lp, i) => { out.push(92, i === 0 ? 3 : 2, 72, 0, 73, 1, 93, Lp.length); for (const v of Lp) { const A = P(v); out.push(10, A[0], 20, A[1]); } out.push(97, 0); });
+        out.push(75, 0, 76, solid ? 1 : 2);
+        if (!solid) {
+          const fam = patFamilies(e.pat, m), c = Math.cos(ang), sn = Math.sin(ang), R = v => [v[0] * c - v[1] * sn, v[0] * sn + v[1] * c];
+          out.push(52, num(deg(ang)), 41, num(e.ps || 1), 77, 0, 78, fam.length);
+          for (const f of fam) { const B = R(f.base), F = R(f.off); out.push(53, num(f.a + deg(ang)), 43, num(B[0] + ctx.O[0] * ctx.U), 44, num(B[1] + ctx.O[1] * ctx.U), 45, num(F[0]), 46, num(F[1]), 79, f.dash.length); for (const d of f.dash) out.push(49, num(d)); }
+        }
+        const s0 = P(e.loops[0][0]); out.push(98, 1, 10, s0[0], 20, s0[1]);
+      } else if (e.t === 'dim') {
+        // blok *D z wyglądem wymiaru i DIMENSION, który go wskazuje (programy CAD pokazują blok, a wartość znają z punktów)
+        const g = dimGeom(e), db = { name: '*D' + (dimBlocks.length + 1), br: H(), blk: H(), end: H(), body: [] };
+        const sub = { ...ctx, owner: db.br, paper: false };
+        const looks = []; const sink = { line: (a, b) => looks.push({ t: 'line', a, b, layer: e.layer, w: e.w, lt: null }), text: (p, s, hh, al, rot) => looks.push({ t: '_text', p, s, hh, al, rot, layer: e.layer }) };
+        const tp = dimLook(e, g, sink);
+        for (const x of looks) { if (x.t === 'line') ents(sub, [x], db.body); else { const tmp = []; ents({ ...sub }, [{ t: 'text', p: x.p, s: x.s, h: x.hh / ctx.k, align: x.al, rot: x.rot, layer: x.layer, w: null }], tmp); db.body.push(...tmp); } }
+        dimBlocks.push(db);
+        const D2 = P(g.d2), T = P(tp), A = P(e.a), B = P(e.b), aligned = e.dir === 'a';
+        head('DIMENSION', e);
+        out.push(100, 'AcDbDimension', 2, db.name, 10, D2[0], 20, D2[1], 30, 0, 11, T[0], 21, T[1], 31, 0, 70, 32 + (aligned ? 1 : 0), 1, esc(dimText(g.value, ctx.paper)), 3, 'Standard',
+          100, 'AcDbAlignedDimension', 13, A[0], 23, A[1], 33, 0, 14, B[0], 24, B[1], 34, 0);
+        if (!aligned) out.push(50, e.dir === 'v' ? 90 : 0, 100, 'AcDbRotatedDimension');
+      } else n--;
     }
-    return true;
+    return n;
   };
-  // bloki (R12: BLOCK … ENDBLK, punkt wstawienia w zerze)
-  if (bnames.size) {
-    put(0, 'SECTION', 2, 'BLOCKS'); O = [0, 0];
-    for (const b of doc.blocks) { put(0, 'BLOCK', 8, '0', 2, bnames.get(b.id), 70, 0, 10, 0, 20, 0, 30, 0, 3, bnames.get(b.id)); for (const e of doc.ents) if (e.sp === 'b' + b.id) write(e); put(0, 'ENDBLK', 8, '0'); }
-    put(0, 'ENDSEC'); O = O0;
+  // liczba wymiaru w jednostce rysunku (na arkuszu — w milimetrach papieru × skala nieznana, więc jak w modelu)
+  const dimText = (v, paper) => paper ? String(Math.round(v * 1000)) : doc.units === 'mm' ? String(Math.round(v * 1000)) : doc.units === 'cm' ? (v * 100).toFixed(1).replace('.', ',') : v.toFixed(2).replace('.', ',');
+
+  // model
+  const modelOut = []; setAnno(kM);
+  const count = ents({ owner: h.brModel, paper: false, O: O0, U, k: kM }, doc.ents.filter(e => !e.sp), modelOut);
+  // bloki użytkownika (w układzie bloku, bez przesunięcia)
+  for (const B of blocks) { B.body = []; ents({ owner: B.br, paper: false, O: [0, 0], U, k: kM }, doc.ents.filter(e => e.sp === 'b' + B.b.id), B.body); }
+  // arkusze: milimetry papieru; okna jako VIEWPORT, ramka i tabelka na warstwie RAMKA
+  setAnno(0.001);
+  for (const S of spaces) {
+    S.body = []; if (!S.sh) continue;
+    const ctx = { owner: S.br, paper: true, O: [0, 0], U: 1000, k: 0.001 };
+    ents(ctx, doc.ents.filter(e => e.sp === S.sh.id && e.t !== 'vp'), S.body);
+    // ramka: nagrywamy linie i napisy rysowane przez arkusz
+    const rec = [];
+    const pen = { ppm: 1000, style() {}, line: (a, b) => rec.push({ t: 'line', a, b }), poly: (pts, closed) => { for (let i = 0; i < pts.length - (closed ? 0 : 1); i++) rec.push({ t: 'line', a: pts[i], b: pts[(i + 1) % pts.length] }); }, text: (p, s, hh) => rec.push({ t: 'text', p, s, h: hh * 1000 }) };
+    drawFrame(pen, doc, S.sh, { mono: true, ink: '#000000', exact: true });
+    ents(ctx, rec.map(x => ({ ...x, layer: doc.layers[0].id, _layerName: frameLayer, w: x.t === 'line' ? 0.35 : null, lt: null, align: 'l', rot: 0 })), S.body);
+    for (const v of doc.ents.filter(e => e.sp === S.sh.id && e.t === 'vp')) {
+      const b = [Math.min(v.a[0], v.b[0]), Math.min(v.a[1], v.b[1]), Math.max(v.a[0], v.b[0]), Math.max(v.a[1], v.b[1])];
+      const cx = (b[0] + b[2]) / 2 * 1000, cy = (b[1] + b[3]) / 2 * 1000, W = (b[2] - b[0]) * 1000, Hh = (b[3] - b[1]) * 1000;
+      S.vps = S.vps || []; S.vps.push({ cx, cy, W, H: Hh, vc: [(v.c[0] + O0[0]) * U, (v.c[1] + O0[1]) * U], vh: (b[3] - b[1]) * v.scale * U, frozen: (v.hidden || []).map(id => lh.get(id)).filter(Boolean), layer: names.get(v.layer) || '0', h: H() });
+    }
   }
-  put(0, 'SECTION', 2, 'ENTITIES');
-  let n = 0;
-  for (const e of doc.ents) if (!e.sp && write(e)) n++;
   setAnno(keepAnno);
+
+  // --- nagłówek ---
+  const seed = () => (hn + 1).toString(16).toUpperCase();
+  put(999, 'Rysio - jednostki ' + units);
+  const header = () => {
+    put(0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1015', 9, '$DWGCODEPAGE', 3, 'ANSI_1250', 9, '$INSBASE', 10, 0, 20, 0, 30, 0,
+      9, '$LTSCALE', 40, 1, 9, '$PSLTSCALE', 70, 1, 9, '$DIMSCALE', 40, doc.scale, 9, '$INSUNITS', 70, { m: 6, cm: 5, mm: 4 }[units], 9, '$MEASUREMENT', 70, 1, 9, '$LUNITS', 70, 2,
+      9, '$LWDISPLAY', 290, 1, 9, '$CELWEIGHT', 370, -1, 9, '$HANDSEED', 5, seed(), 0, 'ENDSEC');
+  };
+  // uchwyty wszystkich tabel muszą być znane przed zapisem — liczymy je teraz
+  const brAll = [{ name: '*Model_Space', br: h.brModel, lo: h.loModel }, ...spaces.map(S => ({ name: S.name, br: S.br, lo: S.lo })), ...blocks.map(B => ({ name: B.name, br: B.br, lo: '0' })), ...dimBlocks.map(D => ({ name: D.name, br: D.br, lo: '0' }))];
+  for (const S of spaces) if (!S.vps) S.vps = [];
+  const pstyleH = h.normal;
+  const objH = spaces.map(() => null);   // (miejsce na przyszłość)
+  void objH;
+  header();
+  put(0, 'SECTION', 2, 'CLASSES', 0, 'ENDSEC');
+
+  // --- tabele ---
+  put(0, 'SECTION', 2, 'TABLES');
+  const table = (name, hh, n, extra = []) => put(0, 'TABLE', 2, name, 5, hh, 330, 0, 100, 'AcDbSymbolTable', 70, n, ...extra);
+  const rec = (type, hh, owner, sub) => put(0, type, 5, hh, 330, owner, 100, 'AcDbSymbolTableRecord', 100, sub);
+  table('VPORT', h.tVport, 1);
+  rec('VPORT', h.vpActive, h.tVport, 'AcDbViewportTableRecord');
+  put(2, '*ACTIVE', 70, 0, 10, 0, 20, 0, 11, 1, 21, 1, 12, 0, 22, 0, 13, 0, 23, 0, 14, 1, 24, 1, 15, 1, 25, 1, 16, 0, 26, 0, 36, 1, 17, 0, 27, 0, 37, 0, 40, 100, 41, 1.5, 42, 50, 43, 0, 44, 0, 50, 0, 51, 0, 71, 0, 72, 1000, 73, 1, 74, 3, 75, 0, 76, 0, 77, 0, 78, 0, 281, 0, 65, 1, 110, 0, 120, 0, 130, 0, 111, 1, 121, 0, 131, 0, 112, 0, 122, 1, 132, 0, 79, 0, 146, 0);
+  put(0, 'ENDTAB');
+  table('LTYPE', h.tLtype, 3 + lts.length);
+  for (const [hh, nm] of [[h.ltByBlock, 'ByBlock'], [h.ltByLayer, 'ByLayer'], [h.ltCont, 'Continuous']]) { rec('LTYPE', hh, h.tLtype, 'AcDbLinetypeTableRecord'); put(2, nm, 70, 0, 3, nm === 'Continuous' ? 'Solid line' : '', 72, 65, 73, 0, 40, 0); }
+  for (const t of lts) {
+    const pat = LTYPES[t.id].dash.map((v, m) => (m % 2 ? -1 : 1) * v * kM * U * (t.id === 'dot' && m % 2 === 0 ? 0 : 1));
+    rec('LTYPE', t.h, h.tLtype, 'AcDbLinetypeTableRecord'); put(2, t.name, 70, 0, 3, esc(LTYPES[t.id].name), 72, 65, 73, pat.length, 40, num(pat.reduce((a, b) => a + Math.abs(b), 0)));
+    for (const v of pat) put(49, num(v), 74, 0);
+  }
+  put(0, 'ENDTAB');
+  table('LAYER', h.tLayer, doc.layers.length + 2);
+  rec('LAYER', h.layer0, h.tLayer, 'AcDbLayerTableRecord'); put(2, '0', 70, 0, 62, 7, 6, 'Continuous', 370, -3, 390, pstyleH);
+  for (const L of doc.layers) { const c = nearestAci(L.color); rec('LAYER', lh.get(L.id), h.tLayer, 'AcDbLayerTableRecord'); put(2, names.get(L.id), 70, L.locked ? 4 : 0, 62, L.visible ? c : -c, 6, ltName(L.lt), 370, lwOf(L.w), 390, pstyleH); }
+  rec('LAYER', frameH, h.tLayer, 'AcDbLayerTableRecord'); put(2, frameLayer, 70, 0, 62, 7, 6, 'Continuous', 370, 35, 390, pstyleH);
+  put(0, 'ENDTAB');
+  table('STYLE', h.tStyle, 1);
+  rec('STYLE', h.stStd, h.tStyle, 'AcDbTextStyleTableRecord'); put(2, 'Standard', 70, 0, 40, 0, 41, 1, 50, 0, 71, 0, 42, 2.5, 3, 'arial.ttf', 4, '');
+  put(0, 'ENDTAB');
+  table('VIEW', h.tView, 0); put(0, 'ENDTAB');
+  table('UCS', h.tUcs, 0); put(0, 'ENDTAB');
+  table('APPID', h.tAppid, 1);
+  rec('APPID', h.appAcad, h.tAppid, 'AcDbRegAppTableRecord'); put(2, 'ACAD', 70, 0);
+  put(0, 'ENDTAB');
+  put(0, 'TABLE', 2, 'DIMSTYLE', 5, h.tDim, 330, 0, 100, 'AcDbSymbolTable', 70, 1, 100, 'AcDbDimStyleTable', 71, 0);
+  put(0, 'DIMSTYLE', 105, h.dimStd, 330, h.tDim, 100, 'AcDbSymbolTableRecord', 100, 'AcDbDimStyleTableRecord', 2, 'Standard', 70, 0, 40, doc.scale, 41, DIM_TICK, 42, 1, 44, DIM_EXT, 140, DIM_H, 340, h.stStd);
+  put(0, 'ENDTAB');
+  table('BLOCK_RECORD', h.tBr, brAll.length);
+  for (const B of brAll) { rec('BLOCK_RECORD', B.br, h.tBr, 'AcDbBlockTableRecord'); put(2, B.name, 340, B.lo); }
+  put(0, 'ENDTAB');
+  put(0, 'ENDSEC');
+
+  // --- bloki ---
+  put(0, 'SECTION', 2, 'BLOCKS');
+  const block = (name, br, blk, end, body, paper, flags = 0) => {
+    put(0, 'BLOCK', 5, blk, 330, br, 100, 'AcDbEntity'); if (paper) put(67, 1);
+    put(8, '0', 100, 'AcDbBlockBegin', 2, name, 70, flags, 10, 0, 20, 0, 30, 0, 3, name, 1, '');
+    if (body) put(...body);
+    put(0, 'ENDBLK', 5, end, 330, br, 100, 'AcDbEntity'); if (paper) put(67, 1);
+    put(8, '0', 100, 'AcDbBlockEnd');
+  };
+  const vpEnts = (S) => {
+    const out = [], [W, Hh] = S.sh ? sheetSize(S.sh).map(v => v * 1000) : [420, 297];
+    const one = (v, id) => {
+      out.push(0, 'VIEWPORT', 5, v.h, 330, S.br, 100, 'AcDbEntity', 67, 1, 8, v.layer || '0', 100, 'AcDbViewport', 10, num(v.cx), 20, num(v.cy), 30, 0, 40, num(v.W), 41, num(v.H), 69, id,
+        12, num(v.vc[0]), 22, num(v.vc[1]), 13, 0, 23, 0, 14, 10, 24, 10, 15, 10, 25, 10, 16, 0, 26, 0, 36, 1, 17, 0, 27, 0, 37, 0, 42, 50, 43, 0, 44, 0, 45, num(v.vh), 50, 0, 51, 0, 72, 1000);
+      for (const f of v.frozen || []) out.push(341, f);
+      out.push(90, 32864, 1, '', 281, 0, 71, 1, 74, 0, 110, 0, 120, 0, 130, 0, 111, 1, 121, 0, 131, 0, 112, 0, 122, 1, 132, 0, 79, 0, 146, 0);
+    };
+    one({ h: S.vp1, cx: W / 2, cy: Hh / 2, W: W * 1.05, H: Hh * 1.05, vc: [W / 2, Hh / 2], vh: Hh * 1.05 }, 1);
+    S.vps.forEach((v, i) => one(v, i + 2));
+    return out;
+  };
+  block('*Model_Space', h.brModel, h.blkModel, h.endModel, null, false);
+  spaces.forEach((S, i) => block(S.name, S.br, S.blk, S.end, i === 0 ? null : [...vpEnts(S), ...S.body], true));
+  for (const B of blocks) block(B.name, B.br, B.blk, B.end, B.body, false);
+  for (const D of dimBlocks) block(D.name, D.br, D.blk, D.end, D.body, false, 1);
+  put(0, 'ENDSEC');
+
+  // --- elementy: model i pierwszy arkusz ---
+  put(0, 'SECTION', 2, 'ENTITIES');
+  put(...modelOut);
+  put(...vpEnts(spaces[0]), ...spaces[0].body);
+  put(0, 'ENDSEC');
+
+  // --- obiekty: słowniki i układy wydruku ---
+  put(0, 'SECTION', 2, 'OBJECTS');
+  put(0, 'DICTIONARY', 5, h.root, 330, 0, 100, 'AcDbDictionary', 281, 1, 3, 'ACAD_GROUP', 350, h.groups, 3, 'ACAD_LAYOUT', 350, h.layouts, 3, 'ACAD_PLOTSTYLENAME', 350, h.pstyles);
+  put(0, 'DICTIONARY', 5, h.groups, 102, '{ACAD_REACTORS', 330, h.root, 102, '}', 330, h.root, 100, 'AcDbDictionary', 281, 1);
+  put(0, 'DICTIONARY', 5, h.layouts, 102, '{ACAD_REACTORS', 330, h.root, 102, '}', 330, h.root, 100, 'AcDbDictionary', 281, 1, 3, 'Model', 350, h.loModel);
+  const loNames = spaces.map((S, i) => { const base = S.sh ? layerName(S.sh.name).slice(0, 200) : 'Arkusz'; let nm = base, m = 2; const prev = new Set(spaces.slice(0, i).map(x => x._nm)); while (prev.has(nm) || nm === 'Model') nm = base + '_' + m++; S._nm = nm; return nm; });
+  spaces.forEach((S, i) => put(3, loNames[i], 350, S.lo));
+  put(0, 'ACDBDICTIONARYWDFLT', 5, h.pstyles, 102, '{ACAD_REACTORS', 330, h.root, 102, '}', 330, h.root, 100, 'AcDbDictionary', 281, 1, 3, 'Normal', 350, h.normal, 100, 'AcDbDictionaryWithDefault', 340, h.normal);
+  put(0, 'ACDBPLACEHOLDER', 5, h.normal, 102, '{ACAD_REACTORS', 330, h.pstyles, 102, '}', 330, h.pstyles);
+  const layout = (hh, name, br, tab, W, Hh, model) => {
+    put(0, 'LAYOUT', 5, hh, 102, '{ACAD_REACTORS', 330, h.layouts, 102, '}', 330, h.layouts, 100, 'AcDbPlotSettings', 1, '', 2, 'none_device', 4, model ? '' : `Rysio_${Math.round(W)}x${Math.round(Hh)}_mm`, 6, '',
+      40, 0, 41, 0, 42, 0, 43, 0, 44, num(W), 45, num(Hh), 46, 0, 47, 0, 48, 0, 49, 0, 140, 0, 141, 0, 142, 1, 143, 1, 70, model ? 1712 : 688, 72, 1, 73, 0, 74, model ? 0 : 5, 7, '', 75, model ? 0 : 16, 147, 1, 148, 0, 149, 0,
+      100, 'AcDbLayout', 1, name, 70, 1, 71, tab, 10, 0, 20, 0, 11, num(W), 21, num(Hh), 12, 0, 22, 0, 32, 0, 14, 0, 24, 0, 34, 0, 15, num(W), 25, num(Hh), 35, 0, 146, 0,
+      13, 0, 23, 0, 33, 0, 16, 1, 26, 0, 36, 0, 17, 0, 27, 1, 37, 0, 76, 0, 330, br);
+  };
+  layout(h.loModel, 'Model', h.brModel, 0, 420, 297, true);
+  spaces.forEach((S, i) => { const [W, Hh] = S.sh ? sheetSize(S.sh).map(v => v * 1000) : [420, 297]; layout(S.lo, loNames[i], S.br, i + 1, W, Hh, false); });
   put(0, 'ENDSEC', 0, 'EOF');
-  return { text: o.join('\r\n') + '\r\n', count: n, units };
+  return { text: o.join('\r\n') + '\r\n', count, units };
 }

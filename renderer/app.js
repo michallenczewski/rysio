@@ -855,7 +855,7 @@ async function exportDxf() {
     const { writeDxf } = await import('./dxf.js');
     const { text, count, units } = writeDxf(app.doc);
     const ok = await api.saveBinary(new TextEncoder().encode(text), app.file.name || _t('Rysunek'), 'dxf');
-    if (ok) toast(_t`Zapisano DXF: ${count} elementów modelu, jednostki: ${units}. Arkusze i grubości linii zostają tylko w pliku Rysia.`, 4500);
+    if (ok) toast(_t`Zapisano DXF: ${count} elementów modelu i ${app.doc.sheets.length} arkuszy, jednostki: ${units}.`, 4500);
   } catch (err) { toast(_t`Nie udało się zapisać DXF: ${esc(err.message)}`, 5000); }
 }
 async function fileSave(as) {

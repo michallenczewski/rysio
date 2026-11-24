@@ -550,7 +550,7 @@ przypadek('DXF: bloki i kreskowania w obie strony', 'blok z pliku zostaje blokie
     'elementy bloku w jego układzie': [doc.ents.filter(e => e.sp === 'b' + ins.b).map(e => [...e.a, ...e.b]), [[0, 0, 1, 0]]],
     'kreskowanie: wzór i kąt': [[h.pat, +h.ang.toFixed(6)], ['diag', +(Math.PI / 4).toFixed(6)]], 'obwód z łukiem': [h.loops[0].length > 10, true],
     'po zapisie i odczycie blok dalej blokiem': [[back.blocks.length, ins2.mx, ins2.s, +ins2.rot.toFixed(6)], [1, true, 2, +(30 * Math.PI / 180).toFixed(6)]],
-    'kreskowanie zapisane jako kreski': [back.ents.filter(e => e.t === 'line' && !e.sp).length > 5, true] };
+    'kreskowanie wraca jako kreskowanie': [back.ents.filter(e => e.t === 'hatch').map(e => [e.pat, +e.ang.toFixed(6)]), [['diag', +(Math.PI / 4).toFixed(6)]]] };
 });
 
 przypadek('PDF: blok w skali i kreskowanie', 'blok z odcinkiem 1 m, obrócony o 90°, w oknie 1:100 ma w PDF-ie 10 mm; pełne kreskowanie to wypełnienie', () => {
@@ -658,6 +658,20 @@ przypadek('fazuj: dwie linie i narożnik polilinii', 'narożnik (0;0) linii pozi
   const pl = ED.plineCorner({ t: 'pline', pts: [[0, 0], [3, 0], [3, 3]], closed: false }, [2.9, 0.1], 'chamfer', 0.5);
   return { 'odcinek fazy': [[...r.line.a, ...r.line.b], [1, 0, 0, 2]], 'linie skrócone': [[r.l1.b, r.l2.a], [[1, 0], [0, 2]]], 'polilinia': [pl.pts, [[0, 0], [2.5, 0], [3, 0.5], [3, 3]]],
     'za duża faza': [ED.chamferLines({ t: 'line', a: [1, 0], b: [0, 0] }, [1, 0], { t: 'line', a: [0, 0], b: [0, 1] }, [0, 1], 2).error, 'tooBig'] };
+});
+
+przypadek('DXF R2000: grubości, kreskowania, wymiary, arkusze', 'zapis rysunku z grubą linią, betonem, wymiarem i dwoma arkuszami; ponowny odczyt bez śmieci z arkuszy', () => {
+  const d = M.newDoc(); d.scale = 50; d.sheets = [M.newSheet(40, 1), M.newSheet(41, 2)];
+  d.ents = [{ id: 2, t: 'line', a: [0, 0], b: [5, 0], layer: 1, w: 0.7, lt: null }, { id: 3, t: 'hatch', loops: [[[0, 0], [4, 0], [4, 3], [0, 3]]], pat: 'conc', ps: 2, ang: 0, layer: 1, w: 0.13, lt: null },
+    { id: 4, t: 'dim', a: [0, 0], b: [4, 0], o: [2, -1], dir: 'h', layer: 1, w: null, lt: null },
+    { id: 5, t: 'vp', a: [0.03, 0.02], b: [0.2, 0.15], scale: 50, c: [2, 1.5], hidden: [], sp: 40, layer: 1, w: null, lt: null }, { id: 6, t: 'text', p: [0.05, 0.25], s: 'Rzut', h: 5, sp: 41, layer: 1, w: null, lt: null }];
+  d.next = 10;
+  const { text } = DXF.writeDxf(d), back = DXF.parseDxf(text, { scale: 50 }).doc;
+  const lay = text.split('\r\n'), cnt = t => lay.filter((v, i) => v === t && lay[i - 1] === '0').length;
+  const ln = back.ents.find(e => e.t === 'line' && Math.abs(e.b[0] - 5) < 1e-9), h = back.ents.find(e => e.t === 'hatch');
+  return { 'wersja': [lay[lay.indexOf('$ACADVER') + 2], 'AC1015'], 'układy wydruku': [cnt('LAYOUT'), 3], 'okna (2 arkusze × okno całości + 1)': [cnt('VIEWPORT'), 3],
+    'wymiar jako DIMENSION': [cnt('DIMENSION'), 1], 'grubość linii wraca': [ln && ln.w, 0.7], 'beton wraca z gęstością': [h && [h.pat, h.ps], ['conc', 2]],
+    'arkusze nie trafiają do modelu': [back.ents.some(e => e.t === 'text' && e.s === 'Rzut'), false], 'bez bloków arkuszy': [back.blocks.map(b => b.name), []] };
 });
 
 /* ---------- uruchomienie ---------- */

@@ -104,7 +104,7 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 | `renderer/model.js` | rysunek, warstwy, kreski, `edit()` i historia cofania, `fixDoc()` |
 | `renderer/geom.js` | geometria bez okna: odległości, przecięcia, rzuty, styczne, łuk przez trzy punkty, obrysy, trafienia |
 | `renderer/draw.js` | rysowanie elementów przez „pióro” (płótno albo PDF): kreski, tekst, wymiar |
-| `renderer/dxf.js` | odczyt DXF do elementów (warstwy z kolorem, rodzajem i grubością linii; nazwane bloki bez zniekształceń jako bloki, pozostałe i wymiary rozbite; kreskowania; jednostki z `$INSUNITS`) i zapis modelu do DXF R12 (bloki jako BLOCK/INSERT, kreskowania jako kreski) |
+| `renderer/dxf.js` | odczyt DXF do elementów (warstwy z kolorem, rodzajem i grubością linii; nazwane bloki bez zniekształceń jako bloki, pozostałe i wymiary rozbite; kreskowania; jednostki z `$INSUNITS`) i zapis do DXF R2000 (`writeDxf`: model, arkusze jako LAYOUT + VIEWPORT, bloki, HATCH z rodzinami linii wzoru `patFamilies`, DIMENSION z blokiem *D, grubości 370) |
 | `renderer/hatch.js` | kreskowanie: wzory w mm wydruku, kreski przycięte do pętli, szukanie obszaru pod kliknięciem |
 | `renderer/dwg.js` | DWG przez LibreDWG → tekst DXF → `dxf.js` (z Modo) |
 | `renderer/edit.js` | zmienianie geometrii: obrót, odbicie, skala (`transformed`), odsunięcie (`offsetEnt`, także polilinii z łukami), zaokrąglenie dwóch linii (`filletLines`), linii, łuków i okręgów (`filletCurves`: środek z przecięcia krzywych odsuniętych o r), narożnika polilinii (`plineCorner`, też fazowanie), fazowanie dwóch linii (`chamferLines`), przycinanie i wydłużanie jednym kliknięciem (`trimOrExtend`) i wielu kawałków jednym przeciągnięciem (`trimMany`, tryb auto / trim / extend), uchwyty (`gripsOf`, `gripMove`) |
@@ -147,7 +147,7 @@ Z Modo 0.4.2 (commit `591d8d9`, 24.11.2026), etap 5:
 |---|---|
 | `renderer/dwg.js` | bez zmian poza warunkiem „czy coś wczytano” (Rysio dostaje elementy, nie odcinki podkładu); z DWG nadal nie przechodzą teksty i kreskowania — na nich LibreDWG najczęściej się wykłada |
 | `renderer/vendor/libredwg/` | bez zmian (z plikiem `COPYING`) |
-| `renderer/dxf.js` | z Modo tylko rozkład pliku na sekcje, tabelę warstw i bloki; zamiana na elementy Rysia (linie, polilinie z łukami, okręgi, łuki, teksty i MTEXT, elipsy i splajny jako polilinie, bloki i wymiary rozbite) oraz zapis DXF R12 — nowe |
+| `renderer/dxf.js` | z Modo tylko rozkład pliku na sekcje, tabelę warstw i bloki; zamiana na elementy Rysia (linie, polilinie z łukami, okręgi, łuki, teksty i MTEXT, elipsy i splajny jako polilinie, bloki i wymiary rozbite) oraz zapis DXF R2000 — nowe |
 
 ## Biblioteki zewnętrzne
 
@@ -157,7 +157,7 @@ Z Modo 0.4.2 (commit `591d8d9`, 24.11.2026), etap 5:
 
 PDF powstaje bez biblioteki (zob. wyżej).
 
-**DXF zapisujemy w wersji R12 (AC1009)**: czyta ją każdy program CAD i nie wymaga uchwytów ani obiektów, których nie da się sprawdzić bez AutoCAD-a. Koszt: R12 nie zna grubości linii — zostają tylko w pliku Rysia. Zapis jest w jednostkach rysunku (mapa w metrach zostaje w metrach) z komentarzem `999 Rysio - jednostki …`, po którym Rysio rozpoznaje jednostki przy ponownym odczycie. Polskie litery w tekstach idą jako `\U+XXXX` (plik jest czystym ASCII); nazwy warstw tracą ogonki i spacje (R12 dopuszcza tylko A–Z, 0–9, `$ - _`). Lustrzany tekst z bloków zostaje czytelny (jak `MIRRTEXT = 0`). Arkusze nie trafiają do DXF.
+**DXF zapisujemy w wersji R2000 (AC1015)** (zmiana z R12, 24.11.2026, na prośbę Michała o grubości linii, kreskowania i arkusze). Struktura jak w najprostszym pliku AutoCAD 2000: wszystkie tabele z uchwytami, słowniki `ACAD_GROUP`, `ACAD_LAYOUT`, `ACAD_PLOTSTYLENAME` (z `Normal` → `ACDBPLACEHOLDER`), układ `Model` i po jednym `LAYOUT` na arkusz (pierwszy w `*Paper_Space` z elementami w sekcji ENTITIES, kolejne w blokach `*Paper_Space0…`), w każdym okno nr 1 (cały arkusz) i nasze okna jako `VIEWPORT` (skala z wysokości widoku, ukryte warstwy kodem 341). Model w jednostkach rysunku, arkusze w milimetrach. Kreskowania to `HATCH` z własnym wzorem `RYSIO_…` (rodziny linii liczone tak, żeby dawały ten sam rysunek co na ekranie; beton jako powtarzalny wzór trójkątów i kropek, bo losowego rozrzutu DXF nie opisze). Wymiar to `DIMENSION` z blokiem `*D…` narysowanym tak jak w Rysiu i tekstem nadpisanym naszą liczbą. Komentarz `999 Rysio - jednostki …` zostaje. Sprawdzone: ponowny odczyt w Rysiu i odczyt LibreDWG (`dxf_read_file`, kod błędu 0). **Nie sprawdzone w AutoCAD-zie** — przy pierwszym otwarciu w biurze patrzymy, czy nie ma komunikatu o naprawie pliku.
 
 ## Sygnały, że trzeba wrócić do tematu
 
