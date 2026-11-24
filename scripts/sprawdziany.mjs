@@ -11,7 +11,7 @@ globalThis.localStorage ??= { getItem: () => null, setItem: () => {} };
 const R = new URL('../renderer/', import.meta.url).href;
 const G = await import(R + 'geom.js');
 const M = await import(R + 'model.js');
-const { Snapper } = await import(R + 'snap.js');
+const { Snapper, gridStep } = await import(R + 'snap.js');
 const D = await import(R + 'draw.js');
 const U = await import(R + 'units.js');
 const SH = await import(R + 'sheet.js');
@@ -410,6 +410,30 @@ przypadek('ślad trafia dwa razy w ten sam kawałek', 'klik i przeciągnięcie w
   const e = { ...L([0, 0], [10, 0]), id: 1 }, cut = [3, 6].map((x, i) => ({ ...L([x, -1], [x, 1]), id: 10 + i }));
   const r = ED.trimMany([{ e, p: [4, 0] }, { e, p: [5, 0] }], [e, ...cut], 'auto', 0.05);
   return { 'zostają dwa kawałki': [r[0].replace.length, 2] };
+});
+
+przypadek('przyciąganie do siatki', 'kursor obok węzła siatki co 1 m trafia w węzeł; koniec linii ma pierwszeństwo', () => {
+  const a = new Snapper().find([2.03, 0.98], { tol: 0.05, ents: [], grid: 1 });
+  const b = new Snapper().find([2.03, 0.98], { tol: 0.05, ents: [{ ...L([2.04, 0.97], [5, 0.97]), id: 1 }], grid: 1 });
+  const c = new Snapper().find([2.5, 0.5], { tol: 0.05, ents: [], grid: 1 });
+  return { 'węzeł': [[...a.p, a.kind], [2, 1, 'grid']], 'koniec wygrywa': [b.kind, 'end'], 'z dala od węzła': [c.kind, null],
+    'odstęp przy 60 px/m': [gridStep(60), 1],
+    'poziom od punktu wygrywa z siatką': [(() => { const r = new Snapper().find([3.04, 0.07], { tol: 0.08, ents: [], base: [0, 0.037], grid: 1 }); return [r.kind, +r.p[1].toFixed(3)]; })(), ['guide', 0.037]],
+    'punkt na linii wygrywa z siatką': [new Snapper().find([2.02, 0.97], { tol: 0.05, ents: [{ ...L([0, 0.95], [5, 0.95]), id: 1 }], grid: 1 }).kind, 'near'], 'przy 600 px/m': [gridStep(600), 0.1] };
+});
+
+przypadek('uchwyty: koniec, środek, wierzchołek, promień', 'przeciąganie uchwytów zmienia tylko to, co trzeba', () => {
+  const ln = L([0, 0], [4, 0]);
+  const mid = ED.gripMove(ln, 'mv', [2, 1]);
+  const end = ED.gripMove(ln, 'b', [4, 3]);
+  const pl = { t: 'pline', pts: [[0, 0, 0.5], [2, 0], [2, 2]] };
+  const v0 = ED.gripMove(pl, 'v0', [1, -1]);
+  const ci = ED.gripMove({ t: 'circle', c: [0, 0], r: 1 }, 'r', [0, 3]);
+  const ar = ED.gripMove({ t: 'arc', c: [0, 0], r: 1, a0: 0, a1: Math.PI / 2 }, 'a1', [-1, 0]);
+  return { 'środek przesuwa całą': [[...mid.a, ...mid.b], [0, 1, 4, 1]], 'koniec': [end.b, [4, 3]], 'wierzchołek z łukiem': [v0.pts[0], [1, -1, 0.5]],
+    'promień': [ci.r, 3], 'kąt końca łuku': [+ar.a1.toFixed(6), +Math.PI.toFixed(6)], 'uchwyty linii': [ED.gripsOf(ln).length, 3],
+    'koniec łuku na początek — odrzucone': [ED.gripMove({ t: 'arc', c: [0, 0], r: 1, a0: 0, a1: Math.PI / 2 }, 'a1', [1, 0]), null],
+    'koniec linii na drugi koniec — odrzucone': [ED.gripMove(ln, 'b', [0, 0]), null] };
 });
 
 /* ---------- uruchomienie ---------- */

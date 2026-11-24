@@ -15,11 +15,15 @@ export const SNAP = {
   tan: { label: _t('Styczna'), pri: 5 },
   track: { label: _t('Śledzenie'), pri: 6 },
   guideInt: { label: _t('Przecięcie z kierunkiem'), pri: 6 },
+  grid: { label: _t('Siatka'), pri: 10 },
   guide: { label: '', pri: 8 },
   near: { label: _t('Najbliższy'), pri: 9 }
 };
 export const GUIDE_COLOR = { h: '#c0533f', v: '#4f8a46', par: '#b0489e', perp: '#b0489e', lock: '#b0489e' };
 const GUIDE_NAME = { h: _t('Poziomo'), v: _t('Pionowo'), par: _t('Równolegle'), perp: _t('Prostopadle do linii'), lock: _t('Kierunek zablokowany') };
+
+// odstęp siatki: potęga dziesięciu (1 cm, 10 cm, 1 m, 10 m…), tak żeby oczka miały na ekranie co najmniej ~14 px
+export const gridStep = ppm => Math.pow(10, Math.ceil(Math.log10(14 / ppm)));
 
 const projOnLine = (p, o, d) => V.add(o, V.mul(d, V.dot(V.sub(p, o), d)));
 
@@ -30,7 +34,7 @@ export class Snapper {
   addRefPt(p) { if (this.refPts.some(q => V.eq(q, p, 1e-9))) return; this.refPts.push([...p]); if (this.refPts.length > 2) this.refPts.shift(); }
   addRefSeg(a, b) { if (this.refSegs.some(s => V.eq(s[0], a, 1e-9) && V.eq(s[1], b, 1e-9))) return; this.refSegs.push([[...a], [...b]]); if (this.refSegs.length > 2) this.refSegs.shift(); }
 
-  // p — kursor w metrach; o: { tol, ents, base, lockDir, ortho, noSnap }
+  // p — kursor w metrach; o: { tol, ents, base, lockDir, ortho, noSnap, grid (odstęp widocznej siatki albo 0) }
   find(p, o) {
     const tol = o.tol, base = o.base || null;
     const out = { p: [...p], kind: null, label: '', guides: [], ent: null };
@@ -58,6 +62,7 @@ export class Snapper {
       // odcinek pod kursorem staje się odniesieniem dla kierunków „równolegle / prostopadle”
       const segHit = near.map(x => partsOf(x.e).find(q => q.k === 'seg' && closestOnSeg(p, q.a, q.b).p && V.dist(closestOnSeg(p, q.a, q.b).p, p) <= tol)).find(Boolean);
       if (segHit) this.addRefSeg(segHit.a, segHit.b);
+      if (o.grid) { const g = o.grid, q = [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g]; if (V.dist(q, p) <= tol) cands.push({ p: q, kind: 'grid', e: null }); }
     }
     const pointHit = cands.filter(c => c.kind !== 'near' && V.dist(c.p, p) <= tol)
       .sort((a, b) => SNAP[a.kind].pri - SNAP[b.kind].pri || V.dist(a.p, p) - V.dist(b.p, p))[0];
@@ -117,6 +122,9 @@ export class Snapper {
     // 5) najbliższy punkt na elemencie
     const nearest = cands.filter(c => c.kind === 'near').sort((a, b) => V.dist(a.p, p) - V.dist(b.p, p))[0];
     if (nearest) return Object.assign(out, { p: [...nearest.p], kind: 'near', label: SNAP.near.label, ent: nearest.e });
+    // 6) węzeł siatki — najsłabszy: punkty elementów, kierunki i śledzenie mają pierwszeństwo
+    const gridHit = cands.find(c => c.kind === 'grid');
+    if (gridHit) return Object.assign(out, { p: [...gridHit.p], kind: 'grid', label: SNAP.grid.label });
     return out;
   }
 }

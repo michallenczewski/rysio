@@ -3,7 +3,7 @@ import { V, bbox, boxHit, boxUnion } from './geom.js';
 import { isShown, sheetSize } from './model.js';
 import { CanvasPen, drawEnt, traceEnt, strokePx } from './draw.js';
 import { drawViewports, drawFrame } from './sheet.js';
-import { GUIDE_COLOR } from './snap.js';
+import { GUIDE_COLOR, gridStep } from './snap.js';
 
 export class View {
   constructor(el) {
@@ -46,13 +46,37 @@ export class View {
   }
   fitDoc(doc, ents = doc.ents) { let b = null; for (const e of ents) if (isShown(doc, e)) b = boxUnion(b, bbox(e)); this.fit(b); }
 
+  // siatka modelu: drobne oczka co gridStep, co dziesiąte wyraźniejsze (np. co 10 cm i co 1 m)
+  drawGrid(kind) {
+    const c = this.ctx, g = gridStep(this.ppm), [x0, y0, x1, y1] = this.rect;
+    const i0 = Math.floor(x0 / g), i1 = Math.ceil(x1 / g), j0 = Math.floor(y0 / g), j1 = Math.ceil(y1 / g);
+    if ((i1 - i0) * (j1 - j0) > 400000) return;
+    const major = n => Math.round(n) % 10 === 0;
+    c.save(); c.setLineDash([]); c.fillStyle = c.strokeStyle = this.theme.muted;
+    if (kind === 'lines') {
+      for (const maj of [false, true]) {
+        c.globalAlpha = maj ? 0.34 : 0.14; c.lineWidth = 1; c.beginPath();
+        for (let i = i0; i <= i1; i++) if (major(i) === maj) { const x = Math.round(this.toScreen([i * g, 0])[0]) + 0.5; c.moveTo(x, 0); c.lineTo(x, this.h); }
+        for (let j = j0; j <= j1; j++) if (major(j) === maj) { const y = Math.round(this.toScreen([0, j * g])[1]) + 0.5; c.moveTo(0, y); c.lineTo(this.w, y); }
+        c.stroke();
+      }
+    } else {
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+        const [x, y] = this.toScreen([i * g, j * g]), big = major(i) && major(j);
+        c.globalAlpha = big ? 0.85 : 0.45; const r = big ? 1.75 : 1; c.fillRect(x - r, y - r, 2 * r, 2 * r);
+      }
+    }
+    c.restore();
+  }
+
   // s: { doc, ents (elementy bieżącej przestrzeni), scale (skala przestrzeni), fmt, sheet (arkusz albo null),
-  //      sel:Set, hover, preview:[ent], guides, snap, box, thin, marks:[p], path, vpEdit }
+  //      sel:Set, hover, preview:[ent], guides, snap, box, thin, marks:[p], path, vpEdit, grid: 'dots' | 'lines' | null }
   render(s) {
     const c = this.ctx, t = this.theme, d = s.doc;
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     c.globalAlpha = 1; c.fillStyle = s.sheet ? t.desk : t.bg; c.fillRect(0, 0, this.w, this.h);
     const pen = new CanvasPen(c, this), vr = this.rect, o = { ppm: this.ppm, ink: t.ink, thin: s.thin, scale: s.scale, fmt: s.fmt };
+    if (s.grid && !s.sheet) this.drawGrid(s.grid);
     // 0) arkusz: papier, zawartość okien, ramka z tabelką (papier zawsze jasny — to wydruk)
     if (s.sheet) {
       const [W, H] = sheetSize(s.sheet), a = this.toScreen([0, H]), b = this.toScreen([W, 0]);
@@ -95,6 +119,8 @@ export class View {
       c.fillStyle = cross ? 'rgba(79,138,70,.08)' : 'rgba(63,99,168,.08)';
       c.beginPath(); c.rect(a[0], a[1], b[0] - a[0], b[1] - a[1]); c.fill(); c.stroke();
     }
+    // uchwyty zaznaczonych elementów
+    if (s.grips) for (const g of s.grips) { const [x, y] = this.toScreen(g.p); c.globalAlpha = 1; c.setLineDash([]); c.fillStyle = t.bg; c.strokeStyle = t.sel; c.lineWidth = 1.4; c.fillRect(x - 3.5, y - 3.5, 7, 7); c.strokeRect(x - 3.5, y - 3.5, 7, 7); }
     // 6) znaczek przyciągania
     if (s.snap && s.snap.kind && s.snap.kind !== 'guide') drawMarker(c, this.toScreen(s.snap.p), s.snap.kind, t.snap);
     c.globalAlpha = 1; c.setLineDash([]);
@@ -114,6 +140,7 @@ function drawMarker(c, [x, y], kind, col) {
     case 'perp': c.moveTo(x - r, y - r); c.lineTo(x - r, y + r); c.lineTo(x + r, y + r); c.moveTo(x - r, y); c.lineTo(x, y); c.lineTo(x, y + r); break;
     case 'center': c.arc(x, y, r, 0, Math.PI * 2); c.moveTo(x - 2, y); c.lineTo(x + 2, y); c.moveTo(x, y - 2); c.lineTo(x, y + 2); break;
     case 'tan': c.arc(x, y + 1, r - 1, 0, Math.PI * 2); c.moveTo(x - r - 2, y - r + 1); c.lineTo(x + r + 2, y - r + 1); break;
+    case 'grid': c.moveTo(x - r, y); c.lineTo(x + r, y); c.moveTo(x, y - r); c.lineTo(x, y + r); c.rect(x - 2, y - 2, 4, 4); break;
     case 'near': c.moveTo(x - r, y - r); c.lineTo(x + r, y - r); c.lineTo(x - r, y + r); c.lineTo(x + r, y + r); c.closePath(); break;
   }
   c.stroke(); c.restore();

@@ -1,6 +1,6 @@
 // Zmienianie geometrii (etap 3): obrót, odbicie, skala, odsunięcie, zaokrąglenie narożnika, przycinanie i wydłużanie.
 // Same obliczenia, bez okna — wyniki to pola elementów do app.edit(); sprawdzane w scripts/sprawdziany.mjs.
-import { V, EPS, angOf, normAng, sweep, onArcAngle, bulgeOf, plineParts, partsOf, intersect, lineCircle, circleCircle, closestOnSeg, endpoints, lengthOf as lengthOfE } from './geom.js';
+import { V, EPS, angOf, normAng, sweep, onArcAngle, bulgeOf, plineParts, partsOf, intersect, lineCircle, circleCircle, closestOnSeg, endpoints, lengthOf as lengthOfE, arcStart, arcEnd, arcMid, moved, dimGeom } from './geom.js';
 import { lineX } from './snap.js';
 
 const TAU = Math.PI * 2;
@@ -309,5 +309,37 @@ export function trimMany(hits, others, mode = 'auto', endTol = 0) {
     if (changed) out.push({ id: e.id, kind: 'trim', replace: pieces.map(({ id, ...x }) => x) });
   }
   return out;
+}
+/* ---------- uchwyty zaznaczonych elementów ---------- */
+// gripsOf(e) → [{ k, p }]: k mówi, co uchwyt robi; gripMove(e, k, p) → pola elementu po przeciągnięciu uchwytu do p.
+//   linia: końce i środek (przesuwa całą) · polilinia: wierzchołki · okrąg: środek (przesuwa) i cztery kwadranty (promień)
+//   łuk: końce (zmieniają kąt), środek łuku (promień), środek okręgu (przesuwa) · tekst: punkt wstawienia
+//   wymiar: dwa mierzone punkty i położenie linii wymiarowej · okno na arkuszu: dwa narożniki
+export function gripsOf(e) {
+  const g = (k, p) => ({ k, p: [p[0], p[1]] });
+  switch (e.t) {
+    case 'line': return [g('a', e.a), g('b', e.b), g('mv', V.lerp(e.a, e.b, 0.5))];
+    case 'pline': return e.pts.map((q, i) => g('v' + i, q));
+    case 'circle': return [g('mv', e.c), ...[0, 1, 2, 3].map(i => g('r', V.polar(e.c, e.r, i * Math.PI / 2)))];
+    case 'arc': return [g('a0', arcStart(e)), g('a1', arcEnd(e)), g('r', arcMid(e)), g('mv', e.c)];
+    case 'text': return [g('mv', e.p)];
+    case 'dim': return [g('a', e.a), g('b', e.b), g('o', dimGeom(e).mid)];
+    case 'vp': return [g('a', e.a), g('b', e.b)];
+  }
+  return [];
+}
+export function gripMove(e, k, p, from) {
+  p = [p[0], p[1]];
+  if (k === 'mv') { const o = from || gripsOf(e).find(x => x.k === 'mv').p; return moved(e, V.sub(p, o)); }
+  if (k[0] === 'v' && e.t === 'pline') { const i = +k.slice(1); return { pts: e.pts.map((q, j) => j === i ? (q[2] ? [...p, q[2]] : p) : q) }; }
+  if (k === 'r') { const r = V.dist(e.c, p); return r > EPS ? { r } : null; }
+  if (k === 'a0' || k === 'a1') {
+    if (V.dist(e.c, p) < EPS) return null;
+    const a = angOf(e.c, p), other = k === 'a0' ? e.a1 : e.a0;
+    return Math.abs(Math.sin((a - other) / 2)) < 1e-9 ? null : { [k]: a };   // końce w jednym miejscu — łuk zniknąłby albo stał się okręgiem
+  }
+  if (k === 'o') return { o: p };
+  if (k === 'a' || k === 'b') { if (e.t === 'line' && V.dist(p, k === 'a' ? e.b : e.a) < EPS) return null; return { [k]: p }; }
+  return null;
 }
 export { geomOf };

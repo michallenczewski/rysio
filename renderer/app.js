@@ -6,7 +6,7 @@ import { vpMap, titleScales, drawSheet } from './sheet.js';
 import { makePdf } from './pdf.js';
 import { CanvasPen } from './draw.js';
 import { View } from './view.js';
-import { Snapper } from './snap.js';
+import { Snapper, gridStep } from './snap.js';
 import { makeTools } from './tools.js';
 import { setUnit, getUnit, fmtLength } from './units.js';
 import { ACTIONS, loadKeys, saveKeyOverride, keysFor, comboOf, prettyCombo } from './keys.js';
@@ -66,7 +66,7 @@ for (const [id, n] of [['#undoBtn', 'undo'], ['#redoBtn', 'redo'], ['#thinBtn', 
 const app = {
   isMac, altName: isMac ? '⌥' : 'Ctrl', shiftName: isMac ? '⇧' : 'Shift', bsName: isMac ? '⌫' : 'Backspace',
   doc: newDoc(), sel: new Set(),
-  thin: false, ortho: false,
+  thin: false, ortho: false, grid: (() => { try { const g = localStorage.getItem('rysio.grid'); return ['dots', 'lines'].includes(g) ? g : null; } catch (e) { return null; } })(),
   space: 0,                       // 0 — model, liczba — numer arkusza
   textH: 3.5, textAlign: 'l',     // wysokość (mm wydruku) i wyrównanie nowego tekstu
   vpEdit: null, lastVpScale: null, // okno, w którym przesuwa się widok modelu; ostatnio ustawiona skala okna
@@ -123,6 +123,9 @@ function spaceOfOps(ops = []) {
   return null;
 }
 function afterChange(info) {
+  // ciągnięty uchwyt: przerwij, gdy element zniknął, został zablokowany albo ukryty, albo zmiana przyszła z cofnięcia
+  const gr = app.tools.select.grip;
+  if (gr) { const e = app.doc.ents.find(x => x.id === gr.e.id); if (info?.undo || info?.redo || !e || !isLive(app.doc, e)) app.tools.select.cancel(); else gr.e = e; }
   // zaznaczenie bez usuniętych elementów
   for (const id of [...app.sel]) { const e = app.doc.ents.find(x => x.id === id); if (!e || !isLive(app.doc, e) || spaceOf(e) !== app.space) app.sel.delete(id); }
   // arkusz mógł zniknąć (usunięcie, cofnięcie dodania arkusza) — pełne przejście do modelu
@@ -151,7 +154,7 @@ for (const id of TOOLBAR) {
 function setTool(id, opts = {}) {
   if (!app.tools[id]) return;
   // przerwij to, co narzędzie ma w toku (zaznaczenie zostaje — W i C działają na nim)
-  if (tool.id === 'select') { tool._down = null; tool.box = null; } else for (let i = 0; i < 3 && tool.cancel(); i++);
+  if (tool.id === 'select') { tool._down = null; tool.box = null; if (tool.grip) tool.cancel(); } else for (let i = 0; i < 3 && tool.cancel(); i++);
   tool = app.tools[id];
   tool.start?.();
   if (id === 'arc') { tool.pts = []; tool.mode = opts.arcMode || '3p'; }
@@ -161,10 +164,11 @@ function setTool(id, opts = {}) {
   lockDir = null; typing = null; app.snapper.clearRefs(); snapRes = null; hoverEnt = null;
   if (cursorScreen) updateCursor(...cursorScreen);
   toolsEl.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === id));
-  $('#view').className = tool.draw ? 'c-draw' : '';
+  app.cursorClass();
   refreshUi(); redraw();
 }
 app.setTool = setTool;
+app.cursorClass = () => { $('#view').className = tool.draw ? 'c-draw' : ''; };
 
 /* ---------- akcje (skróty, przyciski, menu) ---------- */
 function runAction(id) {
@@ -181,6 +185,7 @@ function runAction(id) {
     case 'thin': app.thin = !app.thin; $('#thinBtn').setAttribute('aria-pressed', app.thin); redraw(); return;
     case 'ortho': app.ortho = !app.ortho; refreshUi(); return;
     case 'snapToggle': app.snapper.enabled = !app.snapper.enabled; refreshUi(); return;
+    case 'grid': { const order = [null, 'dots', 'lines']; app.grid = order[(order.indexOf(app.grid) + 1) % 3]; try { localStorage.setItem('rysio.grid', app.grid || ''); } catch (e) {} if (app.grid && app.sheet()) toast(_t('Siatka jest tylko w modelu — na arkuszu jej nie ma.'), 1800); refreshUi(); redraw(); return; }
     case 'theme': { const order = ['auto', 'light', 'dark']; setTheme(order[(order.indexOf(themePref) + 1) % 3]); toast({ auto: _t('Wygląd automatyczny'), light: _t('Wygląd jasny'), dark: _t('Wygląd ciemny') }[themePref], 1200); return; }
     case 'new': return fileNew();
     case 'open': return fileOpen();
@@ -201,8 +206,8 @@ function updateCursor(sx, sy, e) {
   cursorScreen = [sx, sy];
   const raw = app.view.toModel(sx, sy);
   if (tool.draw) {
-    const shown = app.ents().filter(x => isShown(app.doc, x) && x.t !== 'text');
-    snapRes = app.snapper.find(raw, { tol: app.tol(), ents: shown, base: tool.base(), lockDir, ortho: app.ortho, noSnap: false });
+    const shown = app.ents().filter(x => isShown(app.doc, x) && x.t !== 'text' && x.id !== app.hideEnt && x.id !== app.dragEnt);
+    snapRes = app.snapper.find(raw, { tol: app.tol(), ents: shown, base: tool.base(), lockDir, ortho: app.ortho, noSnap: false, grid: app.grid && !app.sheet() ? gridStep(app.view.ppm) : 0 });
     cursorModel = snapRes.p; hoverEnt = null;
   } else {
     snapRes = null; cursorModel = raw;
@@ -248,6 +253,7 @@ const pointInBox = (p, b) => p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1
 // dwuklik: w tekst — poprawka tekstu; w okno na arkuszu — przesuwanie modelu w oknie
 view.addEventListener('dblclick', e => {
   if (e.target.closest('.textEd, .toolbar') || !['select', 'text'].includes(tool.id)) return;
+  if (tool.grip) tool.cancel();
   const [x, y] = xy(e), p = app.view.toModel(x, y), hit = app.pick(p);
   if (hit && hit.t === 'text') return app.editText(hit);
   const vp = app.space && app.ents().filter(v => v.t === 'vp' && isLive(app.doc, v)).reverse().find(v => pointInBox(p, vpBox(v)));
@@ -330,11 +336,11 @@ function frame() {
   rafPending = false;
   const hi = tool.highlight ? [...tool.highlight()].map(id => app.doc.ents.find(e => e.id === id)).filter(Boolean) : [];
   app.view.render({
-    doc: app.doc, sel: app.sel, thin: app.thin, ents: app.hideEnt ? app.ents().filter(e => e.id !== app.hideEnt) : app.ents(), scale: app.spaceScale(), sheet: app.sheet(), vpEdit: app.vpEdit,
+    doc: app.doc, sel: app.sel, thin: app.thin, grid: app.grid, ents: app.hideEnt || app.dragEnt ? app.ents().filter(e => e.id !== app.hideEnt && e.id !== app.dragEnt) : app.ents(), scale: app.spaceScale(), sheet: app.sheet(), vpEdit: app.vpEdit,
     fmt: app.space ? app.fmtSheet : app.fmtModel, fmtModel: app.fmtModel,
     hover: [...hi, ...(hoverEnt && !app.sel.has(hoverEnt.id) ? [hoverEnt] : [])], hoverColor: tool.id === 'eraser' || tool.id === 'trim' ? '#c0533f' : null,
     guides: snapRes ? snapRes.guides : [], snap: snapRes, marks: tool.draw ? app.snapper.refPts : [],
-    preview: cursorScreen || !tool.draw ? tool.preview() : [], box: tool.box, path: tool.path && tool.path.length > 1 ? tool.path : null
+    preview: cursorScreen || !tool.draw ? tool.preview() : [], grips: tool.grips ? tool.grips() : null, box: tool.box, path: tool.path && tool.path.length > 1 ? tool.path : null
   });
   showSnapLabel(); showVpBar(); placeTextEd();
 }
@@ -369,6 +375,7 @@ function refreshUi() {
   $('#undoBtn').disabled = !app.hist.canUndo; $('#redoBtn').disabled = !app.hist.canRedo;
   $('#snapChip').classList.toggle('off', !app.snapper.enabled);
   $('#orthoChip').classList.toggle('off', !app.ortho);
+  $('#gridChip').classList.toggle('off', !app.grid); $('#gridChip').lastChild.textContent = app.grid === 'lines' ? _t('Siatka: linie') : app.grid === 'dots' ? _t('Siatka: kropki') : _t('Siatka');
   const sh = app.sheet();
   $('#unitBtn').textContent = sh ? 'mm' : app.doc.units; $('#unitBtn').disabled = !!sh;
   $('#scaleBtn').innerHTML = '1:' + app.doc.scale + ' ' + chev; $('#scaleBtn').hidden = !!sh;
@@ -652,6 +659,7 @@ $('#undoBtn').addEventListener('click', () => runAction('undo'));
 $('#redoBtn').addEventListener('click', () => runAction('redo'));
 $('#snapChip').addEventListener('click', () => runAction('snapToggle'));
 $('#orthoChip').addEventListener('click', () => runAction('ortho'));
+$('#gridChip').addEventListener('click', () => runAction('grid'));
 function showUpdate(s) {
   const b = $('#updBtn');
   if (!s || !['available', 'downloading', 'ready'].includes(s.state)) { b.hidden = true; return; }
@@ -887,6 +895,7 @@ function setVpScale(vp, k) { app.lastVpScale = k; app.edit(_t('Skala okna'), tx 
 /* ---------- tekst: pisanie wprost na rysunku ---------- */
 let textEd = null;   // { el, ent (poprawiany) albo null, p }
 app.editText = (ent, p) => {
+  if (app.tools.select.grip) app.tools.select.cancel();
   finishText();
   const h = ent ? ent.h : app.textH, align = ent ? ent.align || 'l' : app.textAlign, at = ent ? ent.p : p;
   if (ent) { app.textH = ent.h; app.textAlign = align; }

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rysio — tryb minimalny</title>
+<style>
+/* Makieta trybu minimalnego (Tab). Kolory jak w renderer/style.css. */
+:root{--bg:#f7f7f5;--text:#1a1a19;--text2:#4a4945;--muted:#706f6a;--soft:#efeeea;--line:#e6e5e1;--card:#fff;--paper:#fff;--ink:#1a1a19;--sel:#3f63a8;--snap:#b0489e;
+  --menush:0 0 0 1px rgba(0,0,0,.06),0 10px 30px rgba(0,0,0,.10);--kbd:#f3f2ef}
+[data-theme=dark]{--bg:#161616;--text:#e9e9e7;--text2:#c4c4c1;--muted:#8d8d89;--soft:#222221;--line:#2a2a29;--card:#1d1d1c;--paper:#1d1d1c;--ink:#e4e4e1;--sel:#7d9ad6;--snap:#d48bc6;
+  --menush:0 0 0 1px rgba(255,255,255,.07),0 12px 36px rgba(0,0,0,.5);--kbd:#2e2e2d}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;gap:14px;padding:18px;min-height:100vh}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+kbd{font:500 11px/1 -apple-system,system-ui,sans-serif;background:var(--kbd);border-radius:4px;padding:2px 5px;color:var(--text2);box-shadow:0 0 0 1px rgba(0,0,0,.05) inset}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.top h1{font-size:15px;font-weight:600;margin:0}
+.seg{display:flex;gap:2px;padding:2px;border-radius:8px;background:var(--soft)}
+.seg button{height:26px;padding:0 10px;border-radius:6px;color:var(--muted);font-size:12px}
+.seg button.on{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.note{color:var(--muted);font-size:12px;max-width:820px}
+
+/* okno programu */
+.win{position:relative;flex:1;min-height:520px;border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px var(--line);display:grid;grid-template-columns:52px 1fr;grid-template-rows:48px 1fr 38px;background:var(--bg);transition:grid-template-columns .18s,grid-template-rows .18s}
+.win > header{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:0 12px;font-size:12px}
+.win > header .sp{flex:1}
+.pill{height:28px;padding:0 10px;border-radius:7px;background:var(--soft);display:flex;align-items:center;gap:8px}
+.pill i{width:8px;height:8px;border-radius:2px;background:#c0533f}
+.stk{width:26px;height:0;border-top:1.6px solid var(--ink)}
+aside{display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:4px}
+aside b{width:32px;height:32px;border-radius:8px;display:block;background:var(--soft);opacity:.55}
+aside b.on{background:var(--ink);opacity:.85}
+.view{position:relative;margin-right:12px;border-radius:10px;overflow:hidden;box-shadow:0 0 0 1px var(--line);background:var(--paper)}
+.view svg{position:absolute;inset:0;width:100%;height:100%}
+footer{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding:0 12px;font-size:12px;color:var(--muted)}
+footer .chip{height:24px;padding:0 9px;border-radius:7px;background:var(--soft);display:flex;align-items:center}
+footer .sp{flex:1}
+
+/* tryb minimalny */
+.win.min{grid-template-columns:0 1fr;grid-template-rows:0 1fr 0}
+.win.min > header,.win.min aside,.win.min footer{visibility:hidden}
+.win.min .view{margin:0;border-radius:0;box-shadow:none}
+.badge{position:absolute;left:12px;top:10px;display:none;align-items:center;gap:2px;height:32px;padding:0 4px;border-radius:9px;background:var(--card);box-shadow:var(--menush);font-size:12px;opacity:.92}
+.badge span{height:24px;padding:0 8px;border-radius:6px;display:flex;align-items:center;gap:7px;white-space:nowrap}
+.badge span.click:hover{background:var(--soft)}
+.badge .t{font-weight:500}
+.badge span.stk{height:0;padding:0;border-radius:0}
+.badge .sep{width:1px;height:14px;background:var(--line);padding:0}
+.win.min .badge{display:flex}
+.exit{position:absolute;right:12px;bottom:10px;display:none;font-size:11px;color:var(--muted);gap:6px;align-items:center}
+.win.min .exit{display:flex}
+.vcb{position:absolute;height:22px;padding:0 7px;border-radius:6px;background:var(--card);box-shadow:0 0 0 1px var(--line),0 1px 3px rgba(0,0,0,.1);font-size:11px;display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+.vcb em{font-style:normal;color:var(--muted)}
+.vcb u{text-decoration:none;border-right:1.5px solid var(--sel);padding-right:1px}
+.min-only{display:none}.win.min .min-only{display:flex}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px 22px;font-size:12px;color:var(--text2);max-width:1000px}
+.legend b{color:var(--text);font-weight:600}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Tryb minimalny</h1>
+  <div class="seg" id="mode"><button data-m="full">Pełny widok</button><button data-m="min" class="on">Minimalny</button></div>
+  <div class="seg" id="theme"><button data-t="light" class="on">Jasny</button><button data-t="dark">Ciemny</button></div>
+  <span class="note">Naciśnij <kbd>Tab</kbd>, żeby przełączyć — jak w programie.</span>
+</div>
+
+<div class="win min" id="win">
+  <header>
+    <span>Plik</span><span style="font-weight:500">Dom — rzut parteru</span><span class="sp"></span>
+    <span class="pill"><i></i>Ściany</span><span class="pill"><span class="stk"></span>0,35 ciągła</span>
+  </header>
+  <aside><b></b><b></b><b></b><b class="on"></b><b></b><b></b><b></b><b></b><b></b><b></b></aside>
+  <div class="view">
+    <svg viewBox="0 0 1000 560" preserveAspectRatio="xMidYMid slice" id="plan">
+      <g fill="none" stroke="var(--ink)" stroke-width="3">
+        <path d="M200 120 H760 V440 H200 Z"/>
+        <path d="M212 132 H748 V428 H212 Z" stroke-width="1.2"/>
+        <path d="M470 132 V300 M470 340 V428" stroke-width="2"/>
+        <path d="M212 280 H380 M420 280 H470" stroke-width="2"/>
+      </g>
+      <g fill="none" stroke="var(--ink)" stroke-width="1" opacity=".6">
+        <path d="M470 300 A40 40 0 0 1 510 340" stroke-dasharray="4 3"/>
+        <path d="M380 280 A40 40 0 0 0 420 240" stroke-dasharray="4 3"/>
+      </g>
+      <!-- rysowana linia -->
+      <line x1="560" y1="200" x2="690" y2="200" stroke="var(--ink)" stroke-width="2"/>
+      <line x1="560" y1="200" x2="980" y2="200" stroke="#c0533f" stroke-width="1" stroke-dasharray="5 4" opacity=".8"/>
+      <rect x="555" y="195" width="10" height="10" fill="none" stroke="var(--snap)" stroke-width="1.6"/>
+      <path d="M690 192 v16 M682 200 h16" stroke="var(--text2)" stroke-width="1"/>
+    </svg>
+    <div class="badge">
+      <span class="t">Linia</span><span class="sep"></span>
+      <span class="click"><i style="width:8px;height:8px;border-radius:2px;background:#c0533f;display:block"></i>Ściany</span>
+      <span class="click"><span class="stk"></span>0,35 ciągła</span>
+    </div>
+    <div class="vcb min-only" style="left:700px;top:214px"><em>Długość</em><u>2,4</u></div>
+    <div class="exit"><kbd>Tab</kbd> pełny widok</div>
+  </div>
+  <footer>
+    <span class="chip">Model</span><span>Linia: kliknij następny punkt albo wpisz długość.</span><span class="sp"></span>
+    <span class="chip">Przyciąganie</span><span class="chip">Siatka</span><span class="chip">Kąty proste</span>
+    <span class="chip" style="background:var(--card);box-shadow:0 0 0 1px var(--line) inset">2,40 m</span><span>1:50</span>
+  </footer>
+</div>
+
+<div class="legend">
+  <div><b>Znika:</b> pasek narzędzi, górny pasek (plik, pastylki), dolny pasek (podpowiedź, skala, zakładki). Rysunek wypełnia całe okno.</div>
+  <div><b>Plakietka w rogu:</b> narzędzie, warstwa, kreska. Kliknięcie w warstwę albo kreskę otwiera ten sam wybór co pastylki.</div>
+  <div><b>Wymiar przy kursorze:</b> pole pojawia się obok kursora dopiero, gdy zaczniesz wpisywać liczbę.</div>
+  <div><b>Działa bez zmian:</b> wszystkie skróty, przyciąganie, kierunki, siatka; paski narzędzi (pędzel, przytnij) wyskakują jak teraz.</div>
+  <div><b>Wyjście:</b> tylko <kbd>Tab</kbd> (Esc dalej kończy rysowanie). Program pamięta wybór do następnego uruchomienia.</div>
+</div>
+
+<script>
+const win = document.getElementById('win');
+const setMode = m => { win.classList.toggle('min', m === 'min'); document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('on', b.dataset.m === m)); };
+document.getElementById('mode').onclick = e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.m); };
+document.getElementById('theme').onclick = e => { const b = e.target.closest('button'); if (!b) return; document.documentElement.dataset.theme = b.dataset.t; document.querySelectorAll('#theme button').forEach(x => x.classList.toggle('on', x === b)); };
+addEventListener('keydown', e => { if (e.key === 'Tab') { e.preventDefault(); setMode(win.classList.contains('min') ? 'full' : 'min'); } });
+</script>
+</body>
+</html>

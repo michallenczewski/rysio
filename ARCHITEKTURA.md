@@ -100,11 +100,11 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 | `renderer/model.js` | rysunek, warstwy, kreski, `edit()` i historia cofania, `fixDoc()` |
 | `renderer/geom.js` | geometria bez okna: odległości, przecięcia, rzuty, styczne, łuk przez trzy punkty, obrysy, trafienia |
 | `renderer/draw.js` | rysowanie elementów przez „pióro” (płótno albo PDF): kreski, tekst, wymiar |
-| `renderer/edit.js` | zmienianie geometrii: obrót, odbicie, skala (`transformed`), odsunięcie (`offsetEnt`, także polilinii z łukami), zaokrąglenie dwóch linii (`filletLines`), przycinanie i wydłużanie jednym kliknięciem (`trimOrExtend`) i wielu kawałków jednym przeciągnięciem (`trimMany`, tryb auto / trim / extend) |
+| `renderer/edit.js` | zmienianie geometrii: obrót, odbicie, skala (`transformed`), odsunięcie (`offsetEnt`, także polilinii z łukami), zaokrąglenie dwóch linii (`filletLines`), przycinanie i wydłużanie jednym kliknięciem (`trimOrExtend`) i wielu kawałków jednym przeciągnięciem (`trimMany`, tryb auto / trim / extend), uchwyty (`gripsOf`, `gripMove`) |
 | `renderer/sheet.js` | arkusz: okna z modelem w skali (przeliczanie arkusz ↔ model), ramka z tabelką, skale do tabelki |
 | `renderer/pdf.js` | wektorowy PDF arkuszy (`PdfPen`, `makePdf`) |
-| `renderer/view.js` | płótno, przesuwanie i przybliżanie, przeliczanie metry ↔ piksele, kreski w skali |
-| `renderer/snap.js` | przyciąganie (koniec, środek, przecięcie, prostopadle, środek okręgu, styczna, najbliższy) i kierunki (poziom, pion, wzdłuż i prostopadle do linii, śledzenie od punktów) |
+| `renderer/view.js` | płótno, przesuwanie i przybliżanie, przeliczanie metry ↔ piksele, kreski w skali, siatka modelu (`drawGrid`, odstęp z `gridStep`), uchwyty |
+| `renderer/snap.js` | przyciąganie (koniec, środek, przecięcie, prostopadle, środek okręgu, styczna, węzeł siatki, najbliższy) i kierunki (poziom, pion, wzdłuż i prostopadle do linii, śledzenie od punktów) |
 | `renderer/tools.js` | narzędzia: zaznacz, usuń, pędzel, linia, polilinia, prostokąt, okrąg, łuk, przesuń, kopiuj, obróć, odbij, skaluj, odsunięcie, zaokrąglij, przytnij / wydłuż, tekst, wymiar, okno na arkuszu |
 | `renderer/units.js` | wpisywanie i pokazywanie wymiarów w jednostce rysunku |
 | `renderer/keys.js` | skróty klawiszowe i ich zmiana |
@@ -142,7 +142,7 @@ Na razie żadnych (PDF powstaje bez biblioteki, zob. wyżej). Plan: `renderer/ve
 ## Sygnały, że trzeba wrócić do tematu
 
 - **Przerysowanie całości przy każdym ruchu myszy** — wystarczy do kilkunastu tysięcy elementów. Przy podkładach (etap 5) trzeba będzie rysować rysunek do bufora, a na wierzch tylko kursor i podgląd, oraz dodać indeks przestrzenny.
-- **Uchwyty (przeciąganie końców zaznaczonych linii)** jeszcze nie istnieją; zmiana kształtu odbywa się narzędziami.
+- **Uchwyty** nie mają wpisywania długości z klawiatury — tylko przeciąganie albo klik w nowe miejsce, z przyciąganiem i kierunkami.
 - **Zaokrąglanie działa na dwóch pojedynczych liniach** — nie na wierzchołkach polilinii ani na łukach. Polilinię trzeba by najpierw rozbić (polecenie, którego jeszcze nie ma).
 - **Odsunięcie polilinii** łączy części przez przecięcie ich przedłużeń (ostre narożniki); gdy przedłużenia się nie przecinają (np. łuk i odcinek, które się rozjechały), oba odsunięte końce łączy prosty odcinek. Odsunięcie, przy którym któraś część zmieniłaby kierunek (figura by się wywinęła), program odrzuca.
 - **Wydłużanie polilinii** działa tylko wtedy, gdy kończy się ona odcinkiem (nie łukiem).

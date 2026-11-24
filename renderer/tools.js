@@ -8,7 +8,7 @@ import { _t } from './i18n.js';
 import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, intersect, lengthOf, dimGeom } from './geom.js';
 import { parseLength, parseLengths, fmtLength, fmtNum } from './units.js';
 import { isLive, isShown } from './model.js';
-import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, trimMany } from './edit.js';
+import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, trimMany, gripsOf, gripMove } from './edit.js';
 
 const dirOf = (from, to) => { const d = V.norm(V.sub(to, from)); return d[0] || d[1] ? d : [1, 0]; };
 const deg = r => (r * 180 / Math.PI);
@@ -18,13 +18,49 @@ export function makeTools(app) {
   const T = {};
 
   /* ---------- zaznacz (Q) ---------- */
+  // Z zaznaczeniem pokazuje uchwyty: przeciągnięcie uchwytu (albo klik w uchwyt i klik w nowe miejsce) zmienia element,
+  // z przyciąganiem i kierunkami jak przy rysowaniu.
   T.select = {
-    id: 'select', draw: false, box: null, _down: null,
-    base: () => null, label: () => null, reading: () => null,
-    hint() { return app.sel.size ? _t`<b>${app.sel.size} zaznaczone.</b> ${app.keyName('delete')} usuwa, ${app.keyName('move')} przesuwa, ${app.keyName('copy')} kopiuje. Warstwę i kreskę zmienisz w pastylkach u góry.` : _t`<b>Zaznacz:</b> kliknij element (${app.shiftName} dodaje i odejmuje) albo przeciągnij ramkę — w prawo: całe w ramce, w lewo: wszystko, czego dotknie.`; },
-    down(p, e) { this._down = p; this.box = null; this._shift = e.shiftKey; },
-    move(p) { if (this._down && V.dist(this._down, p) * app.view.ppm > 4) this.box = { a: this._down, b: p }; },
+    id: 'select', box: null, _down: null, grip: null,
+    get draw() { return !!this.grip; },
+    base() { return this.grip ? this.grip.from : null; }, label: () => null, reading: () => null,
+    // uchwyty zaznaczonych elementów (przy bardzo dużym zaznaczeniu nie pokazujemy — byłby gąszcz)
+    grips() {
+      if (this.grip || app.sel.size > 60) return [];
+      const out = [];
+      for (const e of app.ents()) if (app.sel.has(e.id) && isLive(app.doc, e)) for (const g of gripsOf(e)) out.push({ e, ...g });
+      return out;
+    },
+    gripAt(p) { const tol = 7 / app.view.ppm; let best = null, bd = tol; for (const g of this.grips()) { const d = V.dist(g.p, p); if (d <= bd) { bd = d; best = g; } } return best; },
+    finishGrip(p) {
+      const { e, k, from } = this.grip; this.grip = null; app.dragEnt = null;
+      const patch = gripMove(e, k, p, from);
+      app.cursorClass?.();
+      if (patch && V.dist(p, from) > 1e-9) app.edit(_t('Uchwyt'), tx => tx.set(e.id, patch));
+    },
+    hint() {
+      if (this.grip) return _t('<b>Uchwyt:</b> przeciągnij albo kliknij nowe miejsce — przyciąganie i kierunki działają jak przy rysowaniu. Esc przerywa.');
+      return app.sel.size ? _t`<b>${app.sel.size} zaznaczone.</b> ${app.keyName('delete')} usuwa, ${app.keyName('move')} przesuwa, ${app.keyName('copy')} kopiuje. Kwadracik (uchwyt) przeciągnij, żeby zmienić kształt.` : _t`<b>Zaznacz:</b> kliknij element (${app.shiftName} dodaje i odejmuje) albo przeciągnij ramkę — w prawo: całe w ramce, w lewo: wszystko, czego dotknie.`; },
+    down(p, e) {
+      if (this.grip) {   // drugi klik: uchwyt ląduje tutaj (szybki drugi klik to dwuklik, nie przesunięcie)
+        if (performance.now() - (this.grip.armedAt || 0) < 400) { this.cancel(); return; }
+        this.finishGrip(p); return;
+      }
+      const g = !e.shiftKey && this.gripAt(p);
+      if (g) { this.grip = { e: g.e, k: g.k, from: g.p, p: g.p, moved: false }; app.dragEnt = g.e.id; app.cursorClass?.(); return; }
+      this._down = p; this.box = null; this._shift = e.shiftKey;
+    },
+    move(p) {
+      if (this.grip) { this.grip.p = p; if (V.dist(p, this.grip.from) * app.view.ppm > 4) this.grip.moved = true; return; }
+      if (this._down && V.dist(this._down, p) * app.view.ppm > 4) this.box = { a: this._down, b: p };
+    },
+    preview() {
+      if (!this.grip) return [];
+      const { e, k, from, p } = this.grip, patch = gripMove(e, k, p, from);
+      return patch ? [{ ...e, ...patch }] : [{ ...e }];
+    },
     up(p) {
+      if (this.grip) { if (this.grip.moved) this.finishGrip(p); else this.grip.armedAt = performance.now(); return; }   // bez ruchu: czekamy na klik w nowe miejsce
       if (!this._down) return;
       if (this.box) {
         const a = this.box.a, b = this.box.b, r = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
@@ -38,8 +74,13 @@ export function makeTools(app) {
       }
       this._down = null; this.box = null; app.selectionChanged();
     },
-    cancel() { if (this._down) { this._down = null; this.box = null; return true; } if (app.sel.size) { app.sel.clear(); app.selectionChanged(); return true; } return false; },
-    enter: () => false, typed: () => false, preview: () => []
+    cancel() {
+      if (this.grip) { this.grip = null; app.dragEnt = null; app.cursorClass?.(); return true; }
+      if (this._down) { this._down = null; this.box = null; return true; }
+      if (app.sel.size) { app.sel.clear(); app.selectionChanged(); return true; }
+      return false;
+    },
+    enter: () => false, typed: () => false
   };
 
   /* ---------- usuń / gumka (S) ---------- */

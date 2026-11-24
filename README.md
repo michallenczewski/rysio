@@ -8,6 +8,8 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 - Zmienianie: zaznacz (Q) — klik, ⇧ + klik, ramka w prawo (całe w ramce) i w lewo (wszystko, czego dotknie); przesuń (W), kopiuj (C), usuń (S albo Delete), cofnij i ponów.
 - Pędzel (M): przemalowuje istniejące linie tym, co jest w pastylkach u góry — kreskę, warstwę albo jedno i drugie — kliknięciem albo przeciągnięciem przez kilka naraz; przycisk „Pipeta” na pasku pędzla (albo ⌥ + klik na Macu, Ctrl + klik w Windows) bierze kreskę i warstwę z innej linii, a potem pędzel nadaje je kolejnym.
 - Przyciąganie z czytelnym znaczkiem i podpisem: koniec, środek, przecięcie, prostopadle, środek okręgu, styczna, najbliższy.
+- Siatka (I albo przełącznik na dole): wyłączona → kropki → linie; oczka co 1 cm … 10 m zależnie od przybliżenia, co dziesiąte wyraźniejsze; rysowanie przyciąga do węzłów. Tylko w modelu, nie trafia na wydruk.
+- Uchwyty: zaznaczone elementy mają kwadraciki na końcach, wierzchołkach, środkach i kwadrantach — przeciągnij albo kliknij i kliknij nowe miejsce (z przyciąganiem). Środek linii i środek okręgu przesuwają cały element.
 - Kierunki: poziom i pion od punktu, równolegle i prostopadle do linii, przy której był kursor, śledzenie od punktów; ⇧ trzyma kierunek; przełącznik „Kąty proste”.
 - Wymiary wpisywane w trakcie: długość, `szer;wys` dla prostokąta, promień, kąt łuku; liczba bez jednostki jest w jednostce rysunku (m, cm, mm).
 - Warstwy: nazwa, kolor, widoczność, blokada, domyślna kreska; przenoszenie zaznaczenia na warstwę jednym kliknięciem.
