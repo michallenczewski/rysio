@@ -389,6 +389,29 @@ przypadek('zamknięta polilinia z dwoma wierzchołkami', 'dwa wierzchołki z wyb
   return { 'części': [G.plineParts(e).length, 2], 'obrys': [G.bbox(e).map(v => +v.toFixed(6)), [0, -1, 2, 1]] };
 });
 
+przypadek('przytnij kilka kawałków jednym przeciągnięciem', 'trzy poziome linie przecięte dwoma pionami; ślad przez środki usuwa trzy środkowe kawałki', () => {
+  const pion1 = { ...L([3, -1], [3, 5]), id: 101 }, pion2 = { ...L([7, -1], [7, 5]), id: 102 };
+  const hs = [0, 2, 4].map((y, i) => ({ ...L([0, y], [10, y]), id: i + 1 }));
+  const r = ED.trimMany(hs.map(e => ({ e, p: [5, e.a[1]] })), [...hs, pion1, pion2], 'trim');
+  return { 'zmienione linie': [r.length, 3], 'kawałki każdej': [r.map(x => x.replace.length), [2, 2, 2]], 'lewy kawałek pierwszej': [[...r[0].replace[0].a, ...r[0].replace[0].b], [0, 0, 3, 0]] };
+});
+przypadek('ten sam element przecięty dwa razy', 'ślad przecina linię w dwóch kawałkach — oba znikają', () => {
+  const e = { ...L([0, 0], [10, 0]), id: 1 }, cut = [3, 6].map((x, i) => ({ ...L([x, -1], [x, 1]), id: 10 + i }));
+  const r = ED.trimMany([{ e, p: [1.5, 0] }, { e, p: [8, 0] }], [e, ...cut], 'trim');
+  return { 'zostaje jeden kawałek': [r[0].replace.length, 1], 'środek 3–6': [[...r[0].replace[0].a, ...r[0].replace[0].b], [3, 0, 6, 0]] };
+});
+przypadek('wydłuż kilka linii jednym przeciągnięciem', 'trzy krótkie linie wydłużone do ściany x=8', () => {
+  const sciana = { ...L([8, -1], [8, 5]), id: 100 }, hs = [0, 2, 4].map((y, i) => ({ ...L([0, y], [5, y]), id: i + 1 }));
+  const r = ED.trimMany(hs.map(e => ({ e, p: [4.9, e.a[1]] })), [...hs, sciana], 'extend');
+  return { 'wydłużone': [r.map(x => x.kind), ['extend', 'extend', 'extend']], 'końce': [r.map(x => x.set.b[0]), [8, 8, 8]] };
+});
+
+przypadek('ślad trafia dwa razy w ten sam kawałek', 'klik i przeciągnięcie w obrębie jednego kawałka nie przycina sąsiedniego', () => {
+  const e = { ...L([0, 0], [10, 0]), id: 1 }, cut = [3, 6].map((x, i) => ({ ...L([x, -1], [x, 1]), id: 10 + i }));
+  const r = ED.trimMany([{ e, p: [4, 0] }, { e, p: [5, 0] }], [e, ...cut], 'auto', 0.05);
+  return { 'zostają dwa kawałki': [r[0].replace.length, 2] };
+});
+
 /* ---------- uruchomienie ---------- */
 const args = process.argv.slice(2), verbose = args.includes('-v'), filt = args.find(a => a !== '-v')?.toLowerCase();
 const fmt = x => typeof x === 'number' ? (Number.isInteger(x) ? String(x) : x.toFixed(6)) : Array.isArray(x) && x.length && x.every(v => typeof v === 'number') ? pt(x) : JSON.stringify(x);

@@ -203,3 +203,6 @@ header button,header .seg,header input{-webkit-app-region:no-drag}
 #keysList .k button{border-radius:5px;padding:1px}
 #keysList .k button:hover kbd{background:var(--hover)}
 #keysList .k button.wait kbd{box-shadow:0 0 0 1.5px var(--text) inset}
+.toolbar .pick{height:28px;padding:0 10px;border-radius:7px;color:var(--muted);font-size:12px}
+.toolbar .pick:hover{background:var(--soft);color:var(--text)}
+.toolbar .pick.on{background:var(--ink);color:var(--card)}

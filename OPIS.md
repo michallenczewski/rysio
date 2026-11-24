@@ -17,7 +17,7 @@ Zmienianie:
 - zaznacz, przesuń, kopiuj, obróć, odbij, skaluj, usuń
 - odsunięcie (offset)
 - zaokrąglenie narożnika (fillet) — z promieniem; promień 0 łączy linie w narożnik
-- przytnij (trim) i wydłuż (extend) — klik w kawałek do usunięcia albo w koniec do wydłużenia, bez wcześniejszego wskazywania krawędzi tnących
+- przytnij (trim) i wydłuż (extend) — klik w kawałek do usunięcia albo w koniec do wydłużenia, bez wcześniejszego wskazywania krawędzi tnących; przeciągnięcie przez kilka kawałków działa jak pędzel (tryb: sam wybiera / tylko przytnij / tylko wydłuż)
 
 Porządek:
 - warstwy: nazwa, kolor, widoczność, blokada, domyślna grubość i rodzaj linii
@@ -33,7 +33,7 @@ Pomoc w rysowaniu:
 ## Grubości i rodzaje linii — ma być łatwo
 
 - U góry dwie pastylki: warstwa i kreska. Kreska otwiera wybór: grubości pokazane jako prawdziwe kreski (0,13 · 0,18 · 0,25 · 0,35 · 0,5 · 0,7 mm) i rodzaje (ciągła, kreskowa, osiowa, punktowa). Wybór dotyczy następnych elementów albo zaznaczenia. Z zaznaczeniem pastylka warstwy przenosi je na wybraną warstwę.
-- Pędzel (M): przemalowuje istniejące linie kliknięciem albo przeciągnięciem przez kilka naraz — kreskę, warstwę albo jedno i drugie — tym, co jest w pastylkach u góry (pastylki dostają obwódkę). ⌥ + klik na Macu (Ctrl + klik w Windows) to pipeta: przepisuje kreskę i warstwę linii do pastylek.
+- Pędzel (M): przemalowuje istniejące linie kliknięciem albo przeciągnięciem przez kilka naraz — kreskę, warstwę albo jedno i drugie — tym, co jest w pastylkach u góry (pastylki dostają obwódkę). Pipeta (przycisk na pasku pędzla albo ⌥ + klik na Macu, Ctrl + klik w Windows) bierze kreskę i warstwę innej linii, żeby nadać je kolejnym.
 - Cyfry zawsze służą do wpisywania wartości (długość, `szer;wys`, promień, kąt) — nie zmieniają grubości.
 - Kreska może być „jak warstwa” albo ustawiona osobno na elemencie.
 - Na ekranie linie mają taką grubość jak na papierze w wybranej skali (z przełącznikiem „cienkie linie” do precyzyjnej pracy).

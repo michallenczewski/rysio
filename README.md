@@ -6,7 +6,7 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 
 - Rysowanie: linia (A), polilinia (F), prostokąt (D), okrąg (V), łuk przez trzy punkty (B) i ze środka (⇧B; Tab przełącza sposób).
 - Zmienianie: zaznacz (Q) — klik, ⇧ + klik, ramka w prawo (całe w ramce) i w lewo (wszystko, czego dotknie); przesuń (W), kopiuj (C), usuń (S albo Delete), cofnij i ponów.
-- Pędzel (M): przemalowuje istniejące linie tym, co jest w pastylkach u góry — kreskę, warstwę albo jedno i drugie — kliknięciem albo przeciągnięciem przez kilka naraz; ⌥ + klik na Macu (Ctrl + klik w Windows) to pipeta: przepisuje kreskę i warstwę linii do pastylek.
+- Pędzel (M): przemalowuje istniejące linie tym, co jest w pastylkach u góry — kreskę, warstwę albo jedno i drugie — kliknięciem albo przeciągnięciem przez kilka naraz; przycisk „Pipeta” na pasku pędzla (albo ⌥ + klik na Macu, Ctrl + klik w Windows) bierze kreskę i warstwę z innej linii, a potem pędzel nadaje je kolejnym.
 - Przyciąganie z czytelnym znaczkiem i podpisem: koniec, środek, przecięcie, prostopadle, środek okręgu, styczna, najbliższy.
 - Kierunki: poziom i pion od punktu, równolegle i prostopadle do linii, przy której był kursor, śledzenie od punktów; ⇧ trzyma kierunek; przełącznik „Kąty proste”.
 - Wymiary wpisywane w trakcie: długość, `szer;wys` dla prostokąta, promień, kąt łuku; liczba bez jednostki jest w jednostce rysunku (m, cm, mm).
@@ -27,7 +27,7 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 - Obróć (E), odbij (⇧E / Shift+E), skaluj (R) — na zaznaczeniu; kąt i skala z klawiatury albo myszą; ⌥ (Ctrl w Windows) robi kopię.
 - Odsunięcie (T): linie, łuki, okręgi i polilinie (także z łukami); odległość wpisana z klawiatury.
 - Zaokrąglij narożnik (G): dwie linie, promień wpisany z klawiatury; promień 0 łączy linie w ostry narożnik.
-- Przytnij / wydłuż (X): klik w kawałek między przecięciami go usuwa, klik przy końcu linii dosuwa ją do najbliższego elementu.
+- Przytnij / wydłuż (X): klik w kawałek między przecięciami go usuwa, klik przy końcu linii dosuwa ją do najbliższego elementu. Przeciągnięcie przez kilka kawałków robi to z nimi wszystkimi naraz; pasek u góry ustala tryb: sam wybiera, tylko przytnij, tylko wydłuż.
 - Polilinie mogą mieć łuki (powstają przy odsunięciu, przycinaniu i z plików DXF).
 
 Następne etapy: bloki i kreskowanie, wymiana DXF/DWG — patrz `OPIS.md`.

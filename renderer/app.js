@@ -156,6 +156,7 @@ function setTool(id, opts = {}) {
   tool.start?.();
   if (id === 'arc') { tool.pts = []; tool.mode = opts.arcMode || '3p'; }
   if (id !== 'brush') hideBrushBar();
+  if (id !== 'trim') $('#trimBar')?.remove();
   if (textEd) finishText();
   lockDir = null; typing = null; app.snapper.clearRefs(); snapRes = null; hoverEnt = null;
   if (cursorScreen) updateCursor(...cursorScreen);
@@ -331,7 +332,7 @@ function frame() {
   app.view.render({
     doc: app.doc, sel: app.sel, thin: app.thin, ents: app.hideEnt ? app.ents().filter(e => e.id !== app.hideEnt) : app.ents(), scale: app.spaceScale(), sheet: app.sheet(), vpEdit: app.vpEdit,
     fmt: app.space ? app.fmtSheet : app.fmtModel, fmtModel: app.fmtModel,
-    hover: [...hi, ...(hoverEnt && !app.sel.has(hoverEnt.id) ? [hoverEnt] : [])], hoverColor: tool.id === 'eraser' ? '#c0533f' : null,
+    hover: [...hi, ...(hoverEnt && !app.sel.has(hoverEnt.id) ? [hoverEnt] : [])], hoverColor: tool.id === 'eraser' || tool.id === 'trim' ? '#c0533f' : null,
     guides: snapRes ? snapRes.guides : [], snap: snapRes, marks: tool.draw ? app.snapper.refPts : [],
     preview: cursorScreen || !tool.draw ? tool.preview() : [], box: tool.box, path: tool.path && tool.path.length > 1 ? tool.path : null
   });
@@ -376,6 +377,7 @@ function refreshUi() {
   showVpBar(); showTextBar();
   renderPills();
   if (tool.id === 'brush') showBrushBar();
+  if (tool.id === 'trim') showTrimBar();
   if (!$('#layersPop').hidden) renderLayersPop();
   if (!$('#strokePop').hidden) renderStrokePop();
 }
@@ -514,7 +516,7 @@ document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop, .me
 /* ---------- pasek pędzla ---------- */
 function showBrushBar() {
   let el = $('#brushBar');
-  if (!el) { el = document.createElement('div'); el.id = 'brushBar'; el.className = 'toolbar'; view.append(el); el.addEventListener('pointerdown', e => e.stopPropagation()); el.addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) { app.tools.brush.mode = b.dataset.mode; showBrushBar(); } }); }
+  if (!el) { el = document.createElement('div'); el.id = 'brushBar'; el.className = 'toolbar'; view.append(el); el.addEventListener('pointerdown', e => e.stopPropagation()); el.addEventListener('click', e => { const br = app.tools.brush; if (e.target.closest('[data-pick]')) { br.picking = !br.picking; refreshUi(); return; } const b = e.target.closest('[data-mode]'); if (b) { br.mode = b.dataset.mode; showBrushBar(); } }); }
   const br = app.tools.brush, c = br.getCarry(), L = app.doc.layers.find(x => x.id === c.layer) || app.doc.layers[0];
   const w = c.w ?? L.w, lt = c.lt ?? L.lt;
   el.innerHTML = `<span class="t">${_t('Pędzel')}</span>
@@ -522,11 +524,21 @@ function showBrushBar() {
     <span class="lbl">${_t('Maluje:')}</span>
     <div class="smp">${br.mode !== 'stroke' ? `<i style="background:${L.color === '#1a1a19' ? 'var(--ink)' : L.color}"></i><span translate="no">${esc(L.name)}</span>` : ''}${br.mode === 'both' ? '<span class="lbl">·</span>' : ''}${br.mode !== 'layer' ? `${sample(w, lt, 30)}<span>${wtxt(w)} ${LTYPES[lt].name}${c.w === null && c.lt === null ? ' <span class="lbl">(' + _t('jak warstwa') + ')</span>' : ''}</span>` : ''}</div>
     <span class="lbl">${_t('z pastylek u góry')}</span>
-    <span class="lbl" style="padding:0 6px"><kbd>${app.altName}</kbd> + ${_t('klik — pipeta')}</span>`;
+    <button data-pick class="pick${br.picking ? ' on' : ''}" title="${_t('Pipeta')} (${app.altName} + ${_t('klik')})">${_t('Pipeta')}</button>`;
   // pastylki, z których maluje pędzel, dostają obwódkę
   $('#layerPill').classList.toggle('src', br.mode !== 'stroke'); $('#strokePill').classList.toggle('src', br.mode !== 'layer');
 }
 function hideBrushBar() { $('#brushBar')?.remove(); $('#layerPill').classList.remove('src'); $('#strokePill').classList.remove('src'); }
+
+/* ---------- pasek przycinania ---------- */
+function showTrimBar() {
+  let el = $('#trimBar');
+  if (!el) { el = document.createElement('div'); el.id = 'trimBar'; el.className = 'toolbar'; view.append(el); el.addEventListener('pointerdown', e => e.stopPropagation()); el.addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) { app.tools.trim.mode = b.dataset.mode; showTrimBar(); refreshUi(); } }); }
+  const m = app.tools.trim.mode;
+  el.innerHTML = `<span class="t">${_t('Przytnij / wydłuż')}</span>
+    <div class="seg">${[['auto', _t('Sam wybiera')], ['trim', _t('Tylko przytnij')], ['extend', _t('Tylko wydłuż')]].map(([k, n]) => `<button data-mode="${k}" class="${m === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <span class="lbl" style="padding:0 6px">${_t('klik albo przeciągnięcie przez kilka')}</span>`;
+}
 
 /* ---------- pasek stanu: jednostka i skala ---------- */
 function showMenu(anchor, items, { up = false } = {}) {

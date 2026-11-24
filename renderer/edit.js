@@ -282,4 +282,32 @@ export function trimOrExtend(e, p, others, endTol = 0) {
   }
   return tr ? { kind: 'trim', replace: tr.replace } : null;
 }
+// Przycinanie / wydłużanie kilku kawałków jednym przeciągnięciem: hits — [{ e, p }] (element i punkt, w którym ślad
+// go przeciął; ten sam element może być kilka razy), others — wszystkie elementy tnące (geometria sprzed zmian).
+// mode: 'auto' (jak jedno kliknięcie), 'trim', 'extend'. Wynik: [{ id, kind: 'trim', replace } | { id, kind: 'extend', set }].
+export function trimMany(hits, others, mode = 'auto', endTol = 0) {
+  const byId = new Map();
+  for (const h of hits) { if (!byId.has(h.e.id)) byId.set(h.e.id, { e: h.e, ps: [] }); byId.get(h.e.id).ps.push(h.p); }
+  const out = [];
+  for (const { e, ps } of byId.values()) {
+    const cut = others.filter(o => o.id !== e.id);
+    if (mode === 'extend' || (mode === 'auto' && ps.length === 1)) {
+      const r = mode === 'extend' ? (() => { const x = extendAt(e, ps[0], cut); return x ? { kind: 'extend', set: x } : null; })() : trimOrExtend(e, ps[0], cut, endTol);
+      if (r) out.push({ id: e.id, ...r });
+      continue;
+    }
+    // kolejne przycięcia tego samego elementu: każdy punkt trafia w kawałek, który jeszcze został
+    let pieces = [e], changed = false;
+    for (const p of ps) {
+      let best = null, bd = Infinity;
+      for (const q of pieces) { const n = partsOf(q).reduce((m, part) => { const c = part.k === 'seg' ? closestOnSeg(p, part.a, part.b).p : null; return c ? Math.min(m, V.dist(c, p)) : m; }, Infinity); const d = q.t === 'line' || q.t === 'pline' ? n : Math.abs(V.dist(p, q.c) - q.r); if (d < bd) { bd = d; best = q; } }
+      if (!best || bd > Math.max(endTol, 1e-6)) continue;   // ten kawałek już usunięty — nie tnij sąsiada
+      const r = trimAt(best, p, cut); if (!r) continue;
+      pieces = pieces.filter(q => q !== best).concat(r.replace.map(x => ({ ...x, id: e.id })));
+      changed = true;
+    }
+    if (changed) out.push({ id: e.id, kind: 'trim', replace: pieces.map(({ id, ...x }) => x) });
+  }
+  return out;
+}
 export { geomOf };

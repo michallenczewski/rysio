@@ -5,10 +5,10 @@
 //             hint() podpowiedź · down/move/up(p, e) · typed(tekst) → true, gdy zrozumiało · enter() / cancel() → true, gdy coś zrobiło
 //             preview() elementy podglądu · path / box — ślad pędzla i gumki, ramka zaznaczania
 import { _t } from './i18n.js';
-import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, lengthOf, dimGeom } from './geom.js';
+import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, intersect, lengthOf, dimGeom } from './geom.js';
 import { parseLength, parseLengths, fmtLength, fmtNum } from './units.js';
 import { isLive, isShown } from './model.js';
-import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, trimOrExtend } from './edit.js';
+import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, trimMany } from './edit.js';
 
 const dirOf = (from, to) => { const d = V.norm(V.sub(to, from)); return d[0] || d[1] ? d : [1, 0]; };
 const deg = r => (r * 180 / Math.PI);
@@ -66,14 +66,18 @@ export function makeTools(app) {
   T.brush = {
     // Pędzel maluje dokładnie tym, co jest w pastylkach u góry (doc.cur) — jedno źródło prawdy.
     // ⌥ + klik (Ctrl w Windows) to pipeta: przepisuje kreskę i warstwę linii do pastylek.
-    id: 'brush', draw: false, path: null, done: new Set(), mode: 'both',
+    id: 'brush', draw: false, path: null, done: new Set(), mode: 'both', picking: false,
     base: () => null, label: () => null, reading: () => null,
-    hint() { return _t`<b>Pędzel:</b> maluje kreską i warstwą z pastylek u góry — klikaj linie albo przeciągnij przez kilka naraz. ${app.altName} + klik w linię przepisuje jej kreskę i warstwę do pastylek.`; },
+    hint() { return this.picking ? _t('<b>Pipeta:</b> kliknij linię, której kreskę i warstwę chcesz nadać innym — potem pędzel nimi maluje.') : _t`<b>Pędzel:</b> maluje kreską i warstwą z pastylek u góry — klikaj linie albo przeciągnij przez kilka naraz. Pipeta (albo ${app.altName} + klik) bierze kreskę i warstwę z innej linii.`; },
     // co niesie pędzel: domyślnie bieżąca warstwa i kreska
     getCarry() { const c = app.doc.cur; return { layer: c.layer, w: c.w, lt: c.lt }; },
     patch() { const c = this.getCarry(), p = {}; if (this.mode !== 'layer') { p.w = c.w; p.lt = c.lt; } if (this.mode !== 'stroke') p.layer = c.layer; return p; },
     down(p, e) {
-      if (app.altKey(e)) { const s = app.pick(p, { locked: true }); if (s) { app.edit(_t('Pipeta'), tx => tx.setDoc({ cur: { layer: s.layer, w: s.w ?? null, lt: s.lt ?? null } })); app.toast(_t('Kreska i warstwa linii są teraz w pastylkach u góry — pędzel nimi maluje.'), 2200); } return; }
+      if (this.picking || app.altKey(e)) {
+        const s = app.pick(p, { locked: true });
+        if (s) { this.picking = false; app.edit(_t('Pipeta'), tx => tx.setDoc({ cur: { layer: s.layer, w: s.w ?? null, lt: s.lt ?? null } })); app.toast(_t('Pobrane — teraz klikaj albo przeciągaj przez linie, którym chcesz to nadać.'), 2200); app.refreshUi(); }
+        return;
+      }
       this.path = [p]; this.done = new Set(); const s = app.pick(p); if (s) this.done.add(s.id);
     },
     move(p) {
@@ -86,7 +90,7 @@ export function makeTools(app) {
       if (ids.length) { const patch = this.patch(); app.edit(_t('Pędzel'), tx => ids.forEach(id => tx.set(id, patch))); }
     },
     highlight() { return this.done; },
-    cancel() { if (this.path) { this.path = null; this.done = new Set(); return true; } return false; },
+    cancel() { if (this.path) { this.path = null; this.done = new Set(); return true; } if (this.picking) { this.picking = false; app.refreshUi(); return true; } return false; },
     enter: () => false, typed: () => false, preview: () => []
   };
 
@@ -384,21 +388,53 @@ export function makeTools(app) {
     preview: () => [], enter: () => false, cancel() { if (this.first) { this.first = null; return true; } return false; }
   };
 
-  /* ---------- przytnij / wydłuż (X): jedno kliknięcie ---------- */
+  /* ---------- przytnij / wydłuż (X): klik albo przeciągnięcie przez kilka kawałków, jak gumka ---------- */
+  const CUTS = ['line', 'arc', 'circle', 'pline'];
   T.trim = {
-    id: 'trim', draw: false,
+    id: 'trim', draw: false, path: null, hits: [], marked: new Set(), mode: 'auto',
     base: () => null, label: () => null, reading: () => null,
-    hint: () => _t('<b>Przytnij / wydłuż:</b> kliknij kawałek do usunięcia (między przecięciami) albo koniec linii, żeby dosunąć ją do najbliższego elementu.'),
-    down(p) {
-      const e = app.pick(p); if (!e) return;
-      if (!['line', 'arc', 'circle', 'pline'].includes(e.t)) { app.toast(_t('Przycinać i wydłużać można linie, łuki, okręgi i polilinie.')); return; }
-      const others = app.ents().filter(o => o.id !== e.id && isShown(app.doc, o) && !['text', 'vp'].includes(o.t));
-      const r = trimOrExtend(e, p, others, 14 / app.view.ppm);
-      if (!r) { app.toast(_t('Nic do przycięcia ani wydłużenia — brak przecięć i nic na przedłużeniu.')); return; }
-      if (r.kind === 'extend') app.edit(_t('Wydłuż'), tx => tx.set(e.id, r.set));
-      else app.edit(_t('Przytnij'), tx => { tx.del(e.id); for (const n of r.replace) tx.add({ ...n, layer: e.layer, w: e.w, lt: e.lt }); });
+    hint() {
+      return this.mode === 'extend' ? _t('<b>Wydłuż:</b> kliknij koniec linii albo przeciągnij przez końce kilku — dosuną się do najbliższego elementu.')
+        : this.mode === 'trim' ? _t('<b>Przytnij:</b> kliknij kawałek między przecięciami albo przeciągnij przez kilka — znikną wszystkie przecięte kawałki.')
+        : _t('<b>Przytnij / wydłuż:</b> kliknij kawałek do usunięcia albo koniec linii do wydłużenia; przeciągnij, żeby zrobić to z kilkoma naraz.');
     },
-    move() {}, typed: () => false, preview: () => [], enter: () => false, cancel: () => false
+    down(p) {
+      this.path = [p]; this.hits = []; this.marked = new Set();
+      const e = app.pick(p);
+      if (e && CUTS.includes(e.t)) { this.hits.push({ e, p }); this.marked.add(e.id); }
+      else if (e) app.toast(_t('Przycinać i wydłużać można linie, łuki, okręgi i polilinie.'));
+    },
+    move(p) {
+      if (!this.path) return;
+      const last = this.path[this.path.length - 1]; this.path.push(p);
+      const seg = { t: 'line', a: last, b: p };
+      for (const e of app.ents()) {
+        if (!CUTS.includes(e.t) || !isLive(app.doc, e)) continue;
+        for (const x of intersect(e, seg)) { this.hits.push({ e, p: x }); this.marked.add(e.id); }
+      }
+    },
+    up() {
+      const hits = this.hits; this.path = null; this.hits = []; this.marked = new Set();
+      if (!hits.length) return;
+      const others = app.ents().filter(o => isShown(app.doc, o) && !['text', 'vp'].includes(o.t));
+      const res = trimMany(hits, others, this.mode, 14 / app.view.ppm);
+      if (!res.length) {
+        app.toast(this.mode === 'extend' ? _t('Nic do wydłużenia — na przedłużeniu nie ma żadnego elementu.') : this.mode === 'trim' ? _t('Nic do przycięcia — brak przecięć.') : _t('Nic do przycięcia ani wydłużenia — brak przecięć i nic na przedłużeniu.'));
+        return;
+      }
+      const byId = new Map(hits.map(h => [h.e.id, h.e]));
+      const label = res.every(r => r.kind === 'extend') ? _t('Wydłuż') : res.every(r => r.kind === 'trim') ? _t('Przytnij') : _t('Przytnij / wydłuż');
+      app.edit(label, tx => {
+        for (const r of res) {
+          const e = byId.get(r.id);
+          if (r.kind === 'extend') tx.set(r.id, r.set);
+          else { tx.del(r.id); for (const n of r.replace) tx.add({ ...n, layer: e.layer, w: e.w, lt: e.lt }); }
+        }
+      });
+    },
+    highlight() { return this.marked; },
+    cancel() { if (this.path) { this.path = null; this.hits = []; this.marked = new Set(); return true; } return false; },
+    typed: () => false, preview: () => [], enter: () => false
   };
 
   /* ---------- tekst (Y): klik i pisanie wprost na rysunku ---------- */
