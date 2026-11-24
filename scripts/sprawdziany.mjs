@@ -581,6 +581,59 @@ przypadek('bloki: przypadki z przeglądu', 'blok w samym sobie z DXF i z pliku, 
     '600 okręgów nie psuje szukania obszaru': [!!room, true] };
 });
 
+/* ---------- schowek (⌘C / ⌘V) ---------- */
+const CL = await import(R + 'clip.js');
+przypadek('schowek: do innego rysunku z warstwą i blokiem', 'linia na warstwie „Meble” i wstawienie bloku „Stół”, wklejone przesunięte o (10; 0) do pustego rysunku', () => {
+  const src = blockDoc(); src.layers.push({ id: 20, name: 'Meble', color: '#c00', visible: true, locked: false, w: 0.5, lt: 'dash' });
+  const a = { id: 30, t: 'line', a: [0, 0], b: [1, 0], layer: 20, w: null, lt: null }, ins = { id: 31, t: 'ins', b: 9, p: [3, 0], rot: 0, s: 1, mx: false, layer: 1, w: null, lt: null };
+  src.ents.push(a, ins);
+  const text = JSON.stringify(CL.packClip(src, [a, ins], { sheet: false, scale: 50 }));
+  const dst = M.newDoc(), h = new M.History(dst), clip = CL.readClip(text);
+  const r = h.edit('Wklej', tx => CL.pasteClip(tx, dst, clip, { k: 1, d: [10, 0], toSheet: false }));
+  const ln = r.made.find(e => e.t === 'line'), mi = r.made.find(e => e.t === 'ins'), L = dst.layers.find(x => x.id === ln.layer);
+  const b = dst.blocks.find(x => x.id === mi.b), inB = dst.ents.filter(e => e.sp === 'b' + b.id).length;
+  h.undo();
+  return { 'linia': [[...ln.a, ...ln.b], [10, 0, 11, 0]], 'warstwa': [[L.name, L.color, L.w, L.lt], ['Meble', '#c00', 0.5, 'dash']], 'blok': [[b.name, inB, mi.p[0]], ['Stół', 3, 13]],
+    'po cofnięciu pusto': [[dst.ents.length, dst.layers.length, dst.blocks.length], [0, 1, 0]] };
+});
+przypadek('schowek: model → arkusz w skali', 'odcinek 5 m skopiowany w modelu 1:50 ma na arkuszu 10 cm papieru; wysokość tekstu (mm wydruku) się nie zmienia', () => {
+  const src = M.newDoc(); src.scale = 50;
+  const a = { id: 5, t: 'line', a: [0, 0], b: [5, 0], layer: 1 }, tx0 = { id: 6, t: 'text', p: [0, 1], s: 'A', h: 3.5, layer: 1 };
+  const clip = CL.readClip(JSON.stringify(CL.packClip(src, [a, tx0], { sheet: false, scale: 50 })));
+  const k = CL.clipFactor(clip, true, 100), dst = M.newDoc(), h = new M.History(dst);
+  const r = h.edit('Wklej', tx => CL.pasteClip(tx, dst, clip, { k, d: [0, 0], toSheet: true }));
+  const ln = r.made.find(e => e.t === 'line'), t = r.made.find(e => e.t === 'text');
+  return { 'mnożnik': [k, 0.02], 'długość na arkuszu (m papieru)': [ln.b[0] - ln.a[0], 0.1], 'wysokość tekstu': [t.h, 3.5],
+    'arkusz → model w 1:100': [CL.clipFactor({ space: 'sheet', scale: 1 }, false, 100), 100], 'model → model': [CL.clipFactor(clip, false, 100), 1] };
+});
+przypadek('schowek: obcy tekst i okno arkusza', 'zwykły tekst w schowku to nie rysunek; okno arkusza wklejane do modelu jest pomijane', () => {
+  const src = M.newDoc(); src.sheets = [M.newSheet(7, 1)];
+  const vp = { id: 8, t: 'vp', a: [0, 0], b: [0.1, 0.1], scale: 50, c: [0, 0], hidden: [], sp: 7, layer: 1 }, ln = { id: 9, t: 'line', a: [0, 0], b: [0.01, 0], sp: 7, layer: 1 };
+  const clip = CL.readClip(JSON.stringify(CL.packClip(src, [vp, ln], { sheet: true, scale: 50 })));
+  const dst = M.newDoc(), h = new M.History(dst), r = h.edit('Wklej', tx => CL.pasteClip(tx, dst, clip, { k: CL.clipFactor(clip, false, 50), d: [0, 0], toSheet: false }));
+  return { 'zwykły tekst': [CL.readClip('Ala ma kota'), null], 'wklejone / pominięte': [[r.made.length, r.skipped], [1, 1]], 'linia w modelu (m)': [r.made[0].b[0], 0.5] };
+});
+
+przypadek('schowek: blok o tej samej nazwie, innej treści', '„Blok 1” ze stołem wklejony do rysunku, w którym „Blok 1” to drzwi — powstaje „Blok 1 (2)”; ten sam blok w tym samym rysunku jest używany ponownie', () => {
+  const src = blockDoc(); src.blocks = [{ id: 9, name: 'Blok 1' }];
+  const ins = { id: 31, t: 'ins', b: 9, p: [0, 0], rot: 0, s: 1, mx: false, layer: 1 }; src.ents.push(ins);
+  const clip = CL.readClip(JSON.stringify(CL.packClip(src, [ins], { sheet: false, scale: 50 })));
+  const dst = M.newDoc(); dst.blocks = [{ id: 3, name: 'Blok 1' }]; dst.ents = [{ id: 40, t: 'line', a: [0, 0], b: [0, 2], sp: 'b3', layer: 1, w: null, lt: null }]; dst.next = 50;
+  const r = new M.History(dst).edit('Wklej', tx => CL.pasteClip(tx, dst, clip, { k: 1, d: [0, 0], toSheet: false }));
+  const r2 = new M.History(src).edit('Wklej', tx => CL.pasteClip(tx, src, clip, { k: 1, d: [1, 0], toSheet: false }));
+  const r3 = new M.History(dst).edit('Wklej', tx => CL.pasteClip(tx, dst, clip, { k: 1, d: [0, 0], toSheet: true }));
+  return { 'nowy blok': [dst.blocks.map(b => b.name), ['Blok 1', 'Blok 1 (2)']], 'wstawienie wskazuje nowy': [dst.blocks.find(b => b.id === r.made[0].b).name, 'Blok 1 (2)'],
+    'ten sam rysunek': [[src.blocks.length, r2.made[0].b], [1, 9]], 'blok na arkusz pominięty': [[r3.made.length, r3.skipped], [0, 1]] };
+});
+przypadek('schowek: okno arkusza ukrywa warstwy po nazwie', 'okno z ukrytą warstwą „Meble” (id 20) wklejone do rysunku, w którym „Meble” ma id 7', () => {
+  const src = M.newDoc(); src.sheets = [M.newSheet(70, 1)]; src.layers.push({ id: 20, name: 'Meble', color: '#000', visible: true, locked: false, w: 0.25, lt: 'solid' });
+  const vp = { id: 8, t: 'vp', a: [0, 0], b: [0.1, 0.1], scale: 50, c: [0, 0], hidden: [20], sp: 70, layer: 1 };
+  const clip = CL.readClip(JSON.stringify(CL.packClip(src, [vp], { sheet: true, scale: 50 })));
+  const dst = M.newDoc(); dst.layers.push({ id: 7, name: 'Meble', color: '#000', visible: true, locked: false, w: 0.25, lt: 'solid' }); dst.next = 10;
+  const r = new M.History(dst).edit('Wklej', tx => CL.pasteClip(tx, dst, clip, { k: 1, d: [0, 0], toSheet: true }));
+  return { 'ukryte': [r.made[0].hidden, [7]], 'paczka bez bloków': [CL.readClip(JSON.stringify({ rysio: 'schowek', v: 1, ents: [{ t: 'line', a: [0, 0], b: [1, 0] }] })).blocks, []] };
+});
+
 /* ---------- uruchomienie ---------- */
 const args = process.argv.slice(2), verbose = args.includes('-v'), filt = args.find(a => a !== '-v')?.toLowerCase();
 const fmt = x => typeof x === 'number' ? (Number.isInteger(x) ? String(x) : x.toFixed(6)) : Array.isArray(x) && x.length && x.every(v => typeof v === 'number') ? pt(x) : JSON.stringify(x);

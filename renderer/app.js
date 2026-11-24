@@ -3,6 +3,7 @@ import { _t, translateDom, lang, LANGS, setLang } from './i18n.js';
 import { newDoc, fixDoc, History, serialize, strokeOf, layerOf, isLive, isShown, WEIGHTS, LTYPES, LTYPE_IDS, LAYER_COLORS, SCALES, spaceOf, newSheet, sheetSize, PAPER } from './model.js';
 import { V, bbox, boxHit, boxGrow, boxUnion, nearestOn, setAnno, vpBox, textBox, setBlocks, blockEnts, insXf } from './geom.js';
 import { explodeIns } from './edit.js';
+import { packClip, readClip, clipFactor } from './clip.js';
 import { PATTERNS, PATTERN_IDS } from './hatch.js';
 import { CanvasPen, drawEnt } from './draw.js';
 import { vpMap, titleScales, drawSheet } from './sheet.js';
@@ -209,9 +210,44 @@ function runAction(id) {
     case 'keys': return openKeys();
     case 'exportPdf': return openExport();
     case 'newSheet': return addSheet();
+    case 'clipCopy': return clipCopy(null);
+    case 'clipPaste': return clipPaste(null);
   }
 }
 app.run = runAction;
+
+/* ---------- schowek: ⌘C / ⌘V (Ctrl+C / Ctrl+V) ---------- */
+// Zaznaczenie idzie do schowka systemu jako tekst, więc wkleja się też w innym rysunku i w drugim oknie.
+// Zwykłe ⌘C / ⌘V przechodzą przez zdarzenia copy / paste (działają bez pytania o zgodę); inny przypisany klawisz — przez navigator.clipboard.
+let clipMemo = null;   // zapas, gdy schowek systemu jest niedostępny
+let clipWait = 0;     // licznik: ⌘C / ⌘V czeka na zdarzenie copy / paste
+function clipCopy(dt) {
+  const ents = app.ents().filter(e => app.sel.has(e.id) && isLive(app.doc, e));
+  if (!ents.length) { toast(_t('Najpierw zaznacz, co skopiować.')); return false; }
+  const clip = packClip(app.doc, ents, { sheet: !!app.sheet(), scale: app.doc.scale });
+  const text = JSON.stringify(clip); clipMemo = text;
+  if (dt) dt.setData('text/plain', text);
+  else navigator.clipboard?.writeText(text).catch(() => {});
+  toast(_t`Skopiowano ${ents.length} el. — ${app.keyName('clipPaste') || _t('wklej')} wkleja.`, 1600);
+  return true;
+}
+async function clipPaste(dt) {
+  let text = null;
+  if (dt) text = dt.getData('text/plain');
+  else { try { text = await navigator.clipboard.readText(); } catch (e) { text = null; } }
+  const clip = readClip(text) || (text == null || text === '' ? readClip(clipMemo) : null);
+  if (!clip) { toast(_t('W schowku nie ma rysunku — skopiuj elementy w Rysiu.')); return; }
+  const toSheet = !!app.sheet();
+  if (!toSheet && clip.ents.every(e => e.t === 'vp')) { toast(_t('Okna arkusza wkleja się tylko na arkusz.')); return; }
+  setTool('paste');
+  tool.set(clip, clipFactor(clip, toSheet, app.doc.scale));
+  if (cursorScreen) { updateCursor(...cursorScreen); tool.move(cursorModel); }
+  refreshUi(); redraw();
+}
+// zdarzenie dotyczy rysunku: nie pole tekstowe, nie otwarte okno, a skrót wciąż przypisany do schowka
+const clipTarget = (e, id, combo) => !typingIn(document.activeElement) && !e.target?.closest?.('.textEd') && !textEd && $('#keysModal').hidden && $('#exportPop').hidden && app.keys.map.get(combo) === id;
+document.addEventListener('copy', e => { clipWait++; if (!clipTarget(e, 'clipCopy', 'Mod+C')) return; if (clipCopy(e.clipboardData)) e.preventDefault(); });
+document.addEventListener('paste', e => { clipWait++; if (!clipTarget(e, 'clipPaste', 'Mod+V')) return; e.preventDefault(); clipPaste(e.clipboardData); });
 
 /* ---------- mysz ---------- */
 const view = $('#view');
@@ -335,6 +371,9 @@ window.addEventListener('keydown', e => {
   const c = comboOf(e, isMac); if (!c) return;
   if (e.key === 'Tab') e.preventDefault();   // Tab nie przenosi fokusu po przyciskach
   const id = app.keys.map.get(c);
+  // ⌘C / ⌘V zostawiamy przeglądarce — wywoła zdarzenie copy / paste ze schowkiem systemu
+  // (gdyby zdarzenie nie przyszło w ułamku sekundy — robimy to sami przez navigator.clipboard)
+  if ((id === 'clipCopy' && c === 'Mod+C') || (id === 'clipPaste' && c === 'Mod+V')) { const n = ++clipWait; setTimeout(() => { if (clipWait === n) { clipWait++; runAction(id); } }, 250); return; }
   if (id) { e.preventDefault(); runAction(id); }
 });
 window.addEventListener('keyup', e => {

@@ -15,6 +15,7 @@ Rysowanie:
 
 Zmienianie:
 - zaznacz, przesuń, kopiuj, obróć, odbij, skaluj, usuń
+- schowek: ⌘C / ⌘V (Ctrl+C / Ctrl+V) — kopiowanie zaznaczenia także do innego rysunku i drugiego okna; wklejana kopia trzyma się kursora, między modelem a arkuszem przelicza się skala
 - odsunięcie (offset)
 - zaokrąglenie narożnika (fillet) — z promieniem; promień 0 łączy linie w narożnik
 - przytnij (trim) i wydłuż (extend) — klik w kawałek do usunięcia albo w koniec do wydłużenia, bez wcześniejszego wskazywania krawędzi tnących; to dwa osobne narzędzia — przytnij (X) i wydłuż (⇧X); przeciągnięcie przez kilka kawałków działa jak pędzel

@@ -28,6 +28,8 @@ export const ACTIONS = [
   { group: _t('Edycja'), id: 'fillet', name: _t('Zaokrąglij narożnik'), keys: ['G'] },
   { group: _t('Edycja'), id: 'trim', name: _t('Przytnij'), keys: ['X'] },
   { group: _t('Edycja'), id: 'extend', name: _t('Wydłuż'), keys: ['Shift+X'] },
+  { group: _t('Edycja'), id: 'clipCopy', name: _t('Kopiuj do schowka (także do innego rysunku)'), keys: ['Mod+C'] },
+  { group: _t('Edycja'), id: 'clipPaste', name: _t('Wklej ze schowka'), keys: ['Mod+V'] },
   { group: _t('Edycja'), id: 'undo', name: _t('Cofnij'), keys: ['Mod+Z'] },
   { group: _t('Edycja'), id: 'redo', name: _t('Ponów'), keys: ['Mod+Shift+Z', 'Mod+Y'] },
   { group: _t('Edycja'), id: 'delete', name: _t('Usuń zaznaczone'), keys: ['Delete', 'Backspace'] },

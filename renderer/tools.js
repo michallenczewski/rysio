@@ -11,6 +11,7 @@ import { isLive, isShown } from './model.js';
 import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, trimMany, gripsOf, gripMove } from './edit.js';
 import { buildFaces, regionAt } from './hatch.js';
 import { blockEnts } from './geom.js';
+import { clipGhosts, clipBase, pasteClip } from './clip.js';
 
 const dirOf = (from, to) => { const d = V.norm(V.sub(to, from)); return d[0] || d[1] ? d : [1, 0]; };
 const deg = r => (r * 180 / Math.PI);
@@ -325,6 +326,31 @@ export function makeTools(app) {
   });
   T.move = mover('move', false);
   T.copy = mover('copy', true);
+
+  /* ---------- wklej ze schowka (⌘V / Ctrl+V) — kopia trzyma się kursora lewym dolnym rogiem ---------- */
+  T.paste = {
+    id: 'paste', draw: true, clip: null, k: 1, base0: [0, 0], at: null,
+    set(clip, k) { this.clip = clip; this.k = k; this.base0 = clipBase(clip, k); this.at = null; },
+    base: () => null, label: () => null, reading: () => null, badge: () => _t('Wklej'),
+    hint() { return _t('<b>Wklej:</b> kliknij miejsce — kopia trzyma się kursora lewym dolnym rogiem (przyciąganie działa). Esc rezygnuje.'); },
+    down(p) {
+      if (!this.clip) return;
+      const d = V.sub(p, this.base0), toSheet = !!app.sheet();
+      const forbid = b => !!app.blockEdit && contains(b, app.blockEdit.id);
+      const r = app.edit(_t('Wklej'), tx => pasteClip(tx, app.doc, this.clip, { k: this.k, d, toSheet, forbid }));
+      // zaznaczamy tylko to, co da się zmieniać — warstwa o tej samej nazwie może być tu ukryta albo zablokowana
+      app.sel.clear(); for (const e of r.made) if (isLive(app.doc, e)) app.sel.add(e.id);
+      const off = r.made.filter(e => !isLive(app.doc, e)).length;
+      if (r.skipped) app.toast(_t`Pominięto ${r.skipped} el., których nie da się tu wkleić (okno arkusza poza arkuszem, blok na arkuszu albo blok w samym sobie).`, 3200);
+      else if (off) app.toast(_t`Wklejono, ale ${off} el. leży na ukrytej albo zablokowanej warstwie — włącz ją w warstwach.`, 3200);
+      this.clip = null; app.setTool('select');
+    },
+    move(p) { this.at = p; },
+    typed: () => false,
+    preview() { return this.clip && this.at ? clipGhosts(this.clip, this.k, V.sub(this.at, this.base0)).map(e => ({ ...e, layer: app.doc.cur.layer, _ghost: true })) : []; },
+    enter: () => false,
+    cancel() { if (this.clip) { this.clip = null; app.setTool('select'); return true; } return false; }
+  };
 
   /* ---------- obróć (E), odbij (⇧E), skaluj (R) ---------- */
   // wspólne: zaznaczenie (albo klik w element), punkt bazowy, potem kąt / oś / skala; ⌥ (Ctrl w Windows) — kopia

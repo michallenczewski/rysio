@@ -108,11 +108,12 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 | `renderer/hatch.js` | kreskowanie: wzory w mm wydruku, kreski przycięte do pętli, szukanie obszaru pod kliknięciem |
 | `renderer/dwg.js` | DWG przez LibreDWG → tekst DXF → `dxf.js` (z Modo) |
 | `renderer/edit.js` | zmienianie geometrii: obrót, odbicie, skala (`transformed`), odsunięcie (`offsetEnt`, także polilinii z łukami), zaokrąglenie dwóch linii (`filletLines`), przycinanie i wydłużanie jednym kliknięciem (`trimOrExtend`) i wielu kawałków jednym przeciągnięciem (`trimMany`, tryb auto / trim / extend), uchwyty (`gripsOf`, `gripMove`) |
+| `renderer/clip.js` | schowek: zaznaczenie → JSON w schowku systemu (`packClip`; warstwy i bloki po nazwie, także zagnieżdżone), wklejenie w jednej transakcji (`pasteClip`; brakujące warstwy powstają, istniejące o tej samej nazwie są używane; blok o tej samej nazwie i treści jest używany, o innej treści — powstaje „nazwa (2)”; bloki tylko do modelu; ukryte warstwy okna arkusza po nazwie), mnożnik model ↔ arkusz (`clipFactor`), podgląd (`clipGhosts`). ⌘C / ⌘V idą przez zdarzenia `copy` / `paste` (bez pytania o zgodę; w Electronie na Macu wyzwala je menu Edycja); gdy zdarzenie nie przyjdzie w 250 ms albo skrót jest inny — `navigator.clipboard`, a w ostateczności pamięć okna |
 | `renderer/sheet.js` | arkusz: okna z modelem w skali (przeliczanie arkusz ↔ model), ramka z tabelką, skale do tabelki |
 | `renderer/pdf.js` | wektorowy PDF arkuszy (`PdfPen`, `makePdf`) |
 | `renderer/view.js` | płótno, przesuwanie i przybliżanie, przeliczanie metry ↔ piksele, kreski w skali, siatka modelu (`drawGrid`, odstęp z `gridStep`), uchwyty |
 | `renderer/snap.js` | przyciąganie (koniec, środek, przecięcie, prostopadle, środek okręgu, styczna, węzeł siatki, najbliższy) i kierunki (poziom, pion, wzdłuż i prostopadle do linii, śledzenie od punktów) |
-| `renderer/tools.js` | narzędzia: zaznacz, usuń, pędzel, linia, polilinia, prostokąt, okrąg, łuk, przesuń, kopiuj, obróć, odbij, skaluj, odsunięcie, zaokrąglij, przytnij / wydłuż, tekst, wymiar, okno na arkuszu |
+| `renderer/tools.js` | narzędzia: zaznacz, usuń, pędzel, linia, polilinia, prostokąt, okrąg, łuk, przesuń, kopiuj, wklej (ze schowka), obróć, odbij, skaluj, odsunięcie, zaokrąglij, przytnij, wydłuż, kreskowanie, bloki, tekst, wymiar, okno na arkuszu |
 | `renderer/units.js` | wpisywanie i pokazywanie wymiarów w jednostce rysunku |
 | `renderer/keys.js` | skróty klawiszowe i ich zmiana |
 | `renderer/i18n.js`, `lang/en.js` | tłumaczenie napisów (`_t`) |
