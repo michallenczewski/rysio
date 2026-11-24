@@ -211,6 +211,7 @@ function runAction(id) {
     case 'exportPdf': return openExport();
     case 'newSheet': return addSheet();
     case 'clipCopy': return clipCopy(null);
+    case 'clipCut': return clipCopy(null, true);
     case 'clipPaste': return clipPaste(null);
   }
 }
@@ -218,17 +219,23 @@ app.run = runAction;
 
 /* ---------- schowek: ⌘C / ⌘V (Ctrl+C / Ctrl+V) ---------- */
 // Zaznaczenie idzie do schowka systemu jako tekst, więc wkleja się też w innym rysunku i w drugim oknie.
-// Zwykłe ⌘C / ⌘V przechodzą przez zdarzenia copy / paste (działają bez pytania o zgodę); inny przypisany klawisz — przez navigator.clipboard.
+// Zwykłe ⌘C / ⌘X / ⌘V przechodzą przez zdarzenia copy / cut / paste (działają bez pytania o zgodę); inny przypisany klawisz — przez navigator.clipboard.
 let clipMemo = null;   // zapas, gdy schowek systemu jest niedostępny
 let clipWait = 0;     // licznik: ⌘C / ⌘V czeka na zdarzenie copy / paste
-function clipCopy(dt) {
+function clipCopy(dt, cut = false) {
   const ents = app.ents().filter(e => app.sel.has(e.id) && isLive(app.doc, e));
-  if (!ents.length) { toast(_t('Najpierw zaznacz, co skopiować.')); return false; }
+  if (!ents.length) { toast(cut ? _t('Najpierw zaznacz, co wyciąć.') : _t('Najpierw zaznacz, co skopiować.')); return false; }
   const clip = packClip(app.doc, ents, { sheet: !!app.sheet(), scale: app.doc.scale });
   const text = JSON.stringify(clip); clipMemo = text;
   if (dt) dt.setData('text/plain', text);
   else navigator.clipboard?.writeText(text).catch(() => {});
-  toast(_t`Skopiowano ${ents.length} el. — ${app.keyName('clipPaste') || _t('wklej')} wkleja.`, 1600);
+  if (cut) {
+    // wycięcie = kopia w schowku i usunięcie (jeden krok cofania)
+    const ids = ents.map(e => e.id);
+    app.edit(_t('Wytnij'), tx => ids.forEach(i => tx.del(i)));
+    app.sel.clear(); app.selectionChanged();
+    toast(_t`Wycięto ${ents.length} el. — ${app.keyName('clipPaste') || _t('wklej')} wkleja.`, 1600);
+  } else toast(_t`Skopiowano ${ents.length} el. — ${app.keyName('clipPaste') || _t('wklej')} wkleja.`, 1600);
   return true;
 }
 async function clipPaste(dt) {
@@ -247,6 +254,7 @@ async function clipPaste(dt) {
 // zdarzenie dotyczy rysunku: nie pole tekstowe, nie otwarte okno, a skrót wciąż przypisany do schowka
 const clipTarget = (e, id, combo) => !typingIn(document.activeElement) && !e.target?.closest?.('.textEd') && !textEd && $('#keysModal').hidden && $('#exportPop').hidden && app.keys.map.get(combo) === id;
 document.addEventListener('copy', e => { clipWait++; if (!clipTarget(e, 'clipCopy', 'Mod+C')) return; if (clipCopy(e.clipboardData)) e.preventDefault(); });
+document.addEventListener('cut', e => { clipWait++; if (!clipTarget(e, 'clipCut', 'Mod+X')) return; if (clipCopy(e.clipboardData, true)) e.preventDefault(); });
 document.addEventListener('paste', e => { clipWait++; if (!clipTarget(e, 'clipPaste', 'Mod+V')) return; e.preventDefault(); clipPaste(e.clipboardData); });
 
 /* ---------- mysz ---------- */
@@ -373,7 +381,7 @@ window.addEventListener('keydown', e => {
   const id = app.keys.map.get(c);
   // ⌘C / ⌘V zostawiamy przeglądarce — wywoła zdarzenie copy / paste ze schowkiem systemu
   // (gdyby zdarzenie nie przyszło w ułamku sekundy — robimy to sami przez navigator.clipboard)
-  if ((id === 'clipCopy' && c === 'Mod+C') || (id === 'clipPaste' && c === 'Mod+V')) { const n = ++clipWait; setTimeout(() => { if (clipWait === n) { clipWait++; runAction(id); } }, 250); return; }
+  if ((id === 'clipCopy' && c === 'Mod+C') || (id === 'clipCut' && c === 'Mod+X') || (id === 'clipPaste' && c === 'Mod+V')) { const n = ++clipWait; setTimeout(() => { if (clipWait === n) { clipWait++; runAction(id); } }, 250); return; }
   if (id) { e.preventDefault(); runAction(id); }
 });
 window.addEventListener('keyup', e => {
