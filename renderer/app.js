@@ -38,6 +38,7 @@ const IC = {
   scale: '<rect x="2.5" y="6.5" width="7" height="7" rx=".5"/><path d="M9 2.5h4.5V7M13.5 2.5 8 8"/>',
   offset: '<rect x="2.5" y="2.5" width="11" height="11" rx="1"/><rect x="5.5" y="5.5" width="5" height="5" rx=".5"/>',
   fillet: '<path d="M3 13.5V9.5A6.5 6.5 0 0 1 9.5 3h4"/><path d="M3 6.5V3h3.5" stroke-dasharray="1.3 1.6"/>',
+  extend: '<path d="M13.5 2.5v11"/><path d="M2.5 8h8.5"/><path d="M8.5 5.5 11 8l-2.5 2.5"/>',
   trim: '<circle cx="4" cy="11.5" r="1.8"/><circle cx="12" cy="11.5" r="1.8"/><path d="M5.2 10.2 12.5 2.5M10.8 10.2 3.5 2.5"/>',
   text: '<path d="M3.5 4h9M8 4v8.5"/>',
   dim: '<path d="M2.5 5v7M13.5 5v7M2.5 9.5h11"/><path d="M4 11l-1.4-1.4M13.4 9.6 12 8"/>',
@@ -150,7 +151,7 @@ function afterChange(info) {
 }
 
 /* ---------- lewy pasek ---------- */
-const TOOLBAR = ['select', 'eraser', 'brush', null, 'line', 'pline', 'rect', 'circle', 'arc', null, 'move', 'copy', 'rotate', 'mirror', 'scale', null, 'offset', 'fillet', 'trim', null, 'hatch', 'block', 'text', 'dim', 'viewport', 'grow', 'extents'];
+const TOOLBAR = ['select', 'eraser', 'brush', null, 'line', 'pline', 'rect', 'circle', 'arc', null, 'move', 'copy', 'rotate', 'mirror', 'scale', null, 'offset', 'fillet', 'trim', 'extend', null, 'hatch', 'block', 'text', 'dim', 'viewport', 'grow', 'extents'];
 const toolsEl = $('#tools');
 for (const id of TOOLBAR) {
   if (id === null) { toolsEl.insertAdjacentHTML('beforeend', '<div class="hsep"></div>'); continue; }
@@ -172,7 +173,6 @@ function setTool(id, opts = {}) {
   tool.start?.();
   if (id === 'arc') { tool.pts = []; tool.mode = opts.arcMode || '3p'; }
   if (id !== 'brush') hideBrushBar();
-  if (id !== 'trim') $('#trimBar')?.remove();
   if (textEd) finishText();
   lockDir = null; typing = null; app.snapper.clearRefs(); snapRes = null; hoverEnt = null;
   if (cursorScreen) updateCursor(...cursorScreen);
@@ -406,7 +406,6 @@ function refreshUi() {
   showVpBar(); showTextBar();
   renderPills();
   if (tool.id === 'brush') showBrushBar();
-  if (tool.id === 'trim') showTrimBar();
   showHatchBar(); showBlockBar();
   if (app.mini) renderBadge();
   if (!$('#layersPop').hidden) renderLayersPop();
@@ -738,16 +737,6 @@ function blockGhost() {
   const v = app.view.rect, cs = [[v[0], v[1]], [v[2], v[1]], [v[2], v[3]], [v[0], v[3]]].map(X.f);
   const wr = [Math.min(...cs.map(q => q[0])), Math.min(...cs.map(q => q[1])), Math.max(...cs.map(q => q[0])), Math.max(...cs.map(q => q[1]))];
   return { ents: app.doc.ents.filter(e => !spaceOf(e) && e.id !== be.insId && isShown(app.doc, e) && boxHit(bbox(e), wr)), map: X.inv, k: 1 / X.k, tr: { ang: a => X.flip ? X.rot + Math.PI - a : a - X.rot, flip: X.flip } };
-}
-
-/* ---------- pasek przycinania ---------- */
-function showTrimBar() {
-  let el = $('#trimBar');
-  if (!el) { el = document.createElement('div'); el.id = 'trimBar'; el.className = 'toolbar'; view.append(el); el.addEventListener('pointerdown', e => e.stopPropagation()); el.addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) { app.tools.trim.mode = b.dataset.mode; showTrimBar(); refreshUi(); } }); }
-  const m = app.tools.trim.mode;
-  el.innerHTML = `<span class="t">${_t('Przytnij / wydłuż')}</span>
-    <div class="seg">${[['auto', _t('Sam wybiera')], ['trim', _t('Tylko przytnij')], ['extend', _t('Tylko wydłuż')]].map(([k, n]) => `<button data-mode="${k}" class="${m === k ? 'on' : ''}">${n}</button>`).join('')}</div>
-    <span class="lbl" style="padding:0 6px">${_t('klik albo przeciągnięcie przez kilka')}</span>`;
 }
 
 /* ---------- pasek stanu: jednostka i skala ---------- */

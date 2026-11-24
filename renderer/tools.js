@@ -434,15 +434,14 @@ export function makeTools(app) {
     preview: () => [], enter: () => false, cancel() { if (this.first) { this.first = null; return true; } return false; }
   };
 
-  /* ---------- przytnij / wydłuż (X): klik albo przeciągnięcie przez kilka kawałków, jak gumka ---------- */
+  /* ---------- przytnij (X) i wydłuż (⇧X): klik albo przeciągnięcie przez kilka kawałków, jak gumka ---------- */
   const CUTS = ['line', 'arc', 'circle', 'pline'];
   T.trim = {
-    id: 'trim', draw: false, path: null, hits: [], marked: new Set(), mode: 'auto',
+    id: 'trim', draw: false, path: null, hits: [], marked: new Set(), mode: 'trim',
     base: () => null, label: () => null, reading: () => null,
     hint() {
-      return this.mode === 'extend' ? _t('<b>Wydłuż:</b> kliknij koniec linii albo przeciągnij przez końce kilku — dosuną się do najbliższego elementu.')
-        : this.mode === 'trim' ? _t('<b>Przytnij:</b> kliknij kawałek między przecięciami albo przeciągnij przez kilka — znikną wszystkie przecięte kawałki.')
-        : _t('<b>Przytnij / wydłuż:</b> kliknij kawałek do usunięcia albo koniec linii do wydłużenia; przeciągnij, żeby zrobić to z kilkoma naraz.');
+      return this.mode === 'extend' ? _t('<b>Wydłuż:</b> kliknij linię blisko końca albo przeciągnij przez końce kilku — dosuną się do najbliższego elementu.')
+        : _t('<b>Przytnij:</b> kliknij kawałek między przecięciami albo przeciągnij przez kilka — znikną wszystkie przecięte kawałki.');
     },
     down(p) {
       this.path = [p]; this.hits = []; this.marked = new Set();
@@ -482,6 +481,8 @@ export function makeTools(app) {
     cancel() { if (this.path) { this.path = null; this.hits = []; this.marked = new Set(); return true; } return false; },
     typed: () => false, preview: () => [], enter: () => false
   };
+  // wydłuż (⇧X): to samo narzędzie w trybie „tylko wydłuż”
+  T.extend = { ...T.trim, id: 'extend', mode: 'extend', path: null, hits: [], marked: new Set() };
 
   /* ---------- tekst (Y): klik i pisanie wprost na rysunku ---------- */
   T.text = {

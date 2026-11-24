@@ -17,7 +17,7 @@ Zmienianie:
 - zaznacz, przesuń, kopiuj, obróć, odbij, skaluj, usuń
 - odsunięcie (offset)
 - zaokrąglenie narożnika (fillet) — z promieniem; promień 0 łączy linie w narożnik
-- przytnij (trim) i wydłuż (extend) — klik w kawałek do usunięcia albo w koniec do wydłużenia, bez wcześniejszego wskazywania krawędzi tnących; przeciągnięcie przez kilka kawałków działa jak pędzel (tryb: sam wybiera / tylko przytnij / tylko wydłuż)
+- przytnij (trim) i wydłuż (extend) — klik w kawałek do usunięcia albo w koniec do wydłużenia, bez wcześniejszego wskazywania krawędzi tnących; to dwa osobne narzędzia — przytnij (X) i wydłuż (⇧X); przeciągnięcie przez kilka kawałków działa jak pędzel
 
 Porządek:
 - warstwy: nazwa, kolor, widoczność, blokada, domyślna grubość i rodzaj linii

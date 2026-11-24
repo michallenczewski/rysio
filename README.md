@@ -30,7 +30,7 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 - Obróć (E), odbij (⇧E / Shift+E), skaluj (R) — na zaznaczeniu; kąt i skala z klawiatury albo myszą; ⌥ (Ctrl w Windows) robi kopię.
 - Odsunięcie (T): linie, łuki, okręgi i polilinie (także z łukami); odległość wpisana z klawiatury.
 - Zaokrąglij narożnik (G): dwie linie, promień wpisany z klawiatury; promień 0 łączy linie w ostry narożnik.
-- Przytnij / wydłuż (X): klik w kawałek między przecięciami go usuwa, klik przy końcu linii dosuwa ją do najbliższego elementu. Przeciągnięcie przez kilka kawałków robi to z nimi wszystkimi naraz; pasek u góry ustala tryb: sam wybiera, tylko przytnij, tylko wydłuż.
+- Przytnij (X): klik w kawałek między przecięciami go usuwa. Wydłuż (⇧X / Shift+X): klik w linię blisko końca dosuwa ją do najbliższego elementu. W obu przeciągnięcie przez kilka kawałków robi to z nimi wszystkimi naraz.
 - Polilinie mogą mieć łuki (powstają przy odsunięciu, przycinaniu i z plików DXF).
 
 - DXF i DWG: Plik → Otwórz wczytuje rysunek CAD jako nowy rysunek (warstwy z kolorami, rodzajami i grubościami linii; nazwane bloki zostają blokami, wymiary są rozbijane na linie i teksty; kreskowania wchodzą z wzorem i kątem; z DWG teksty mogą nie przejść). Plik → Eksport DXF zapisuje model w jednostkach rysunku (DXF R12 — bez grubości linii i bez arkuszy; bloki jako bloki, kreskowania jako kreski; nazwy warstw bez polskich liter i spacji, bo R12 ich nie przyjmuje).
