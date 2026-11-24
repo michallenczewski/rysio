@@ -33,7 +33,9 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 - Przytnij / wydłuż (X): klik w kawałek między przecięciami go usuwa, klik przy końcu linii dosuwa ją do najbliższego elementu. Przeciągnięcie przez kilka kawałków robi to z nimi wszystkimi naraz; pasek u góry ustala tryb: sam wybiera, tylko przytnij, tylko wydłuż.
 - Polilinie mogą mieć łuki (powstają przy odsunięciu, przycinaniu i z plików DXF).
 
-Następne etapy: bloki i kreskowanie, wymiana DXF/DWG — patrz `OPIS.md`.
+- DXF i DWG: Plik → Otwórz wczytuje rysunek CAD jako nowy rysunek (warstwy z kolorami, rodzajami i grubościami linii; bloki i wymiary rozbite na linie i teksty; kreskowania jeszcze pomijane; z DWG teksty mogą nie przejść). Plik → Eksport DXF zapisuje model w jednostkach rysunku (DXF R12 — bez grubości linii i bez arkuszy; nazwy warstw bez polskich liter i spacji, bo R12 ich nie przyjmuje).
+
+Następny etap: bloki i kreskowanie — patrz `OPIS.md` i `makieta/bloki-kreskowanie.html`.
 
 ## Nawigacja
 

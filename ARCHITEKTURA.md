@@ -83,7 +83,7 @@ Skala jest sprawdzana pomiarem: sprawdzian szuka w wygenerowanym PDF-ie odcinka 
 
 ### Duże współrzędne (podkłady geodezyjne)
 
-Mapy w układzie 2000 mają współrzędne rzędu 5 500 000 m — przy takich liczbach obraz drga i traci dokładność. Przy imporcie DXF/DWG (etap 5) rysunek dostanie punkt bazowy: geometria trafia do modelu przesunięta do okolic zera, a przesunięcie jest zapisane w pliku i oddawane przy eksporcie.
+Mapy w układzie 2000 mają współrzędne rzędu 5 500 000 m — przy takich liczbach obraz drga i traci dokładność. Przy imporcie DXF/DWG, gdy środek rysunku leży dalej niż 100 km od zera, geometria trafia do modelu przesunięta do okolic zera (o pełne kilometry), a przesunięcie leży w `doc.origin` i zapis DXF dodaje je z powrotem.
 
 ### Wersja przeglądarkowa
 
@@ -100,6 +100,8 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 | `renderer/model.js` | rysunek, warstwy, kreski, `edit()` i historia cofania, `fixDoc()` |
 | `renderer/geom.js` | geometria bez okna: odległości, przecięcia, rzuty, styczne, łuk przez trzy punkty, obrysy, trafienia |
 | `renderer/draw.js` | rysowanie elementów przez „pióro” (płótno albo PDF): kreski, tekst, wymiar |
+| `renderer/dxf.js` | odczyt DXF do elementów (warstwy z kolorem, rodzajem i grubością linii; bloki i wymiary rozbite; jednostki z `$INSUNITS`) i zapis modelu do DXF R12 |
+| `renderer/dwg.js` | DWG przez LibreDWG → tekst DXF → `dxf.js` (z Modo) |
 | `renderer/edit.js` | zmienianie geometrii: obrót, odbicie, skala (`transformed`), odsunięcie (`offsetEnt`, także polilinii z łukami), zaokrąglenie dwóch linii (`filletLines`), przycinanie i wydłużanie jednym kliknięciem (`trimOrExtend`) i wielu kawałków jednym przeciągnięciem (`trimMany`, tryb auto / trim / extend), uchwyty (`gripsOf`, `gripMove`) |
 | `renderer/sheet.js` | arkusz: okna z modelem w skali (przeliczanie arkusz ↔ model), ramka z tabelką, skale do tabelki |
 | `renderer/pdf.js` | wektorowy PDF arkuszy (`PdfPen`, `makePdf`) |
@@ -133,11 +135,23 @@ Z Modo 0.4.2 (commit `4f530f1`, 23.11.2026):
 | `.github/workflows/build.yml`, `build/adhoc.js` | nazwy Rysia |
 | wygląd: kolory, ikony, pasek górny, pasek stanu, okienka | z `style.css` i ikon z `app.js` |
 
-W etapie 5 dojdą `renderer/dxf.js`, `renderer/dwg.js` i `renderer/vendor/libredwg`.
+Z Modo 0.4.2 (commit `591d8d9`, 24.11.2026), etap 5:
+
+| co | zmiany |
+|---|---|
+| `renderer/dwg.js` | bez zmian poza warunkiem „czy coś wczytano” (Rysio dostaje elementy, nie odcinki podkładu); z DWG nadal nie przechodzą teksty i kreskowania — na nich LibreDWG najczęściej się wykłada |
+| `renderer/vendor/libredwg/` | bez zmian (z plikiem `COPYING`) |
+| `renderer/dxf.js` | z Modo tylko rozkład pliku na sekcje, tabelę warstw i bloki; zamiana na elementy Rysia (linie, polilinie z łukami, okręgi, łuki, teksty i MTEXT, elipsy i splajny jako polilinie, bloki i wymiary rozbite) oraz zapis DXF R12 — nowe |
 
 ## Biblioteki zewnętrzne
 
-Na razie żadnych (PDF powstaje bez biblioteki, zob. wyżej). Plan: `renderer/vendor/libredwg` (GPL-3) w etapie 5 — z plikiem licencji i notatką tutaj.
+| biblioteka | wersja, skąd | jak odświeżyć |
+|---|---|---|
+| `renderer/vendor/libredwg/` | libredwg-web (GPL-3, licencja w `COPYING`), commit 8e307b3 — kopia z Modo 0.4.2 | jak w Modo: `bindings/javascript/wasm/` bez zmian oraz `bindings/javascript/src` skompilowane `tsc`; w `libredwg.js` import modułu WASM wskazuje `./wasm/`. Moduł (8 MB) ładuje się dopiero przy pierwszym DWG. Wymaga w CSP `'wasm-unsafe-eval' 'unsafe-eval'`. |
+
+PDF powstaje bez biblioteki (zob. wyżej).
+
+**DXF zapisujemy w wersji R12 (AC1009)**: czyta ją każdy program CAD i nie wymaga uchwytów ani obiektów, których nie da się sprawdzić bez AutoCAD-a. Koszt: R12 nie zna grubości linii — zostają tylko w pliku Rysia. Zapis jest w jednostkach rysunku (mapa w metrach zostaje w metrach) z komentarzem `999 Rysio - jednostki …`, po którym Rysio rozpoznaje jednostki przy ponownym odczycie. Polskie litery w tekstach idą jako `\U+XXXX` (plik jest czystym ASCII); nazwy warstw tracą ogonki i spacje (R12 dopuszcza tylko A–Z, 0–9, `$ - _`). Lustrzany tekst z bloków zostaje czytelny (jak `MIRRTEXT = 0`). Arkusze nie trafiają do DXF.
 
 ## Sygnały, że trzeba wrócić do tematu
 

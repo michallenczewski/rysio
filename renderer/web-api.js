@@ -12,10 +12,15 @@
     web: true,
     platform: /Mac/.test(navigator.platform) ? 'darwin' : /Win/.test(navigator.platform) ? 'win32' : 'linux',
     async setLang() { return true; },
-    async openFile() { const f = await pick('.rysio'); return f ? { path: null, name: f.name.replace(/\.rysio$/i, ''), text: await f.text() } : null; },
+    async openFile() {
+      const f = await pick('.rysio,.dxf,.dwg'); if (!f) return null;
+      const cad = (/\.(dxf|dwg)$/i.exec(f.name) || [])[1];
+      if (cad) return { path: null, name: f.name.replace(/\.(dxf|dwg)$/i, ''), cad: cad.toLowerCase(), data: new Uint8Array(await f.arrayBuffer()) };
+      return { path: null, name: f.name.replace(/\.rysio$/i, ''), text: await f.text() };
+    },
     async saveFile(p, text, suggested) { download(new Blob([text], { type: 'application/json' }), (suggested || 'Rysunek') + '.rysio'); return { path: null, name: suggested || 'Rysunek' }; },
     async recentList() { return []; },
-    async saveBinary(data, suggested, ext) { download(new Blob([data], { type: ext === 'pdf' ? 'application/pdf' : 'image/png' }), (suggested || 'Rysunek') + '.' + ext); return true; },
+    async saveBinary(data, suggested, ext) { download(new Blob([data], { type: ext === 'pdf' ? 'application/pdf' : ext === 'dxf' ? 'application/dxf' : 'image/png' }), (suggested || 'Rysunek') + '.' + ext); return true; },
     // autozapis w przeglądarce: jedna kopia w pamięci przeglądarki
     async autosave(key, rec) { try { localStorage.setItem(AUTO, JSON.stringify({ key, ...rec })); return true; } catch (e) { return false; } },
     async autosaveClear(key) { try { const r = JSON.parse(localStorage.getItem(AUTO) || 'null'); if (r && r.key === key) localStorage.removeItem(AUTO); } catch (e) {} return true; },

@@ -98,10 +98,13 @@ function addRecent(p) { settings.recent = [p, ...(settings.recent || []).filter(
 ipcMain.handle('file-open', async (e, p) => {
   const win = BrowserWindow.fromWebContents(e.sender);
   if (!p) {
-    const r = await dialog.showOpenDialog(win, { filters: FILTER(), properties: ['openFile'] });
+    const r = await dialog.showOpenDialog(win, { filters: [{ name: _t('Rysunek Rysia, DXF, DWG'), extensions: ['rysio', 'dxf', 'dwg'] }, ...FILTER(), { name: 'DXF / DWG', extensions: ['dxf', 'dwg'] }], properties: ['openFile'] });
     if (r.canceled || !r.filePaths[0]) return null;
     p = r.filePaths[0];
   }
+  // DXF i DWG czyta okno programu (dxf.js, dwg.js) — tu tylko bajty pliku
+  const cad = (/\.(dxf|dwg)$/i.exec(p) || [])[1];
+  if (cad) { addRecent(p); return { path: p, name: path.basename(p).replace(/\.(dxf|dwg)$/i, ''), cad: cad.toLowerCase(), data: new Uint8Array(await fsp.readFile(p)) }; }
   const text = await fsp.readFile(p, 'utf8');
   addRecent(p);
   return { path: p, name: path.basename(p, '.rysio'), text };
@@ -127,7 +130,7 @@ ipcMain.handle('recent-list', () => (settings.recent || []).filter(p => { try { 
 // PDF i PNG z arkuszy
 ipcMain.handle('binary-save', async (e, data, suggested, ext) => {
   const win = BrowserWindow.fromWebContents(e.sender);
-  const filters = { pdf: [{ name: 'PDF', extensions: ['pdf'] }], png: [{ name: 'PNG', extensions: ['png'] }] }[ext] || [];
+  const filters = { pdf: [{ name: 'PDF', extensions: ['pdf'] }], png: [{ name: 'PNG', extensions: ['png'] }], dxf: [{ name: 'DXF', extensions: ['dxf'] }] }[ext] || [];
   const r = await dialog.showSaveDialog(win, { filters, defaultPath: path.join(app.getPath('documents'), (suggested || _t('Rysunek')).replace(/[\\/:*?"<>|]/g, '-') + '.' + ext) });
   if (r.canceled || !r.filePath) return null;
   await fsp.writeFile(r.filePath, Buffer.from(data));

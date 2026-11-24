@@ -17,6 +17,7 @@ const U = await import(R + 'units.js');
 const SH = await import(R + 'sheet.js');
 const PDF = await import(R + 'pdf.js');
 const ED = await import(R + 'edit.js');
+const DXF = await import(R + 'dxf.js');
 const { V } = G;
 
 const P = [];
@@ -434,6 +435,69 @@ przypadek('uchwyty: koniec, środek, wierzchołek, promień', 'przeciąganie uch
     'promień': [ci.r, 3], 'kąt końca łuku': [+ar.a1.toFixed(6), +Math.PI.toFixed(6)], 'uchwyty linii': [ED.gripsOf(ln).length, 3],
     'koniec łuku na początek — odrzucone': [ED.gripMove({ t: 'arc', c: [0, 0], r: 1, a0: 0, a1: Math.PI / 2 }, 'a1', [1, 0]), null],
     'koniec linii na drugi koniec — odrzucone': [ED.gripMove(ln, 'b', [0, 0]), null] };
+});
+
+/* ---------- DXF ---------- */
+const dxfOf = (head, body, blocks = '') => ['0', 'SECTION', '2', 'HEADER', ...head, '0', 'ENDSEC', '0', 'SECTION', '2', 'TABLES', '0', 'TABLE', '2', 'LAYER',
+  '0', 'LAYER', '2', 'Ściany', '70', '4', '62', '1', '6', 'CONTINUOUS', '370', '50', '0', 'LAYER', '2', 'Osie', '70', '0', '62', '-5', '6', 'CENTER', '0', 'ENDTAB', '0', 'ENDSEC',
+  '0', 'SECTION', '2', 'BLOCKS', ...blocks, '0', 'ENDSEC', '0', 'SECTION', '2', 'ENTITIES', ...body, '0', 'ENDSEC', '0', 'EOF'].join('\n');
+przypadek('DXF: warstwy, jednostki, polilinia z łukiem, okrąg', 'plik w milimetrach ($INSUNITS 4) wczytany w metrach', () => {
+  const t = dxfOf(['9', '$INSUNITS', '70', '4'], ['0', 'LWPOLYLINE', '8', 'Ściany', '70', '1', '10', '0', '20', '0', '42', '1', '10', '2000', '20', '0', '10', '2000', '20', '1000',
+    '0', 'CIRCLE', '8', 'Osie', '10', '1000', '20', '500', '40', '250', '0', 'LINE', '8', 'Nowa', '6', 'DASHED', '370', '35', '10', '0', '20', '0', '11', '1000', '21', '0']);
+  const { doc } = DXF.parseDxf(t, { scale: 50 });
+  const [pl, ci, ln] = doc.ents, L = n => doc.layers.find(x => x.name === n);
+  return { 'jednostki': [doc.units, 'mm'], 'wierzchołki w metrach': [pl.pts, [[0, 0, 1], [2, 0], [2, 1]]], 'zamknięta': [pl.closed, true],
+    'okrąg': [[...ci.c, ci.r], [1, 0.5, 0.25]], 'warstwa zablokowana, kolor': [[L('Ściany').locked, L('Ściany').color, L('Ściany').w], [true, '#ff0000', 0.5]],
+    'warstwa wyłączona, osiowa': [[L('Osie').visible, L('Osie').lt], [false, 'center']], 'kreska linii': [[ln.lt, ln.w], ['dash', 0.35]], 'nowa warstwa z encji': [!!L('Nowa'), true] };
+});
+przypadek('DXF: blok obrócony i odbity, tekst', 'wstawienie z obrotem 90° i skalą X −1 rozbite na elementy; łuk zachowuje kształt', () => {
+  const blk = ['0', 'BLOCK', '2', 'B1', '10', '0', '20', '0', '0', 'LINE', '8', '0', '10', '0', '20', '0', '11', '1', '21', '0', '0', 'ARC', '8', '0', '10', '0', '20', '0', '40', '1', '50', '0', '51', '90', '0', 'ENDBLK'];
+  const t = dxfOf(['9', '$INSUNITS', '70', '6'], ['0', 'INSERT', '8', 'Ściany', '2', 'B1', '10', '5', '20', '5', '41', '-1', '42', '1', '50', '90',
+    '0', 'TEXT', '8', 'Osie', '10', '1', '20', '2', '40', '0.25', '1', 'Pok\\U+00F3j %%c10', '50', '0'], blk);
+  const { doc } = DXF.parseDxf(t, { scale: 100 });
+  const ln = doc.ents.find(e => e.t === 'line'), ar = doc.ents.find(e => e.t === 'arc'), tx = doc.ents.find(e => e.t === 'text');
+  const r = v => v.map(x => +x.toFixed(6));
+  const s0 = [ar.c[0] + Math.cos(ar.a0), ar.c[1] + Math.sin(ar.a0)], s1 = [ar.c[0] + Math.cos(ar.a1), ar.c[1] + Math.sin(ar.a1)];
+  return { 'linia po obrocie i odbiciu': [r([...ln.a, ...ln.b]), [5, 5, 5, 4]], 'warstwa z wstawienia': [doc.layers.find(L => L.id === ln.layer).name, 'Ściany'],
+    'końce łuku': [r([...s0, ...s1]).sort(), r([5, 4, 4, 5]).sort()], 'tekst': [tx.s, 'Pokój ⌀10'], 'wysokość w mm wydruku': [+tx.h.toFixed(6), 2.5] };
+});
+przypadek('DXF: zapis i ponowny odczyt', 'linia, polilinia z łukiem, okrąg, łuk, tekst z polskimi literami — wracają takie same', () => {
+  const d = M.newDoc(); d.scale = 50; d.layers.push({ id: 7, name: 'Ściany/nośne', color: '#c0533f', visible: true, locked: false, w: 0.5, lt: 'dash' });
+  d.ents = [{ id: 2, t: 'line', a: [0, 0], b: [3.5, 0], layer: 1, w: null, lt: 'center' }, { id: 3, t: 'pline', pts: [[0, 0, 0.5], [2, 0], [2, 2]], closed: true, layer: 7, w: null, lt: null },
+    { id: 4, t: 'circle', c: [1, 1], r: 0.4, layer: 7, w: null, lt: null }, { id: 5, t: 'arc', c: [0, 0], r: 2, a0: 0.3, a1: 2.1, layer: 1, w: null, lt: null },
+    { id: 6, t: 'text', p: [1, 2], s: 'Łazienka', h: 3, align: 'c', rot: 0, layer: 1, w: null, lt: null }];
+  const { text } = DXF.writeDxf(d), back = DXF.parseDxf(text, { scale: 50 }).doc;
+  const by = t => back.ents.find(e => e.t === t), r = v => v.map(x => +(+x).toFixed(6));
+  return { 'linia': [r([...by('line').a, ...by('line').b]), [0, 0, 3.5, 0]], 'rodzaj linii': [by('line').lt, 'center'], 'polilinia z łukiem': [by('pline').pts, [[0, 0, 0.5], [2, 0], [2, 2]]],
+    'okrąg': [r([...by('circle').c, by('circle').r]), [1, 1, 0.4]], 'łuk': [r([by('arc').a0, by('arc').a1]), [0.3, 2.1]], 'tekst': [[by('text').s, +by('text').h.toFixed(6), by('text').align], ['Łazienka', 3, 'c']],
+    'warstwa (bez ogonków w DXF)': [back.layers.map(L => L.name), ['Rysunek', 'Sciany_nosne']], 'jednostki z komentarza': [back.units, 'm'], 'tylko ASCII w pliku': [/^[\x00-\x7f]*$/.test(text), true] };
+});
+
+przypadek('DXF: współrzędne geodezyjne', 'rysunek w układzie 2000 trafia w okolice zera, a zapis oddaje prawdziwe współrzędne', () => {
+  const t = dxfOf(['9', '$INSUNITS', '70', '6'], ['0', 'LINE', '8', '0', '10', '7500100.5', '20', '5600200.25', '11', '7500110.5', '21', '5600200.25']);
+  const { doc } = DXF.parseDxf(t, { scale: 500 }), ln = doc.ents[0];
+  const back = DXF.parseDxf(DXF.writeDxf(doc).text, { scale: 500 }).doc;
+  return { 'blisko zera': [Math.max(...ln.a.map(Math.abs)) < 1000, true], 'przesunięcie zapisane': [doc.origin, [7500000, 5600000]],
+    'po zapisie i odczycie ta sama linia': [[...back.ents[0].a, ...back.ents[0].b].map((v, i) => +(v + back.origin[i % 2]).toFixed(4)), [7500100.5, 5600200.25, 7500110.5, 5600200.25]] };
+});
+
+przypadek('DXF: przypadki z przeglądu', 'mapa bez jednostek, elipsa i MTEXT z normalną −Z, tekst wyrównany, odbity tekst w bloku, zamrożone wstawienie', () => {
+  const geo = DXF.parseDxf(['0', 'SECTION', '2', 'ENTITIES', '0', 'LINE', '8', '0', '10', '7500100', '20', '5600200', '11', '7500110', '21', '5600200', '0', 'ENDSEC', '0', 'EOF'].join('\n'), { scale: 500 }).doc;
+  const unk = DXF.parseDxf(['0', 'SECTION', '2', 'HEADER', '9', '$EXTMIN', '10', '1e20', '20', '1e20', '9', '$EXTMAX', '10', '-1e20', '20', '-1e20', '0', 'ENDSEC', '0', 'SECTION', '2', 'ENTITIES', '0', 'LINE', '8', '0', '10', '0', '20', '0', '11', '5', '21', '0', '0', 'ENDSEC', '0', 'EOF'].join('\n'), { scale: 50 }).doc;
+  const el = DXF.parseDxf(dxfOf(['9', '$INSUNITS', '70', '6'], ['0', 'ELLIPSE', '8', '0', '10', '100', '20', '0', '11', '10', '21', '0', '40', '0.5', '41', '0', '42', String(Math.PI / 2), '230', '-1',
+    '0', 'MTEXT', '8', '0', '10', '100', '20', '0', '40', '1', '71', '7', '1', 'abc', '230', '-1', '0', 'TEXT', '8', '0', '10', '0', '20', '0', '40', '1', '1', 'ABCDEF', '72', '3', '11', '10', '21', '0']), { scale: 1000 }).doc;
+  const blk = ['0', 'BLOCK', '2', 'B', '10', '0', '20', '0', '0', 'TEXT', '8', 'X', '10', '1', '20', '0', '40', '0.25', '1', 'D1', '0', 'ENDBLK', '0', 'BLOCK', '2', 'S', '10', '0', '20', '0', '0', 'LINE', '8', 'KONTUR', '10', '0', '20', '0', '11', '1', '21', '0', '0', 'ENDBLK'];
+  const mi = DXF.parseDxf(dxfOf(['9', '$INSUNITS', '70', '6'], ['0', 'INSERT', '8', '0', '2', 'B', '10', '0', '20', '0', '41', '-1', '0', 'INSERT', '8', 'Osie', '2', 'S', '10', '0', '20', '5'], blk), { scale: 100 }).doc;
+  const pl = el.doc ?? el, e0 = el.ents.find(e => e.t === 'pline'), mt = el.ents.find(e => e.s === 'abc'), tf = el.ents.find(e => e.s === 'ABCDEF');
+  const tm = mi.ents.find(e => e.t === 'text'), ks = mi.ents.find(e => e.t === 'line'), lay = id => mi.layers.find(L => L.id === id);
+  const r = v => v.map(x => +x.toFixed(4));
+  return { 'mapa bez jednostek w metrach': [[geo.units, +(geo.ents[0].b[0] - geo.ents[0].a[0]).toFixed(6)], ['m', 10]], 'zakres 1e20 nie psuje jednostek': [unk.ents[0].b[0], 5],
+    'elipsa −Z: od (110,0) do (100,−5)': [[r(e0.pts[0]), r(e0.pts[e0.pts.length - 1])], [[110, 0], [100, -5]]], 'MTEXT −Z na miejscu': [[r(mt.p), +mt.rot.toFixed(6)], [[100, 0], 0]],
+    'tekst wyrównany od punktu 10': [[r(tf.p), tf.align], [[0, 0], 'l']], 'odbity tekst czytelny': [[r(tm.p), +tm.rot.toFixed(6), tm.align], [[-1, 0], 0, 'r']],
+    'wyłączona warstwa wstawienia nie chowa reszty bloku': [[lay(ks.layer).name, lay(ks.layer).visible], ['KONTUR', true]],
+    'zamrożone wstawienie chowa blok': [(() => { const d = DXF.parseDxf(['0', 'SECTION', '2', 'TABLES', '0', 'TABLE', '2', 'LAYER', '0', 'LAYER', '2', 'MEBLE', '70', '1', '62', '3', '0', 'ENDTAB', '0', 'ENDSEC',
+      '0', 'SECTION', '2', 'BLOCKS', ...blk, '0', 'ENDSEC', '0', 'SECTION', '2', 'ENTITIES', '0', 'INSERT', '8', 'MEBLE', '2', 'S', '10', '0', '20', '0', '0', 'ENDSEC', '0', 'EOF'].join('\n'), { scale: 50 }).doc;
+      const L = d.layers.find(x => x.id === d.ents[0].layer); return [L.name, L.visible]; })(), ['MEBLE', false]] };
 });
 
 /* ---------- uruchomienie ---------- */

@@ -639,8 +639,29 @@ async function fileOpen(p) {
   if (!confirmDiscard()) return;
   try {
     const r = await api.openFile(p); if (!r) return;
+    if (r.cad) return await openCad(r);
     loadDoc(fixDoc(JSON.parse(r.text)), { path: r.path, name: r.name });
   } catch (err) { toast(_t`Nie udało się otworzyć pliku: ${esc(err.message)}`, 5000); }
+}
+// DXF i DWG otwierają się jako nowy, niezapisany rysunek (Zapisz zapisze go jako .rysio)
+async function openCad(r) {
+  toast(r.cad === 'dwg' ? _t('Czytam DWG…') : _t('Czytam DXF…'), 60000);
+  await new Promise(res => setTimeout(res, 30));
+  const { parseDxf } = await import('./dxf.js');
+  const parse = t => parseDxf(t, { scale: app.doc.scale });
+  const res = r.cad === 'dwg' ? await (await import('./dwg.js')).readDwg(r.data, parse) : parse(r.data);
+  loadDoc(res.doc, { path: null, name: r.name, dirty: true });
+  const sk = Object.entries(res.info.skipped);
+  const unitsTxt = { m: _t('metry'), cm: _t('centymetry'), mm: _t('milimetry'), dm: _t('decymetry'), in: _t('cale'), ft: _t('stopy') }[res.info.units] || res.info.units;
+  toast(_t`Wczytano ${res.info.count} elementów.` + ' ' + (res.info.guessed ? _t`Plik nie podaje jednostek — przyjąłem ${unitsTxt}.` : _t`Jednostki pliku: ${unitsTxt}.`) + (sk.length ? ' ' + _t`Pominięte: ${esc(sk.map(([t, n]) => `${t} ×${n}`).join(', '))}.` : '') + (res.info.truncated ? ' ' + _t('Plik był bardzo duży — wczytano tylko część.') : ''), 7000);
+}
+async function exportDxf() {
+  try {
+    const { writeDxf } = await import('./dxf.js');
+    const { text, count, units } = writeDxf(app.doc);
+    const ok = await api.saveBinary(new TextEncoder().encode(text), app.file.name || _t('Rysunek'), 'dxf');
+    if (ok) toast(_t`Zapisano DXF: ${count} elementów modelu, jednostki: ${units}. Arkusze i grubości linii zostają tylko w pliku Rysia.`, 4500);
+  } catch (err) { toast(_t`Nie udało się zapisać DXF: ${esc(err.message)}`, 5000); }
 }
 async function fileSave(as) {
   try {
@@ -660,6 +681,7 @@ $('#fileBtn').addEventListener('click', async e => {
     { label: _t('Otwórz…'), kbd: keysFor('open', app.keys.over)[0], act: () => fileOpen() },
     { label: _t('Zapisz'), kbd: keysFor('save', app.keys.over)[0], act: () => fileSave(false) },
     { label: _t('Zapisz jako…'), kbd: keysFor('saveAs', app.keys.over)[0], act: () => fileSave(true) },
+    { label: _t('Eksport DXF…'), act: exportDxf },
     ...(recent.length ? ['sep', { lbl: _t('Ostatnie') }, ...recent.slice(0, 8).map(r => ({ label: esc(r.name) + ` <span class="lbl">${esc(r.dir)}</span>`, act: () => fileOpen(r.path) }))] : []),
     'sep', { label: _t('Nowe okno'), act: () => api.newWindow() }
   ]);
