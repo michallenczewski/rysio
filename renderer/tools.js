@@ -8,7 +8,7 @@ import { _t } from './i18n.js';
 import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, intersect, lengthOf, dimGeom } from './geom.js';
 import { parseLength, parseLengths, fmtLength, fmtNum } from './units.js';
 import { isLive, isShown } from './model.js';
-import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, trimMany, gripsOf, gripMove } from './edit.js';
+import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, filletCurves, chamferLines, plineCorner, trimMany, gripsOf, gripMove } from './edit.js';
 import { buildFaces, regionAt } from './hatch.js';
 import { blockEnts } from './geom.js';
 import { clipGhosts, clipBase, pasteClip } from './clip.js';
@@ -443,16 +443,19 @@ export function makeTools(app) {
   T.fillet = {
     id: 'fillet', draw: false, first: null, r: 0, typeAnytime: true,
     base: () => null, label() { return _t('Promień'); }, reading() { return fmtLength(this.r); },
-    hint() { return this.first ? _t('<b>Zaokrąglij:</b> kliknij drugą linię (po stronie, która ma zostać).') : _t`<b>Zaokrąglij:</b> kliknij pierwszą linię. Promień ${fmtLength(this.r)} — wpisz, żeby zmienić (0 — ostry narożnik).`; },
+    hint() { return this.first ? _t('<b>Zaokrąglij:</b> kliknij drugi element (po stronie, która ma zostać).') : _t`<b>Zaokrąglij:</b> kliknij pierwszą linię albo łuk — albo polilinię blisko narożnika. Promień ${fmtLength(this.r)} — wpisz, żeby zmienić (0 — ostry narożnik).`; },
     start() { this.first = null; },
     down(p) {
       const s = app.pick(p); if (!s) return;
-      if (s.t !== 'line') { app.toast(_t('Zaokrąglanie działa na pojedynczych liniach.')); return; }
+      const err = c => app.toast({ parallel: _t('Te elementy nie mają narożnika (są równoległe albo się nie spotkają).'), tooBig: _t('Promień jest za duży dla tego narożnika.'), noCorner: _t('Tu polilinia nie ma narożnika — kliknij blisko wierzchołka.'), arcCorner: _t('Ten narożnik polilinii jest na łuku — zaokrągla się narożniki między prostymi odcinkami.'), zero: _t('Promień 0 — narożnik polilinii jest już ostry.') }[c] || _t('Tego narożnika nie da się zaokrąglić.'));
+      // polilinia: jedno kliknięcie zaokrągla najbliższy wierzchołek
+      if (!this.first && s.t === 'pline') { const r = plineCorner(s, p, 'fillet', this.r); if (r.error) return err(r.error); app.edit(_t('Zaokrąglij'), tx => tx.set(s.id, { pts: r.pts })); return; }
+      if (!['line', 'arc', 'circle'].includes(s.t)) { app.toast(_t('Zaokrągla się linie, łuki, okręgi i narożniki polilinii.')); return; }
       if (!this.first) { this.first = { e: s, p: [...p] }; return; }
       if (s.id === this.first.e.id) return;
       const f = this.first; this.first = null;
-      const r = filletLines(f.e, f.p, s, p, this.r);
-      if (r.error) { app.toast(r.error === 'parallel' ? _t('Linie są równoległe — nie mają narożnika.') : _t('Promień jest za duży dla tych linii.')); return; }
+      const r = filletCurves(f.e, f.p, s, p, this.r);
+      if (r.error) return err(r.error);
       app.edit(_t('Zaokrąglij'), tx => { tx.set(f.e.id, r.l1); tx.set(s.id, r.l2); if (r.arc) tx.add({ ...r.arc, layer: f.e.layer, w: f.e.w, lt: f.e.lt }); });
     },
     move() {}, typed(s) { const v = parseLength(s); if (!(v >= 0)) return false; this.r = v; return true; },

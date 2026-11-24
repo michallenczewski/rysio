@@ -173,6 +173,87 @@ export function filletLines(l1, p1, l2, p2, r) {
   return { l1: { [s1.moveKey]: T1 }, l2: { [s2.moveKey]: T2 }, arc: { t: 'arc', c: C, r, a0, a1 } };
 }
 
+// fazowanie dwóch linii: narożnik ścięty odcinkiem w odległościach d1 (na pierwszej) i d2 (na drugiej) od narożnika
+export function chamferLines(l1, p1, l2, p2, d1, d2 = d1) {
+  const z = filletLines(l1, p1, l2, p2, 0); if (z.error) return z;
+  const X = z.l1.a || z.l1.b;
+  const k1 = Object.keys(z.l1)[0], k2 = Object.keys(z.l2)[0], o1 = k1 === 'a' ? l1.b : l1.a, o2 = k2 === 'a' ? l2.b : l2.a;
+  const L1 = V.dist(X, o1), L2 = V.dist(X, o2);
+  if (!(d1 > 1e-12) && !(d2 > 1e-12)) return z;
+  if (d1 > L1 + 1e-9 || d2 > L2 + 1e-9 || L1 < 1e-12 || L2 < 1e-12) return { error: 'tooBig' };
+  const T1 = V.add(X, V.mul(V.sub(o1, X), d1 / L1)), T2 = V.add(X, V.mul(V.sub(o2, X), d2 / L2));
+  return { l1: { [k1]: T1 }, l2: { [k2]: T2 }, line: { t: 'line', a: T1, b: T2 } };
+}
+
+// Zaokrąglenie dowolnych dwóch krzywych: linia, łuk, okrąg (okrąg się nie przycina). Środek łuku to przecięcie krzywych
+// odsuniętych o r; z możliwych wybieramy ten, którego punkty styczności leżą najbliżej kliknięć. r = 0 — ostry narożnik.
+export function filletCurves(e1, p1, e2, p2, r) {
+  if (e1.t === 'line' && e2.t === 'line') return filletLines(e1, p1, e2, p2, r);
+  const curve = e => e.t === 'line' ? { k: 'L', a: e.a, d: V.norm(V.sub(e.b, e.a)) } : { k: 'C', c: e.c, r: e.r };
+  const c1 = curve(e1), c2 = curve(e2);
+  const offs = (c, s) => c.k === 'L' ? { k: 'L', a: V.add(c.a, V.mul(V.perp(c.d), s * r)), d: c.d } : (c.r + s * r > 1e-12 ? { k: 'C', c: c.c, r: c.r + s * r } : null);
+  const meet = (A, B) => A.k === 'L' && B.k === 'L' ? [lineX(A.a, A.d, B.a, B.d)].filter(Boolean) : A.k === 'L' ? lineCircle(A.a, V.add(A.a, A.d), B.c, B.r, false) : B.k === 'L' ? meet(B, A) : circleCircle(A.c, A.r, B.c, B.r);
+  const foot = (c, C) => { if (c.k === 'L') return V.add(c.a, V.mul(c.d, V.dot(V.sub(C, c.a), c.d))); const d = V.sub(C, c.c); return V.len(d) < 1e-12 ? null : V.add(c.c, V.mul(V.norm(d), c.r)); };
+  const signs = r > 1e-12 ? [1, -1] : [1];
+  let best = null;
+  for (const s1 of signs) for (const s2 of signs) {
+    const A = offs(c1, s1), B = offs(c2, s2); if (!A || !B) continue;
+    for (const C of meet(A, B)) {
+      const T1 = foot(c1, C), T2 = foot(c2, C); if (!T1 || !T2) continue;
+      const score = V.dist(T1, p1) + V.dist(T2, p2);
+      if (!best || score < best.score - 1e-12) best = { C, T1, T2, score };
+    }
+  }
+  if (!best) return { error: 'parallel' };
+  const { C, T1, T2 } = best;
+  const out = { l1: cutAt(e1, T1, p1), l2: cutAt(e2, T2, p2) };
+  if (r > 1e-12 && V.dist(T1, T2) > 1e-12) { let a0 = angOf(C, T1), a1 = angOf(C, T2); if (sweep(a0, a1) > Math.PI) [a0, a1] = [a1, a0]; out.arc = { t: 'arc', c: C, r, a0, a1 }; }
+  return out;
+}
+// przycięcie / wydłużenie elementu do punktu T; zostaje strona, po której kliknięto (p)
+function cutAt(e, T, p) {
+  if (e.t === 'line') { const u = V.sub(p, T); return V.dot(V.sub(e.a, T), u) >= V.dot(V.sub(e.b, T), u) ? { b: pt(T) } : { a: pt(T) }; }
+  if (e.t === 'arc') {
+    const ta = angOf(e.c, T), tp = angOf(e.c, p);
+    if (onArcAngle(e.a0, e.a1, ta, 1e-9)) return onArcAngle(e.a0, ta, tp, 1e-9) ? { a1: ta } : { a0: ta };
+    return sweep(ta, e.a0) < sweep(e.a1, ta) ? { a0: ta } : { a1: ta };   // poza łukiem — wydłużamy bliższy koniec
+  }
+  return {};   // okrąg zostaje cały
+}
+
+// Narożnik polilinii: wierzchołek najbliższy kliknięcia (oba sąsiednie kawałki proste).
+// mode 'fillet' — łuk o promieniu r; 'chamfer' — ścięcie w odległościach r i d2. Zwraca nowe pts albo { error }.
+export function plineCorner(e, p, mode, r, d2 = r) {
+  const n = e.pts.length, parts = plineParts(e); if (!parts.length) return { error: 'noCorner' };
+  const np = nearestPart(parts, p), q = np.q, i0 = q.i;
+  let vi = V.dist(np.c, q.from) <= V.dist(np.c, q.to) ? i0 : (i0 + 1) % n;
+  if (!e.closed && (vi === 0 || vi === n - 1)) vi = vi === 0 ? 1 : n - 2;   // na końcu otwartej polilinii — najbliższy narożnik
+  if (!e.closed && (vi <= 0 || vi >= n - 1)) return { error: 'noCorner' };
+  const ip = (vi - 1 + n) % n, inx = (vi + 1) % n;
+  if (e.pts[ip][2] || e.pts[vi][2]) return { error: 'arcCorner' };
+  const Vx = pt(e.pts[vi]), A = pt(e.pts[ip]), B = pt(e.pts[inx]);
+  const la = V.dist(A, Vx), lb = V.dist(B, Vx); if (la < 1e-12 || lb < 1e-12) return { error: 'noCorner' };
+  const u1 = V.mul(V.sub(A, Vx), 1 / la), u2 = V.mul(V.sub(B, Vx), 1 / lb);
+  const th = Math.acos(Math.max(-1, Math.min(1, V.dot(u1, u2))));
+  if (th < 1e-6 || Math.PI - th < 1e-6) return { error: 'parallel' };
+  let T1, T2, bulge = 0;
+  if (mode === 'chamfer') {
+    if (r > la + 1e-9 || d2 > lb + 1e-9) return { error: 'tooBig' };
+    T1 = V.add(Vx, V.mul(u1, r)); T2 = V.add(Vx, V.mul(u2, d2));
+  } else {
+    const dist = r / Math.tan(th / 2); if (dist > la + 1e-9 || dist > lb + 1e-9) return { error: 'tooBig' };
+    T1 = V.add(Vx, V.mul(u1, dist)); T2 = V.add(Vx, V.mul(u2, dist));
+    const C = V.add(Vx, V.mul(V.norm(V.add(u1, u2)), r / Math.sin(th / 2)));
+    bulge = bulgeOf(C, T1, T2, V.cross(V.sub(T1, C), V.sub(T2, C)) > 0);
+  }
+  if (!(r > 1e-12) && !(d2 > 1e-12)) return { error: 'zero' };
+  const pts = e.pts.map(q => [...q]);
+  pts.splice(vi, 1, bulge ? [T1[0], T1[1], bulge] : [T1[0], T1[1]], [T2[0], T2[1]]);
+  // ścięcie / łuk dokładnie do sąsiedniego wierzchołka — bez punktu o zerowej długości
+  const clean = pts.filter((q, k) => (!e.closed && k === pts.length - 1) || V.dist(q, pts[(k + 1) % pts.length]) > 1e-12);
+  return { pts: clean, vertex: Vx };
+}
+
 /* ---------- przycinanie i wydłużanie ---------- */
 // Parametr punktu na elemencie: linia i łuk 0…1, polilinia — numer części + 0…1, okrąg — kąt.
 function paramOn(e, p) {

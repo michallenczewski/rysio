@@ -30,7 +30,7 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 
 - Obróć (E), odbij (⇧E / Shift+E), skaluj (R) — na zaznaczeniu; kąt i skala z klawiatury albo myszą; ⌥ (Ctrl w Windows) robi kopię.
 - Odsunięcie (T): linie, łuki, okręgi i polilinie (także z łukami); odległość wpisana z klawiatury.
-- Zaokrąglij narożnik (G): dwie linie, promień wpisany z klawiatury; promień 0 łączy linie w ostry narożnik.
+- Zaokrąglij narożnik (G): dwie linie, linia i łuk, dwa łuki (także okrąg, który zostaje cały) albo jedno kliknięcie w polilinię przy narożniku; promień wpisany z klawiatury; promień 0 łączy elementy w ostry narożnik.
 - Przytnij (X): klik w kawałek między przecięciami go usuwa. Wydłuż (⇧X / Shift+X): klik w linię blisko końca dosuwa ją do najbliższego elementu. W obu przeciągnięcie przez kilka kawałków robi to z nimi wszystkimi naraz.
 - Polilinie mogą mieć łuki (powstają przy odsunięciu, przycinaniu i z plików DXF).
 

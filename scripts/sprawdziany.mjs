@@ -634,6 +634,32 @@ przypadek('schowek: okno arkusza ukrywa warstwy po nazwie', 'okno z ukrytą wars
   return { 'ukryte': [r.made[0].hidden, [7]], 'paczka bez bloków': [CL.readClip(JSON.stringify({ rysio: 'schowek', v: 1, ents: [{ t: 'line', a: [0, 0], b: [1, 0] }] })).blocks, []] };
 });
 
+/* ---------- narożniki: łuki, polilinie, fazowanie ---------- */
+przypadek('zaokrąglij: linia i łuk', 'pozioma linia y=0 od x=−5 do 0 i łuk o środku (3; 0), r=3 nad nią (0°…180°); promień 1 — łuk styczny do obu', () => {
+  const ln = { t: 'line', a: [-5, 0], b: [0, 0] }, ar = { t: 'arc', c: [3, 0], r: 3, a0: 0, a1: Math.PI };
+  const r = ED.filletCurves(ln, [-3, 0], ar, [3, 3], 1);
+  const C = r.arc.c, dLine = Math.abs(C[1]), dArc = V.dist(C, [3, 0]);
+  return { 'błąd': [r.error || null, null], 'odległość środka od linii': [dLine, 1], 'od środka łuku (r+1)': [dArc, 4], 'łuk po stronie kliknięcia (y>0)': [C[1] > 0, true],
+    'koniec linii w punkcie styczności': [r.l1.b ? r.l1.b[0] : r.l1.a[0], C[0]] };
+});
+przypadek('zaokrąglij: dwa łuki promieniem 0', 'dwa łuki przecinające się — ostry narożnik w punkcie przecięcia, bez nowego łuku', () => {
+  const a1 = { t: 'arc', c: [0, 0], r: 2, a0: 0, a1: Math.PI / 2 }, a2 = { t: 'arc', c: [2, 0], r: 2, a0: Math.PI / 2, a1: Math.PI };
+  const r = ED.filletCurves(a1, [Math.SQRT2, Math.SQRT2], a2, [2 - Math.SQRT2, Math.SQRT2], 0);
+  const X = [1, Math.sqrt(3)];
+  return { 'bez łuku': [r.arc === undefined, true], 'pierwszy łuk kończy się w przecięciu': [V.polar(a1.c, 2, r.l1.a1 ?? r.l1.a0).map(v => +v.toFixed(9)), X.map(v => +v.toFixed(9))] };
+});
+przypadek('zaokrąglij narożnik polilinii', 'prostokąt 4×2 zamknięty, klik przy narożniku (4; 2), promień 0,5 — narożnik zamienia się na łuk ćwiartkowy', () => {
+  const e = { t: 'pline', pts: [[0, 0], [4, 0], [4, 2], [0, 2]], closed: true };
+  const r = ED.plineCorner(e, [3.9, 1.9], 'fillet', 0.5), n = { ...e, pts: r.pts };
+  return { 'wierzchołki': [r.pts.length, 5], 'długość obwodu': [G.lengthOf(n), 12 - 2 * 0.5 + Math.PI * 0.5 / 2], 'punkty styczności': [[r.pts[2].slice(0, 2), r.pts[3]], [[4, 1.5], [3.5, 2]]] };
+});
+przypadek('fazuj: dwie linie i narożnik polilinii', 'narożnik (0;0) linii poziomej i pionowej, faza 1 i 2; polilinia L z fazą 0,5', () => {
+  const r = ED.chamferLines({ t: 'line', a: [5, 0], b: [0, 0] }, [4, 0], { t: 'line', a: [0, 0], b: [0, 5] }, [0, 4], 1, 2);
+  const pl = ED.plineCorner({ t: 'pline', pts: [[0, 0], [3, 0], [3, 3]], closed: false }, [2.9, 0.1], 'chamfer', 0.5);
+  return { 'odcinek fazy': [[...r.line.a, ...r.line.b], [1, 0, 0, 2]], 'linie skrócone': [[r.l1.b, r.l2.a], [[1, 0], [0, 2]]], 'polilinia': [pl.pts, [[0, 0], [2.5, 0], [3, 0.5], [3, 3]]],
+    'za duża faza': [ED.chamferLines({ t: 'line', a: [1, 0], b: [0, 0] }, [1, 0], { t: 'line', a: [0, 0], b: [0, 1] }, [0, 1], 2).error, 'tooBig'] };
+});
+
 /* ---------- uruchomienie ---------- */
 const args = process.argv.slice(2), verbose = args.includes('-v'), filt = args.find(a => a !== '-v')?.toLowerCase();
 const fmt = x => typeof x === 'number' ? (Number.isInteger(x) ? String(x) : x.toFixed(6)) : Array.isArray(x) && x.length && x.every(v => typeof v === 'number') ? pt(x) : JSON.stringify(x);
