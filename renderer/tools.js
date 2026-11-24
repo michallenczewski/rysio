@@ -4,7 +4,7 @@
 // Narzędzie:  base() punkt bazowy do kierunków · label() podpis pola wymiaru (null = bez wpisywania) · reading() bieżąca wartość
 //             hint() podpowiedź · down/move/up(p, e) · typed(tekst) → true, gdy zrozumiało · enter() / cancel() → true, gdy coś zrobiło
 //             preview() elementy podglądu · path / box — ślad pędzla i gumki, ramka zaznaczania
-import { _t } from './i18n.js';
+import { _t, DEC } from './i18n.js';
 import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, intersect, lengthOf, dimGeom } from './geom.js';
 import { parseLength, parseLengths, fmtLength, fmtNum } from './units.js';
 import { isLive, isShown } from './model.js';
@@ -15,7 +15,7 @@ import { clipGhosts, clipBase, pasteClip } from './clip.js';
 
 const dirOf = (from, to) => { const d = V.norm(V.sub(to, from)); return d[0] || d[1] ? d : [1, 0]; };
 const deg = r => (r * 180 / Math.PI);
-const fmtDeg = r => deg(r).toFixed(1).replace('.', ',') + '°';
+const fmtDeg = r => deg(r).toFixed(1).replace('.', DEC) + '°';
 
 export function makeTools(app) {
   const T = {};
@@ -399,7 +399,7 @@ export function makeTools(app) {
     id: 'scale', draw: true, o: null, ref: null, cur: null,
     base() { return this.ref || this.o; }, label() { return this.o ? _t('Skala') : null; },
     factor() { return this.o && this.ref && this.cur ? V.dist(this.o, this.cur) / Math.max(V.dist(this.o, this.ref), 1e-12) : 1; },
-    reading() { return this.ref && this.cur ? '×' + this.factor().toFixed(3).replace('.', ',') : null; },
+    reading() { return this.ref && this.cur ? '×' + this.factor().toFixed(3).replace('.', DEC) : null; },
     hint() {
       if (!app.sel.size) return _t('<b>Skaluj:</b> najpierw zaznacz elementy (Q) albo kliknij element.');
       if (!this.o) return _t('<b>Skaluj:</b> kliknij punkt bazowy.');

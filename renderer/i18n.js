@@ -19,6 +19,9 @@ export function _t(s, ...vals) {
   return (dict && dict[s]) ?? s;
 }
 
+// znak dziesiętny w liczbach pokazywanych użytkownikowi: przecinek po polsku, kropka po angielsku
+export const DEC = lang === 'en' ? '.' : ',';
+
 export function setLang(l) { try { localStorage.setItem(KEY, l); } catch (e) {} }
 
 // Stałe napisy z index.html: teksty i podpowiedzi (title, aria-label, placeholder). Elementy z treścią użytkownika

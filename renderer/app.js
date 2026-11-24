@@ -1,5 +1,5 @@
 // Rysio — okno programu: stan, mysz i klawiatura, paski, okienka warstw i kreski, zapis. Opis: ARCHITEKTURA.md.
-import { _t, translateDom, lang, LANGS, setLang } from './i18n.js';
+import { _t, translateDom, lang, LANGS, setLang, DEC } from './i18n.js';
 import { newDoc, fixDoc, History, serialize, strokeOf, layerOf, isLive, isShown, WEIGHTS, LTYPES, LTYPE_IDS, LAYER_COLORS, SCALES, spaceOf, newSheet, sheetSize, PAPER } from './model.js';
 import { V, bbox, boxHit, boxGrow, boxUnion, nearestOn, setAnno, vpBox, textBox, setBlocks, blockEnts, insXf } from './geom.js';
 import { explodeIns } from './edit.js';
@@ -62,7 +62,7 @@ const IC = {
 const ic = (n, s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
 const chev = '<svg class="chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const wtxt = w => w.toFixed(2).replace('.', ',');
+const wtxt = w => w.toFixed(2).replace('.', DEC);
 const sample = (w, lt, len = 26, h = 8) => { const d = (LTYPES[lt] || LTYPES.solid).dash.map(v => Math.max(v * 1.6, 0.6)).join(' '); return `<svg width="${len}" height="${h}" aria-hidden="true"><line x1="1" y1="${h / 2}" x2="${len - 1}" y2="${h / 2}" stroke="currentColor" stroke-width="${Math.max(0.7, w * 3.78).toFixed(2)}" stroke-dasharray="${d}" stroke-linecap="${lt === 'dot' ? 'round' : 'butt'}"/></svg>`; };
 for (const [id, n] of [['#undoBtn', 'undo'], ['#redoBtn', 'redo'], ['#thinBtn', 'thin'], ['#pdfBtn', 'pdf'], ['#setBtn', 'gear']]) $(id).innerHTML = ic(n);
 
@@ -96,7 +96,7 @@ app.ents = () => { const k = app.spaceKey(); return app.doc.ents.filter(e => spa
 app.sheet = () => app.space ? app.doc.sheets.find(sh => sh.id === app.space) || null : null;
 app.spaceScale = () => app.space ? 1 : app.doc.scale;
 const UNITF = { m: [1, 2], cm: [0.01, 1], mm: [0.001, 0] };
-const fmtU = (v, u) => (v / UNITF[u][0]).toFixed(UNITF[u][1]).replace('.', ',');
+const fmtU = (v, u) => (v / UNITF[u][0]).toFixed(UNITF[u][1]).replace('.', DEC);
 app.fmtModel = v => fmtU(v, app.doc.units);
 app.fmtSheet = v => fmtU(v, 'mm');
 // przestrzeń, w której się pracuje: wysokość tekstu, jednostka wymiarów i to, gdzie trafiają nowe elementy
@@ -507,7 +507,7 @@ function renderLayersPop() {
       <span class="nm" translate="no" data-pick="${L.id}" title="${_t('Klik — warstwa dla nowych elementów, dwuklik — zmiana nazwy')}">${nm}</span>
       ${si ? `<button class="mv" data-move="${L.id}">${_t`Przenieś tutaj ${si.n}`}</button>` : ''}
       ${empty && !cur && d.layers.length > 1 ? `<button class="ic del" data-del="${L.id}" aria-label="${_t('Usuń pustą warstwę')}">${ic('trash', 14)}</button>` : ''}
-      <button class="ls" data-stroke="${L.id}" aria-label="${_t('Kreska warstwy')}">${sample(L.w, L.lt, 28, 4)}<span>${String(L.w).replace('0.', ',')}</span></button>
+      <button class="ls" data-stroke="${L.id}" aria-label="${_t('Kreska warstwy')}">${sample(L.w, L.lt, 28, 4)}<span>${String(L.w).replace('0.', DEC)}</span></button>
       <button class="ic${L.visible ? ' act' : ''}" data-vis="${L.id}" aria-label="${_t('Widoczność')}">${ic(L.visible ? 'eye' : 'eyeOff', 14)}</button>
       <button class="ic${L.locked ? ' act' : ''}" data-lock="${L.id}" aria-label="${_t('Blokada')}">${ic(L.locked ? 'lock' : 'unlock', 14)}</button>
     </div>` + (colorFor === L.id ? `<div class="colors">${LAYER_COLORS.map(c => `<button data-setcolor="${c}" data-for="${L.id}" class="${c === L.color ? 'on' : ''}" style="background:${c}" aria-label="${c}"></button>`).join('')}</div>` : '');
@@ -675,7 +675,7 @@ function showHatchBar() {
     ${onSel ? `<span class="lbl">${hs.length > 1 ? _t`zmienia ${hs.length} zaznaczone` : _t('zmienia zaznaczone')}</span>` : ''}`;
   if (el._html !== html && !el.contains(document.activeElement)) { el.innerHTML = html; el._html = html; }
 }
-const fmtNum = v => String(+(+v).toFixed(3)).replace('.', ',');
+const fmtNum = v => String(+(+v).toFixed(3)).replace('.', DEC);
 function setHatch(patch) {
   const hs = selHatches();
   if (tool.id !== 'hatch' && hs.length && hs.every(e => e.t === 'hatch')) app.edit(_t('Kreskowanie'), tx => hs.forEach(e => tx.set(e.id, patch)));
@@ -1123,7 +1123,7 @@ function showVpBar() {
   const html = app.vpEdit
     ? `<span class="t">${_t('Widok w oknie')}</span><span class="lbl">${_t('przeciągnij, żeby przesunąć model; Esc kończy')}</span><button class="tbs" data-vp="done">${_t('Gotowe')}</button>`
     : `<span class="t">${_t('Okno')}</span>
-      <button class="tbs" data-vp="scale">${_t('Skala')} 1:${String(+vp.scale.toFixed(3)).replace('.', ',')} ${chev}</button>
+      <button class="tbs" data-vp="scale">${_t('Skala')} 1:${String(+vp.scale.toFixed(3)).replace('.', DEC)} ${chev}</button>
       <button class="tbs" data-vp="layers">${_t`Warstwy ${shown} z ${app.doc.layers.length}`} ${chev}</button>
       <button class="tbs" data-vp="lock">${ic(vp.locked ? 'lock' : 'unlock', 14)} ${vp.locked ? _t('Widok zablokowany') : _t('Zablokuj widok')}</button>
       <button class="tbs" data-vp="edit">${_t('Przesuń widok')}</button>`;
@@ -1212,7 +1212,7 @@ function showTextBar() {
     });
   }
   el.innerHTML = `<span class="t">${_t('Tekst')}</span><span class="lbl">${_t('Wysokość')}</span>
-    <div class="seg">${[1.8, 2.5, 3.5, 5, 7].map(h => `<button data-h="${h}" class="${app.textH === h ? 'on' : ''}">${String(h).replace('.', ',')}</button>`).join('')}</div><span class="lbl">${_t('mm na wydruku')}</span>
+    <div class="seg">${[1.8, 2.5, 3.5, 5, 7].map(h => `<button data-h="${h}" class="${app.textH === h ? 'on' : ''}">${String(h).replace('.', DEC)}</button>`).join('')}</div><span class="lbl">${_t('mm na wydruku')}</span>
     <div class="seg">${[['l', _t('Do lewej')], ['c', _t('Do środka')], ['r', _t('Do prawej')]].map(([a, n]) => `<button data-al="${a}" class="${app.textAlign === a ? 'on' : ''}" aria-label="${n}">${ic('align' + a.toUpperCase(), 14)}</button>`).join('')}</div>`;
 }
 

@@ -1,7 +1,7 @@
 // Arkusz: ramka z tabelką, okna z modelem w skali i przeliczanie arkusz ↔ model. Działa z każdym piórem
 // (ekran i PDF), więc wydruk składa się dokładnie tak jak widok arkusza.
 // Współrzędne arkusza: metry papieru, początek w lewym dolnym rogu, oś Y w górę (1 mm = 0,001).
-import { _t } from './i18n.js';
+import { _t, DEC } from './i18n.js';
 import { sheetSize, spaceOf, isShown, layerOf } from './model.js';
 import { V, vpBox, bbox, boxHit, setAnno, ANNO } from './geom.js';
 import { drawEnt } from './draw.js';
@@ -26,7 +26,7 @@ export const sheetVps = (doc, sh) => doc.ents.filter(e => e.t === 'vp' && e.sp =
 // skale okien do tabelki: „1:100, 1:20”
 export function titleScales(doc, sh) {
   const s = [...new Set(sheetVps(doc, sh).map(e => e.scale))].sort((a, b) => b - a);
-  return s.map(k => '1:' + String(+k.toFixed(3)).replace('.', ',')).join(', ');
+  return s.map(k => '1:' + String(+k.toFixed(3)).replace('.', DEC)).join(', ');
 }
 
 // zawartość okien: model przycięty do okna, w skali okna, bez warstw ukrytych w tym oknie

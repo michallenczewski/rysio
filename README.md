@@ -45,6 +45,7 @@ Kółko myszy przybliża do kursora; na gładziku dwa palce przesuwają, szczypa
 
 ## Dla programisty
 
+- Język: Plik → Język (polski / English). Nowe napisy dopisuje się do `renderer/lang/en.js`; brakujące pokazuje `node scripts/napisy.mjs`.
 - `npm start` — program; `npm run web` — wersja przeglądarkowa na http://localhost:8766; `npm test` — sprawdziany rysowania.
 - Budowa programu: `ARCHITEKTURA.md`; zasady pracy: `CLAUDE.md`.
 

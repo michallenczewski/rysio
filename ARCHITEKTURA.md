@@ -116,7 +116,8 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 | `renderer/tools.js` | narzędzia: zaznacz, usuń, pędzel, linia, polilinia, prostokąt, okrąg, łuk, przesuń, kopiuj, wklej (ze schowka), obróć, odbij, skaluj, odsunięcie, zaokrąglij, przytnij, wydłuż, kreskowanie, bloki, tekst, wymiar, okno na arkuszu |
 | `renderer/units.js` | wpisywanie i pokazywanie wymiarów w jednostce rysunku |
 | `renderer/keys.js` | skróty klawiszowe i ich zmiana |
-| `renderer/i18n.js`, `lang/en.js` | tłumaczenie napisów (`_t`) |
+| `renderer/i18n.js`, `renderer/lang/en.js` | tłumaczenie napisów (`_t`), znak dziesiętny `DEC` (przecinek / kropka); słownik angielski pełny od 24.11.2026 |
+| `scripts/napisy.mjs` | wyszukuje wszystkie `_t(…)` i stałe teksty `index.html`, pokazuje brakujące tłumaczenia (kod 1, gdy są) |
 | `renderer/web-api.js` | zastępczy most dla wersji przeglądarkowej |
 | `renderer/testapi.js` | `window.rysioTest` — polecenia testowe bez klikania |
 | `scripts/serve-web.js` | serwer wersji przeglądarkowej |

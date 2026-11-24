@@ -1,3 +1,4 @@
+import { DEC } from './i18n.js';
 // Wymiary wpisywane w pole na dole okna. Liczba bez jednostki jest w jednostce rysunku (m, cm albo mm,
 // przełącznik obok pola wymiarów); przecinek i kropka działają jako separator dziesiętny.
 // Przykłady przy jednostce „cm”: „350” = 3,5 m, „3,5m” = 3,5 m, „35mm” = 3,5 cm. Dwa wymiary (prostokąt): „600;400”, „6 x 4”.
@@ -38,6 +39,6 @@ export function parseLengths(s) {
 export function fmtNum(m) {
   if (!isFinite(m)) return '';
   const v = m / UNIT[unit];
-  return (Math.abs(v) < 1e-9 ? 0 : v).toFixed(DIGITS[unit]).replace('.', ',');
+  return (Math.abs(v) < 1e-9 ? 0 : v).toFixed(DIGITS[unit]).replace('.', DEC);
 }
 export const fmtLength = m => isFinite(m) ? fmtNum(m) + ' ' + unit : '';

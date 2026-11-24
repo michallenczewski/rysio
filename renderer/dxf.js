@@ -3,7 +3,7 @@
 // ale tu wynikiem są prawdziwe elementy (linie, polilinie z łukami, okręgi, łuki, teksty), a nie odcinki podkładu.
 //   Bloki i wymiary są rozbijane na zwykłe elementy (Rysio nie ma jeszcze bloków); kreskowania na razie pomijamy.
 //   Elipsy i splajny zamieniają się w polilinie. Współrzędne zostają takie jak w pliku (w metrach).
-import { _t } from './i18n.js';
+import { _t, DEC } from './i18n.js';
 import { newDoc, fixDoc, WEIGHTS, LTYPES, sheetSize } from './model.js';
 import { drawFrame } from './sheet.js';
 import { V, dimGeom, LINE_GAP, DIM_EXT, DIM_TICK, DIM_H, setAnno, ANNO } from './geom.js';
@@ -605,7 +605,7 @@ export function writeDxf(doc) {
     return n;
   };
   // liczba wymiaru w jednostce rysunku (na arkuszu — w milimetrach papieru × skala nieznana, więc jak w modelu)
-  const dimText = (v, paper) => paper ? String(Math.round(v * 1000)) : doc.units === 'mm' ? String(Math.round(v * 1000)) : doc.units === 'cm' ? (v * 100).toFixed(1).replace('.', ',') : v.toFixed(2).replace('.', ',');
+  const dimText = (v, paper) => paper ? String(Math.round(v * 1000)) : doc.units === 'mm' ? String(Math.round(v * 1000)) : doc.units === 'cm' ? (v * 100).toFixed(1).replace('.', DEC) : v.toFixed(2).replace('.', DEC);
 
   // model
   const modelOut = []; setAnno(kM);
