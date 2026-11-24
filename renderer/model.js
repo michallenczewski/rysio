@@ -3,7 +3,8 @@
 import { _t } from './i18n.js';
 
 export const FORMAT_VERSION = 1;
-export const WEIGHTS = [0.13, 0.18, 0.25, 0.35, 0.5, 0.7];
+// grubości z szeregu ISO 128 (mm)
+export const WEIGHTS = [0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1.0, 1.4, 2.0];
 // rodzaje linii: wzór kresek w milimetrach papieru (kreska, przerwa, …); pusty = ciągła
 export const LTYPES = {
   solid: { name: _t('ciągła'), dash: [] },

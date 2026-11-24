@@ -100,6 +100,30 @@ export function segsOf(e) {
   }
   return [];
 }
+// Polilinia może mieć łuki: trzeci element wierzchołka [x, y, b] to „wybrzuszenie” jak w DXF — b = tan(θ/4),
+// θ — kąt łuku od tego wierzchołka do następnego; b > 0 — przeciwnie do wskazówek zegara, b < 0 — zgodnie.
+export function bulgeArc(p, q, b) {
+  const d = V.dist(p, q); if (d < EPS || Math.abs(b) < 1e-12) return null;
+  const u = V.mul(V.sub(q, p), 1 / d), m = V.lerp(p, q, 0.5);
+  const c = V.add(m, V.mul(V.perp(u), d / 2 * (1 - b * b) / (2 * b)));
+  const r = V.dist(c, p);
+  return b > 0 ? { c, r, a0: angOf(c, p), a1: angOf(c, q), ccw: true } : { c, r, a0: angOf(c, q), a1: angOf(c, p), ccw: false };
+}
+// wybrzuszenie łuku o środku c od punktu p do q w danym kierunku
+export function bulgeOf(c, p, q, ccw) { const sw = ccw ? sweep(angOf(c, p), angOf(c, q)) : sweep(angOf(c, q), angOf(c, p)); return (ccw ? 1 : -1) * Math.tan(sw / 4); }
+// części polilinii po kolei: odcinki i łuki; from / to — początek i koniec części w kierunku polilinii
+export function plineParts(e) {
+  // zamknięta polilinia ma też część od ostatniego wierzchołka do pierwszego (dwa wierzchołki z łukami to np. okrąg z DXF)
+  const out = [], n = e.pts.length, cnt = e.closed && n >= 2 ? n : n - 1;
+  for (let i = 0; i < cnt; i++) {
+    const p = e.pts[i], q = e.pts[(i + 1) % n], a = p[2] ? bulgeArc(p, q, p[2]) : null;
+    out.push(a ? { k: 'arc', ...a, from: [p[0], p[1]], to: [q[0], q[1]], i } : { k: 'seg', a: [p[0], p[1]], b: [q[0], q[1]], from: [p[0], p[1]], to: [q[0], q[1]], i });
+  }
+  return out;
+}
+export const hasBulge = e => e.t === 'pline' && e.pts.some(p => p[2]);
+const partBox = q => q.k === 'seg' ? boxOf([q.a, q.b]) : bbox({ t: 'arc', c: q.c, r: q.r, a0: q.a0, a1: q.a1 });
+
 // „krzywe” elementu: odcinki i łuki w jednej postaci
 export function partsOf(e) {
   if (e.t === 'text') return rectSegs(textBox(e));
@@ -107,6 +131,7 @@ export function partsOf(e) {
   if (e.t === 'dim') { const g = dimGeom(e); return [{ k: 'seg', a: g.d1, b: g.d2 }, { k: 'seg', a: e.a, b: g.d1 }, { k: 'seg', a: e.b, b: g.d2 }]; }
   if (e.t === 'circle') return [{ k: 'arc', c: e.c, r: e.r, a0: 0, a1: TAU, full: true }];
   if (e.t === 'arc') return [{ k: 'arc', c: e.c, r: e.r, a0: e.a0, a1: e.a1 }];
+  if (e.t === 'pline') return plineParts(e);
   return segsOf(e).map(([a, b]) => ({ k: 'seg', a, b }));
 }
 export function endpoints(e) {
@@ -114,7 +139,7 @@ export function endpoints(e) {
   if (e.t === 'vp') { const b = vpBox(e); return [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]]; }
   if (e.t === 'dim') { const g = dimGeom(e); return [e.a, e.b, g.d1, g.d2]; }
   if (e.t === 'line') return [e.a, e.b];
-  if (e.t === 'pline') return e.pts;
+  if (e.t === 'pline') return e.pts.map(p => [p[0], p[1]]);   // bez wybrzuszenia — punkt, nie wierzchołek
   if (e.t === 'arc') return [arcStart(e), arcEnd(e)];
   return [];
 }
@@ -123,6 +148,7 @@ export function midpoints(e) {
   if (e.t === 'dim') return [dimGeom(e).mid];
   if (e.t === 'vp') return rectSegs(vpBox(e)).map(q => V.lerp(q.a, q.b, 0.5));
   if (e.t === 'arc') return [arcMid(e)];
+  if (e.t === 'pline') return plineParts(e).map(q => q.k === 'seg' ? V.lerp(q.a, q.b, 0.5) : arcMid(q));
   return segsOf(e).map(([a, b]) => V.lerp(a, b, 0.5));
 }
 export const centerOf = e => (e.t === 'circle' || e.t === 'arc') ? e.c : null;
@@ -138,6 +164,7 @@ export function bbox(e) {
     for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2; if (onArcAngle(e.a0, e.a1, a)) pts.push(V.polar(e.c, e.r, a)); }
     return boxOf(pts);
   }
+  if (e.t === 'pline' && hasBulge(e)) return plineParts(e).map(partBox).reduce(boxUnion, null) || boxOf(e.pts);
   return boxOf(e.t === 'line' ? [e.a, e.b] : e.pts);
 }
 export function boxOf(pts) {
@@ -269,12 +296,13 @@ export function moved(e, d) {
   if (e.t === 'dim') return { a: m(e.a), b: m(e.b), o: m(e.o) };
   if (e.t === 'vp') return { a: m(e.a), b: m(e.b) };     // okno przesuwa się po arkuszu, widok modelu w nim zostaje
   if (e.t === 'line') return { a: m(e.a), b: m(e.b) };
-  if (e.t === 'pline') return { pts: e.pts.map(m) };
+  if (e.t === 'pline') return { pts: e.pts.map(p => p[2] ? [...m(p), p[2]] : m(p)) };
   return { c: m(e.c) };
 }
 // długość elementu
 export function lengthOf(e) {
   if (e.t === 'circle') return TAU * e.r;
   if (e.t === 'arc') return sweep(e.a0, e.a1) * e.r;
+  if (e.t === 'pline') return plineParts(e).reduce((s, q) => s + (q.k === 'seg' ? V.dist(q.a, q.b) : sweep(q.a0, q.a1) * q.r), 0);
   return segsOf(e).reduce((s, [a, b]) => s + V.dist(a, b), 0);
 }

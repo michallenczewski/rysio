@@ -1,7 +1,7 @@
 // Rysowanie elementów przez „pióro”. CanvasPen rysuje na płótnie, PdfPen (pdf.js) zapisuje wektorowy PDF — te same
 // polecenia, więc wydruk wygląda jak ekran. Grubości, wzory kresek i wysokości tekstu są w milimetrach papieru.
 import { LTYPES, strokeOf } from './model.js';
-import { V, sweep, dimGeom, textBox, LINE_GAP, DIM_H, DIM_TICK, DIM_EXT } from './geom.js';
+import { V, sweep, dimGeom, textBox, plineParts, hasBulge, LINE_GAP, DIM_H, DIM_TICK, DIM_EXT } from './geom.js';
 
 export const PX_PER_MM = 96 / 25.4;   // ekran przy 100%: 1 mm ≈ 3,78 px
 
@@ -41,6 +41,20 @@ export class CanvasPen {
   // łuk przeciwnie do wskazówek zegara od a0 do a1 (oś Y przestrzeni jest odwrócona względem ekranu)
   arc(c, r, a0, a1) { const s = this.v.toScreen(c), R = r * this.v.ppm; this.path(() => this.c.arc(s[0], s[1], R, -a0, -(a0 + sweep(a0, a1)), true)); }
   circle(c, r) { const s = this.v.toScreen(c); this.path(() => this.c.arc(s[0], s[1], r * this.v.ppm, 0, Math.PI * 2)); }
+  // polilinia z łukami jako jedna ścieżka (ciągły wzór kreski, porządne narożniki)
+  parts(list, closed) {
+    if (!list.length) return;
+    const c = this.c, P = p => this.v.toScreen(p);
+    this.path(() => {
+      const s0 = P(list[0].from); c.moveTo(s0[0], s0[1]);
+      for (const q of list) {
+        if (q.k === 'seg') { const s = P(q.to); c.lineTo(s[0], s[1]); continue; }
+        const s = P(q.c), R = q.r * this.v.ppm, a0 = Math.atan2(q.from[1] - q.c[1], q.from[0] - q.c[0]), sw = sweep(q.a0, q.a1);
+        c.arc(s[0], s[1], R, -a0, q.ccw ? -(a0 + sw) : -(a0 - sw), q.ccw);
+      }
+      if (closed) c.closePath();
+    });
+  }
   // tekst: p — początek linii bazowej, h — wysokość wielkich liter w jednostkach przestrzeni, rot — obrót w radianach
   text(p, str, h, align = 'l', rot = 0) {
     const c = this.c, s = this.v.toScreen(p), px = h * this.v.ppm / 0.72;
@@ -61,7 +75,7 @@ export class CanvasPen {
 // sam kształt elementu (styl ustawia wołający); tekst i wymiar rysuje drawEnt
 export function traceEnt(pen, e) {
   if (e.t === 'line') pen.line(e.a, e.b);
-  else if (e.t === 'pline') pen.poly(e.pts, e.closed);
+  else if (e.t === 'pline') { if (hasBulge(e)) pen.parts(plineParts(e), e.closed); else pen.poly(e.pts, e.closed); }
   else if (e.t === 'circle') pen.circle(e.c, e.r);
   else if (e.t === 'arc') pen.arc(e.c, e.r, e.a0, e.a1);
   else if (e.t === 'vp') pen.poly([e.a, [e.b[0], e.a[1]], e.b, [e.a[0], e.b[1]]], true);

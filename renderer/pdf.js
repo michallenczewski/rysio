@@ -61,6 +61,29 @@ export class PdfPen {
     this.apply(); this.out.push(s + ' S');
   }
   circle(c, r) { this.arc(c, r, 0, 0, true); }
+  // krzywe Béziera łuku od kąta a0 o kąt sw (ujemny — zgodnie ze wskazówkami zegara), bez „m”
+  bez(c, r, a0, sw) {
+    const parts = Math.max(1, Math.ceil(Math.abs(sw) / (Math.PI / 2) - 1e-9)), d = sw / parts, kk = 4 / 3 * Math.tan(d / 4);
+    const pt = a => [c[0] + r * Math.cos(a), c[1] + r * Math.sin(a)];
+    let s = '';
+    for (let i = 0; i < parts; i++) {
+      const t0 = a0 + i * d, t1 = t0 + d, p0 = pt(t0), p3 = pt(t1);
+      const p1 = [p0[0] - kk * r * Math.sin(t0), p0[1] + kk * r * Math.cos(t0)], p2 = [p3[0] + kk * r * Math.sin(t1), p3[1] - kk * r * Math.cos(t1)];
+      s += ` ${this.P(p1)} ${this.P(p2)} ${this.P(p3)} c`;
+    }
+    return s;
+  }
+  // polilinia z łukami jako jedna ścieżka
+  parts(list, closed) {
+    if (!list.length) return;
+    let s = this.P(list[0].from) + ' m';
+    for (const q of list) {
+      if (q.k === 'seg') { s += ` ${this.P(q.to)} l`; continue; }
+      const a0 = Math.atan2(q.from[1] - q.c[1], q.from[0] - q.c[0]), sw = sweep(q.a0, q.a1);
+      s += this.bez(q.c, q.r, a0, q.ccw ? sw : -sw);
+    }
+    this.apply(); this.out.push(s + (closed ? ' s' : ' S'));
+  }
   // p — początek linii bazowej, h — wysokość wielkich liter w jednostkach przestrzeni (Helvetica: 0,718 wysokości czcionki)
   text(p, str, h, align = 'l', rot = 0) {
     const size = h * this.k * PT_PER_M / 0.718; if (size < 0.5) return;

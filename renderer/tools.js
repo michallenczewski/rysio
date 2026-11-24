@@ -7,7 +7,8 @@
 import { _t } from './i18n.js';
 import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, lengthOf, dimGeom } from './geom.js';
 import { parseLength, parseLengths, fmtLength, fmtNum } from './units.js';
-import { isLive } from './model.js';
+import { isLive, isShown } from './model.js';
+import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, trimOrExtend } from './edit.js';
 
 const dirOf = (from, to) => { const d = V.norm(V.sub(to, from)); return d[0] || d[1] ? d : [1, 0]; };
 const deg = r => (r * 180 / Math.PI);
@@ -273,6 +274,131 @@ export function makeTools(app) {
   });
   T.move = mover('move', false);
   T.copy = mover('copy', true);
+
+  /* ---------- obróć (E), odbij (⇧E), skaluj (R) ---------- */
+  // wspólne: zaznaczenie (albo klik w element), punkt bazowy, potem kąt / oś / skala; ⌥ (Ctrl w Windows) — kopia
+  const selEnts = () => app.ents().filter(e => app.sel.has(e.id) && isLive(app.doc, e) && e.t !== 'vp');
+  function applyT(label, T, copy) {
+    const ents = selEnts(); if (!ents.length) return;
+    if (copy) {
+      const made = app.edit(label, tx => ents.map(e => { const f = transformed(e, T); if (!f) return null; const n = { ...e, ...f }; delete n.id; return tx.add(n); }).filter(Boolean));
+      app.sel.clear(); made.forEach(e => app.sel.add(e.id)); app.selectionChanged();
+    } else app.edit(label, tx => ents.forEach(e => { const f = transformed(e, T); if (f) tx.set(e.id, f); }));
+  }
+  const ghosts = T => selEnts().slice(0, 2000).map(e => { const f = transformed(e, T); return f ? { ...e, ...f, _ghost: true } : null; }).filter(Boolean);
+  const needSel = (p) => { if (app.sel.size) return false; const s = app.pick(p); if (s) { app.sel.add(s.id); app.selectionChanged(); } return true; };
+  const refLine = (a, b) => ({ t: 'line', a, b, w: 0.13, lt: 'dash', layer: app.doc.cur.layer, _ghost: true });
+
+  T.rotate = {
+    id: 'rotate', draw: true, o: null, cur: null,
+    base() { return this.o; }, label() { return this.o ? _t('Kąt') : null; },
+    angle() { return this.o && this.cur && V.dist(this.o, this.cur) > 1e-12 ? Math.atan2(this.cur[1] - this.o[1], this.cur[0] - this.o[0]) : 0; },
+    reading() { return this.o && this.cur ? fmtDeg(this.angle()) : null; },
+    hint() {
+      if (!app.sel.size) return _t('<b>Obróć:</b> najpierw zaznacz elementy (Q) albo kliknij element.');
+      return this.o ? _t`<b>Obróć:</b> kliknij kierunek albo wpisz kąt w stopniach (od poziomu, przeciwnie do wskazówek zegara). ${app.altName} + klik albo ${app.altName} + Enter — kopia.` : _t('<b>Obróć:</b> kliknij punkt obrotu.');
+    },
+    start() { this.o = null; },
+    down(p, e) { if (needSel(p)) return; if (!this.o) { this.o = [...p]; return; } if (V.dist(p, this.o) < 1e-9) return; applyT(_t('Obróć'), rotation(this.o, this.angle()), app.altKey(e)); this.o = null; },
+    move(p) { this.cur = p; },
+    typed(s, e) { const d = parseFloat(String(s).replace(',', '.').replace('°', '')); if (!this.o || !isFinite(d)) return false; applyT(_t('Obróć'), rotation(this.o, d * Math.PI / 180), app.altKey(e)); this.o = null; return true; },
+    preview() { return this.o && this.cur ? [refLine(this.o, this.cur), ...ghosts(rotation(this.o, this.angle()))] : []; },
+    enter: () => false, cancel() { if (this.o) { this.o = null; return true; } return false; }
+  };
+  T.mirror = {
+    id: 'mirror', draw: true, a: null, cur: null,
+    base() { return this.a; }, label: () => null, reading: () => null,
+    hint() {
+      if (!app.sel.size) return _t('<b>Odbij:</b> najpierw zaznacz elementy (Q) albo kliknij element.');
+      return this.a ? _t`<b>Odbij:</b> kliknij drugi punkt osi. ${app.altName} + klik — zostaw oryginał.` : _t('<b>Odbij:</b> kliknij pierwszy punkt osi odbicia.');
+    },
+    start() { this.a = null; },
+    down(p, e) { if (needSel(p)) return; if (!this.a) { this.a = [...p]; return; } if (V.dist(this.a, p) < 1e-9) return; applyT(_t('Odbij'), mirroring(this.a, p), app.altKey(e)); this.a = null; },
+    move(p) { this.cur = p; }, typed: () => false,
+    preview() { return this.a && this.cur && V.dist(this.a, this.cur) > 1e-9 ? [refLine(this.a, this.cur), ...ghosts(mirroring(this.a, this.cur))] : []; },
+    enter: () => false, cancel() { if (this.a) { this.a = null; return true; } return false; }
+  };
+  T.scale = {
+    id: 'scale', draw: true, o: null, ref: null, cur: null,
+    base() { return this.ref || this.o; }, label() { return this.o ? _t('Skala') : null; },
+    factor() { return this.o && this.ref && this.cur ? V.dist(this.o, this.cur) / Math.max(V.dist(this.o, this.ref), 1e-12) : 1; },
+    reading() { return this.ref && this.cur ? '×' + this.factor().toFixed(3).replace('.', ',') : null; },
+    hint() {
+      if (!app.sel.size) return _t('<b>Skaluj:</b> najpierw zaznacz elementy (Q) albo kliknij element.');
+      if (!this.o) return _t('<b>Skaluj:</b> kliknij punkt bazowy.');
+      return this.ref ? _t`<b>Skaluj:</b> kliknij nowe położenie punktu albo wpisz skalę (np. 2 albo 0,5). ${app.altName} + klik albo ${app.altName} + Enter — kopia.` : _t('<b>Skaluj:</b> wpisz skalę (np. 2 albo 0,5) albo kliknij punkt odniesienia.');
+    },
+    start() { this.o = this.ref = null; },
+    down(p, e) {
+      if (needSel(p)) return;
+      if (!this.o) { this.o = [...p]; return; }
+      if (!this.ref) { if (V.dist(p, this.o) > 1e-9) this.ref = [...p]; return; }
+      const k = this.factor(); if (k > 1e-9) applyT(_t('Skaluj'), scaling(this.o, k), app.altKey(e)); this.o = this.ref = null;
+    },
+    move(p) { this.cur = p; },
+    typed(s, e) { const k = parseFloat(String(s).replace(',', '.')); if (!this.o || !(k > 0)) return false; applyT(_t('Skaluj'), scaling(this.o, k), app.altKey(e)); this.o = this.ref = null; return true; },
+    preview() { return this.ref && this.cur ? [refLine(this.o, this.cur), ...ghosts(scaling(this.o, this.factor()))] : []; },
+    enter: () => false, cancel() { if (this.ref) { this.ref = null; return true; } if (this.o) { this.o = null; return true; } return false; }
+  };
+
+  /* ---------- odsunięcie (T) ---------- */
+  T.offset = {
+    id: 'offset', draw: false, src: null, cur: null, d: 0.5, typeAnytime: true,
+    base: () => null, label() { return _t('Odległość'); }, reading() { return fmtLength(this.d); },
+    hint() { return this.src ? _t('<b>Odsunięcie:</b> kliknij, po której stronie ma powstać kopia. Wpisz odległość, żeby ją zmienić.') : _t`<b>Odsunięcie:</b> kliknij linię, łuk, okrąg albo polilinię. Odległość: ${fmtLength(this.d)} — wpisz, żeby zmienić.`; },
+    start() { this.src = null; },
+    down(p) {
+      if (!this.src) { const s = app.pick(p); if (s && ['line', 'arc', 'circle', 'pline'].includes(s.t)) this.src = s; else if (s) app.toast(_t('Odsunięcie działa na liniach, łukach, okręgach i poliliniach.')); return; }
+      const r = offsetEnt(this.src, this.d, p);
+      if (r.error) { app.toast(r.error === 'tooBig' ? _t('Za duża odległość — kształt by się zapadł.') : _t('Nie da się odsunąć tego elementu.')); return; }
+      const src = this.src;
+      app.edit(_t('Odsunięcie'), tx => tx.add({ ...r, layer: src.layer, w: src.w, lt: src.lt }));
+      this.src = null;
+    },
+    move(p) { this.cur = p; },
+    typed(s) { const v = parseLength(s); if (!(v > 0)) return false; this.d = v; return true; },
+    highlight() { return this.src ? new Set([this.src.id]) : new Set(); },
+    preview() { if (!this.src || !this.cur) return []; const r = offsetEnt(this.src, this.d, this.cur); return r.error ? [] : [{ ...r, layer: this.src.layer, w: this.src.w, lt: this.src.lt, _ghost: true }]; },
+    enter: () => false, cancel() { if (this.src) { this.src = null; return true; } return false; }
+  };
+
+  /* ---------- zaokrąglij narożnik (G) ---------- */
+  T.fillet = {
+    id: 'fillet', draw: false, first: null, r: 0, typeAnytime: true,
+    base: () => null, label() { return _t('Promień'); }, reading() { return fmtLength(this.r); },
+    hint() { return this.first ? _t('<b>Zaokrąglij:</b> kliknij drugą linię (po stronie, która ma zostać).') : _t`<b>Zaokrąglij:</b> kliknij pierwszą linię. Promień ${fmtLength(this.r)} — wpisz, żeby zmienić (0 — ostry narożnik).`; },
+    start() { this.first = null; },
+    down(p) {
+      const s = app.pick(p); if (!s) return;
+      if (s.t !== 'line') { app.toast(_t('Zaokrąglanie działa na pojedynczych liniach.')); return; }
+      if (!this.first) { this.first = { e: s, p: [...p] }; return; }
+      if (s.id === this.first.e.id) return;
+      const f = this.first; this.first = null;
+      const r = filletLines(f.e, f.p, s, p, this.r);
+      if (r.error) { app.toast(r.error === 'parallel' ? _t('Linie są równoległe — nie mają narożnika.') : _t('Promień jest za duży dla tych linii.')); return; }
+      app.edit(_t('Zaokrąglij'), tx => { tx.set(f.e.id, r.l1); tx.set(s.id, r.l2); if (r.arc) tx.add({ ...r.arc, layer: f.e.layer, w: f.e.w, lt: f.e.lt }); });
+    },
+    move() {}, typed(s) { const v = parseLength(s); if (!(v >= 0)) return false; this.r = v; return true; },
+    highlight() { return this.first ? new Set([this.first.e.id]) : new Set(); },
+    preview: () => [], enter: () => false, cancel() { if (this.first) { this.first = null; return true; } return false; }
+  };
+
+  /* ---------- przytnij / wydłuż (X): jedno kliknięcie ---------- */
+  T.trim = {
+    id: 'trim', draw: false,
+    base: () => null, label: () => null, reading: () => null,
+    hint: () => _t('<b>Przytnij / wydłuż:</b> kliknij kawałek do usunięcia (między przecięciami) albo koniec linii, żeby dosunąć ją do najbliższego elementu.'),
+    down(p) {
+      const e = app.pick(p); if (!e) return;
+      if (!['line', 'arc', 'circle', 'pline'].includes(e.t)) { app.toast(_t('Przycinać i wydłużać można linie, łuki, okręgi i polilinie.')); return; }
+      const others = app.ents().filter(o => o.id !== e.id && isShown(app.doc, o) && !['text', 'vp'].includes(o.t));
+      const r = trimOrExtend(e, p, others, 14 / app.view.ppm);
+      if (!r) { app.toast(_t('Nic do przycięcia ani wydłużenia — brak przecięć i nic na przedłużeniu.')); return; }
+      if (r.kind === 'extend') app.edit(_t('Wydłuż'), tx => tx.set(e.id, r.set));
+      else app.edit(_t('Przytnij'), tx => { tx.del(e.id); for (const n of r.replace) tx.add({ ...n, layer: e.layer, w: e.w, lt: e.lt }); });
+    },
+    move() {}, typed: () => false, preview: () => [], enter: () => false, cancel: () => false
+  };
 
   /* ---------- tekst (Y): klik i pisanie wprost na rysunku ---------- */
   T.text = {

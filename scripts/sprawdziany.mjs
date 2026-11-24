@@ -16,6 +16,7 @@ const D = await import(R + 'draw.js');
 const U = await import(R + 'units.js');
 const SH = await import(R + 'sheet.js');
 const PDF = await import(R + 'pdf.js');
+const ED = await import(R + 'edit.js');
 const { V } = G;
 
 const P = [];
@@ -267,6 +268,125 @@ przypadek('okno nie znika z ukrytą warstwą', 'ukrycie bieżącej warstwy w mod
 przypadek('numer po arkuszu', 'plik z zaniżonym „next” nie daje elementu o numerze arkusza', () => {
   const d = M.fixDoc({ format: 'rysio', version: 1, next: 2, sheets: [{ id: 40, name: 'A' }], ents: [] });
   return { 'następny numer większy od arkusza': [d.next > 40, true] };
+});
+
+/* ---------- zmienianie (etap 3) ---------- */
+const r6 = p => p.map(v => +v.toFixed(6));
+przypadek('grubości ISO do 2 mm', 'pasek grubości ma pełny szereg 0,13–2,0', () => ({ 'grubości': [M.WEIGHTS, [0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1, 1.4, 2]] }));
+przypadek('polilinia z łukiem', 'wybrzuszenie 1 między (0,0) a (2,0) to półokrąg pod spodem, środek (1,0)', () => {
+  const e = { t: 'pline', pts: [[0, 0, 1], [2, 0]], closed: false }, q = G.plineParts(e)[0];
+  return { 'część': [q.k, 'arc'], 'środek': [q.c, [1, 0]], 'promień': [q.r, 1], 'środek łuku': [G.midpoints(e)[0], [1, -1]], 'długość': [G.lengthOf(e), Math.PI] };
+});
+przypadek('przytnij linię między dwiema innymi', 'linia (0,0)–(10,0) przecięta pionami w x=3 i x=7; klik w środek wycina odcinek 3–7', () => {
+  const e = L([0, 0], [10, 0]), r = ED.trimAt(e, [5, 0], [L([3, -1], [3, 1]), L([7, -1], [7, 1])]);
+  return { 'kawałki': [r.replace.length, 2], 'lewy': [[...r.replace[0].a, ...r.replace[0].b], [0, 0, 3, 0]], 'prawy': [[...r.replace[1].a, ...r.replace[1].b], [7, 0, 10, 0]] };
+});
+przypadek('przytnij koniec linii', 'klik za ostatnim przecięciem obcina końcówkę', () => {
+  const r = ED.trimAt(L([0, 0], [10, 0]), [9, 0], [L([7, -1], [7, 1])]);
+  return { 'kawałki': [r.replace.length, 1], 'zostaje': [[...r.replace[0].a, ...r.replace[0].b], [0, 0, 7, 0]] };
+});
+przypadek('przytnij: nic do zrobienia', 'linia bez przecięć zostaje bez zmian', () => ({ 'wynik': [ED.trimAt(L([0, 0], [10, 0]), [5, 0], [L([0, 5], [10, 5])]), null] }));
+przypadek('przytnij okrąg', 'okrąg przecięty linią przez środek — klik w górną połowę zostawia dolną', () => {
+  const r = ED.trimAt({ t: 'circle', c: [0, 0], r: 1 }, [0, 1], [L([-2, 0], [2, 0])]), a = r.replace[0];
+  return { 'zostaje łuk': [a.t, 'arc'], 'środek łuku (na dole)': [r6(G.arcMid(a)), [0, -1]] };
+});
+przypadek('przytnij zamkniętą polilinię', 'prostokąt 4×2 przecięty pionem x=1 — klik w lewy bok zostawia otwartą polilinię bez niego', () => {
+  const e = { t: 'pline', pts: [[0, 0], [4, 0], [4, 2], [0, 2]], closed: true };
+  const r = ED.trimAt(e, [0, 1], [L([1, -1], [1, 3])]), q = r.replace[0];
+  return { 'kawałki': [r.replace.length, 1], 'otwarta': [q.closed, false], 'początek i koniec': [[...q.pts[0].slice(0, 2), ...q.pts[q.pts.length - 1].slice(0, 2)], [1, 0, 1, 2]], 'długość': [G.lengthOf(q), 3 + 2 + 3] };
+});
+przypadek('wydłuż do łuku', 'linia (0,0)–(2,0) wydłużona do łuku r=5 o środku w (0,0)', () => {
+  const r = ED.extendAt(L([0, 0], [2, 0]), [1.9, 0], [{ t: 'arc', c: [0, 0], r: 5, a0: -0.5, a1: 0.5 }]);
+  return { 'nowy koniec': [r6(r.b), [5, 0]] };
+});
+przypadek('wydłuż: nic na drodze', 'linia bez celu na przedłużeniu zostaje', () => ({ 'wynik': [ED.extendAt(L([0, 0], [2, 0]), [1.9, 0], [L([0, 5], [9, 5])]), null] }));
+przypadek('wydłuż łuk do linii', 'ćwiartka okręgu r=1 dosunięta do pionu x=−0,5', () => {
+  const r = ED.extendAt({ t: 'arc', c: [0, 0], r: 1, a0: 0, a1: Math.PI / 2 }, [0, 1], [L([-0.5, -2], [-0.5, 2])]);
+  return { 'nowy kąt końca (°)': [+(r.a1 * 180 / Math.PI).toFixed(6), 120] };
+});
+przypadek('jedno kliknięcie: przytnij albo wydłuż', 'klik przy końcu bez przecięcia — wydłuża; klik w kawałek za przecięciem — przycina', () => {
+  const sciana = L([5, -1], [5, 1]);
+  const a = ED.trimOrExtend(L([0, 0], [3, 0]), [2.9, 0], [sciana]);
+  const b = ED.trimOrExtend(L([0, 0], [8, 0]), [7, 0], [sciana]);
+  return { 'krótka linia': [a.kind, 'extend'], 'koniec': [r6(a.set.b), [5, 0]], 'długa linia': [b.kind, 'trim'], 'zostaje': [[...b.replace[0].a, ...b.replace[0].b], [0, 0, 5, 0]] };
+});
+przypadek('zaokrąglij dwie linie promieniem', 'linie (0,0)–(5,0) i (0,0)–(0,5), r = 1: łuk od (1,0) do (0,1), środek (1,1)', () => {
+  const r = ED.filletLines(L([0, 0], [5, 0]), [4, 0], L([0, 0], [0, 5]), [0, 4], 1);
+  return { 'linia 1': [r6(r.l1.a), [1, 0]], 'linia 2': [r6(r.l2.a), [0, 1]], 'środek łuku': [r6(r.arc.c), [1, 1]], 'promień': [r.arc.r, 1], 'rozpiętość (°)': [+(G.sweep(r.arc.a0, r.arc.a1) * 180 / Math.PI).toFixed(6), 90] };
+});
+przypadek('zaokrąglij z promieniem 0', 'linie, które się nie stykają, dostają ostry narożnik w przecięciu', () => {
+  const r = ED.filletLines(L([1, 0], [5, 0]), [4, 0], L([0, 1], [0, 5]), [0, 4], 0);
+  return { 'linia 1 od narożnika': [r.l1.a, [0, 0]], 'linia 2 od narożnika': [r.l2.a, [0, 0]], 'bez łuku': [r.arc, undefined] };
+});
+przypadek('zaokrąglij: linie równoległe i za duży promień', 'równoległe nie mają narożnika; promień większy niż linie — odmowa', () => ({
+  'równoległe': [ED.filletLines(L([0, 0], [5, 0]), [1, 0], L([0, 1], [5, 1]), [1, 1], 1).error, 'parallel'],
+  'za duży': [ED.filletLines(L([0, 0], [1, 0]), [0.5, 0], L([0, 0], [0, 1]), [0, 0.5], 5).error, 'tooBig']
+}));
+// polilinia: kwadrat 4×4 z górnym bokiem jako półokrąg (wybrzuszenie)
+const zLukiem = () => ({ t: 'pline', pts: [[0, 0], [4, 0], [4, 4, 1], [0, 4]], closed: true });
+przypadek('odsuń polilinię z łukiem do środka', 'kształt z półokrągłym bokiem odsunięty o 0,5 do środka', () => {
+  const r = ED.offsetEnt(zLukiem(), 0.5, [2, 2]), q = G.plineParts(r).find(x => x.k === 'arc');
+  return { 'zamknięta': [r.closed, true], 'wierzchołki': [r.pts.length, 4], 'promień łuku': [+q.r.toFixed(6), 1.5], 'dół': [r6(r.pts[0].slice(0, 2)), [0.5, 0.5]] };
+});
+przypadek('odsuń polilinię z łukiem na zewnątrz', 'ten sam kształt odsunięty o 0,5 na zewnątrz', () => {
+  const r = ED.offsetEnt(zLukiem(), 0.5, [2, -3]), q = G.plineParts(r).find(x => x.k === 'arc');
+  return { 'promień łuku': [+q.r.toFixed(6), 2.5], 'dół': [r6(r.pts[0].slice(0, 2)), [-0.5, -0.5]] };
+});
+przypadek('odsuń linię i okrąg', 'linia o 1 w górę, okrąg r=2 o 0,5 do środka, okrąg za mały — odmowa', () => ({
+  'linia': [[...ED.offsetEnt(L([0, 0], [3, 0]), 1, [1, 5]).a], [0, 1]],
+  'okrąg': [ED.offsetEnt({ t: 'circle', c: [0, 0], r: 2 }, 0.5, [0.1, 0]).r, 1.5],
+  'za mały': [ED.offsetEnt({ t: 'circle', c: [0, 0], r: 0.3 }, 0.5, [0.1, 0]).error, 'tooBig']
+}));
+przypadek('obróć', 'linia (1,0)–(2,0) obrócona o 90° wokół (0,0); wymiar poziomy staje się pionowy', () => {
+  const T = ED.rotation([0, 0], Math.PI / 2), l = ED.transformed(L([1, 0], [2, 0]), T);
+  const d = ED.transformed({ t: 'dim', a: [0, 0], b: [2, 0], o: [0, -1], dir: 'h' }, T);
+  return { 'linia': [[...r6(l.a), ...r6(l.b)], [0, 1, 0, 2]], 'wymiar': [d.dir, 'v'], 'o 30° → równoległy': [ED.transformed({ t: 'dim', a: [0, 0], b: [2, 0], o: [0, -1], dir: 'h' }, ED.rotation([0, 0], Math.PI / 6)).dir, 'a'] };
+});
+przypadek('odbij', 'łuk górny odbity względem osi poziomej staje się dolny; polilinia z łukiem zmienia kierunek wybrzuszenia', () => {
+  const T = ED.mirroring([0, 0], [1, 0]), a = ED.transformed({ t: 'arc', c: [0, 0], r: 1, a0: 0, a1: Math.PI }, T);
+  const pl = ED.transformed({ t: 'pline', pts: [[0, 0, 0.5], [2, 0]] }, T);
+  return { 'środek łuku': [r6(G.arcMid({ ...a, t: 'arc' })), [0, -1]], 'wybrzuszenie': [pl.pts[0][2], -0.5] };
+});
+przypadek('skaluj', 'okrąg r=1 w (2,0) skalowany ×2 wokół (0,0); tekst zachowuje wysokość', () => {
+  const T = ED.scaling([0, 0], 2), c = ED.transformed({ t: 'circle', c: [2, 0], r: 1 }, T), t = ED.transformed({ t: 'text', p: [1, 1], s: 'A', h: 3.5 }, T);
+  return { 'środek': [c.c, [4, 0]], 'promień': [c.r, 2], 'tekst': [[t.p, t.h], [[2, 2], undefined]] };
+});
+
+/* ---------- błędy z recenzji etapu 3 (najpierw przypadek, potem poprawka) ---------- */
+const prost = () => ({ t: 'pline', pts: [[0, 0], [4, 0], [4, 2], [0, 2]], closed: true });
+przypadek('przytnij zamkniętą: jedno przecięcie', 'prostokąt i linia wchodząca tylko w jeden bok — nic nie znika', () => ({
+  'wynik': [ED.trimAt(prost(), [2, 0], [L([2, 1], [2, 5])]), null]
+}));
+przypadek('przytnij zamkniętą: przecięcie w pierwszym wierzchołku', 'przecięcia w narożniku (0,0) i na boku x=3 — klik w górny bok zostawia resztę', () => {
+  const r = ED.trimAt(prost(), [2, 2], [L([-1, -1], [1, 1]), L([3, 3], [3, 1])]), q = r && r.replace[0];
+  // końce bez względu na kierunek: (0,0) i (3,2); zostaje dół, prawy bok i kawałek góry: 4 + 2 + 1
+  const ends = q ? [q.pts[0].slice(0, 2), q.pts[q.pts.length - 1].slice(0, 2)].sort((x, y) => x[0] - y[0]) : null;
+  return { 'kawałki': [r ? r.replace.length : null, 1], 'końce': [ends ? ends.flat() : null, [0, 0, 3, 2]], 'długość': [q ? G.lengthOf(q) : null, 7] };
+});
+przypadek('przyciąganie do wierzchołka z łukiem', 'punkt przyciągnięty do wierzchołka nie niesie wybrzuszenia', () => {
+  const r = new Snapper().find([0.001, 0.001], { tol: 0.05, ents: [{ t: 'pline', pts: [[0, 0, 0.5], [2, 0], [2, 2]] }] });
+  return { 'punkt': [r.p, [0, 0]] };
+});
+przypadek('odsuń polilinię: ostry narożnik', 'bok prawie wraca po sobie — drugi bok odsunięty równolegle', () => {
+  const r = ED.offsetEnt({ t: 'pline', pts: [[0, 0], [4, 0], [0, 0.2]] }, 1, [2, -1]);
+  const last = r.pts[r.pts.length - 1], prev = r.pts[r.pts.length - 2];
+  // odsunięty drugi bok: odległość jego końca od prostej oryginału (4,0)–(0,0.2) ma być 1
+  const d = Math.abs(G.V.cross(G.V.norm(G.V.sub([0, 0.2], [4, 0])), G.V.sub(last, [4, 0])));
+  const dp = Math.abs(G.V.cross(G.V.norm(G.V.sub([0, 0.2], [4, 0])), G.V.sub(prev, [4, 0])));
+  return { 'koniec w odległości 1': [+d.toFixed(6), 1], 'początek boku w odległości 1': [+dp.toFixed(6), 1] };
+});
+przypadek('odsuń do środka za daleko', 'prostokąt 4×2 do środka o 1,5 — odmowa zamiast wywiniętej figury', () => ({
+  'wynik': [ED.offsetEnt(prost(), 1.5, [2, 1]).error, 'tooBig']
+}));
+przypadek('przytnij / wydłuż: ten sam kawałek', 'klik w dowolne miejsce kawałka 0–8 (z dala od końca) przycina ten kawałek', () => {
+  const others = [L([8, -1], [8, 1]), L([-2, -1], [-2, 1])];
+  const a = ED.trimOrExtend(L([0, 0], [10, 0]), [4, 0], others, 0.2), b = ED.trimOrExtend(L([0, 0], [10, 0]), [6, 0], others, 0.2);
+  const c = ED.trimOrExtend(L([0, 0], [10, 0]), [0.1, 0], others, 0.2);
+  return { 'klik w 4': [a.kind, 'trim'], 'klik w 6': [b.kind, 'trim'], 'klik przy samym końcu': [c.kind, 'extend'] };
+});
+przypadek('zamknięta polilinia z dwoma wierzchołkami', 'dwa wierzchołki z wybrzuszeniem 1 i zamknięcie — pełny okrąg', () => {
+  const e = { t: 'pline', closed: true, pts: [[0, 0, 1], [2, 0, 1]] };
+  return { 'części': [G.plineParts(e).length, 2], 'obrys': [G.bbox(e).map(v => +v.toFixed(6)), [0, -1, 2, 1]] };
 });
 
 /* ---------- uruchomienie ---------- */

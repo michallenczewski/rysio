@@ -54,7 +54,9 @@ Etap 2 dodał:
 
 **Tekst i wymiary w każdej skali.** Wysokość tekstu i liczby wymiaru jest w milimetrach wydruku i przelicza się według skali przestrzeni: w modelu 1:50 napis 3,5 mm ma 0,175 m, w oknie 1:100 ma na papierze nadal 3,5 mm. Geometria liczy to przez `ANNO` z `geom.js` (metry na mm papieru), które program ustawia przy zmianie przestrzeni, a rysowanie okna — na czas rysowania zawartości.
 
-Polilinia dostanie łuki w wierzchołkach (`bulge` jak w DXF) w etapie 3 razem z offsetem i filletem; `hatch`, `insert` + `blocks` — etap 4.
+**Łuki w polilinii (etap 3).** Wierzchołek polilinii może mieć trzeci element: `[x, y, b]`, gdzie `b` to wybrzuszenie jak w DXF (`tan(θ/4)`, dodatnie — przeciwnie do wskazówek zegara) dla odcinka do następnego wierzchołka. `plineParts()` w `geom.js` zamienia polilinię na kolejne odcinki i łuki; z tego korzystają rysowanie, przyciąganie, przecięcia, odsunięcie i przycinanie. Prostokąt i zwykła polilinia nadal mają same punkty `[x, y]`.
+
+`hatch`, `insert` + `blocks` — etap 4.
 
 ### Jednostki i skala
 
@@ -98,11 +100,12 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 | `renderer/model.js` | rysunek, warstwy, kreski, `edit()` i historia cofania, `fixDoc()` |
 | `renderer/geom.js` | geometria bez okna: odległości, przecięcia, rzuty, styczne, łuk przez trzy punkty, obrysy, trafienia |
 | `renderer/draw.js` | rysowanie elementów przez „pióro” (płótno albo PDF): kreski, tekst, wymiar |
+| `renderer/edit.js` | zmienianie geometrii: obrót, odbicie, skala (`transformed`), odsunięcie (`offsetEnt`, także polilinii z łukami), zaokrąglenie dwóch linii (`filletLines`), przycinanie i wydłużanie jednym kliknięciem (`trimOrExtend`) |
 | `renderer/sheet.js` | arkusz: okna z modelem w skali (przeliczanie arkusz ↔ model), ramka z tabelką, skale do tabelki |
 | `renderer/pdf.js` | wektorowy PDF arkuszy (`PdfPen`, `makePdf`) |
 | `renderer/view.js` | płótno, przesuwanie i przybliżanie, przeliczanie metry ↔ piksele, kreski w skali |
 | `renderer/snap.js` | przyciąganie (koniec, środek, przecięcie, prostopadle, środek okręgu, styczna, najbliższy) i kierunki (poziom, pion, wzdłuż i prostopadle do linii, śledzenie od punktów) |
-| `renderer/tools.js` | narzędzia: zaznacz, usuń, pędzel, linia, polilinia, prostokąt, okrąg, łuk, przesuń, kopiuj, tekst, wymiar, okno na arkuszu |
+| `renderer/tools.js` | narzędzia: zaznacz, usuń, pędzel, linia, polilinia, prostokąt, okrąg, łuk, przesuń, kopiuj, obróć, odbij, skaluj, odsunięcie, zaokrąglij, przytnij / wydłuż, tekst, wymiar, okno na arkuszu |
 | `renderer/units.js` | wpisywanie i pokazywanie wymiarów w jednostce rysunku |
 | `renderer/keys.js` | skróty klawiszowe i ich zmiana |
 | `renderer/i18n.js`, `lang/en.js` | tłumaczenie napisów (`_t`) |
@@ -139,8 +142,11 @@ Na razie żadnych (PDF powstaje bez biblioteki, zob. wyżej). Plan: `renderer/ve
 ## Sygnały, że trzeba wrócić do tematu
 
 - **Przerysowanie całości przy każdym ruchu myszy** — wystarczy do kilkunastu tysięcy elementów. Przy podkładach (etap 5) trzeba będzie rysować rysunek do bufora, a na wierzch tylko kursor i podgląd, oraz dodać indeks przestrzenny.
-- **Polilinia bez łuków** — dojdą w etapie 3 razem z offsetem i filletem.
 - **Uchwyty (przeciąganie końców zaznaczonych linii)** jeszcze nie istnieją; zmiana kształtu odbywa się narzędziami.
+- **Zaokrąglanie działa na dwóch pojedynczych liniach** — nie na wierzchołkach polilinii ani na łukach. Polilinię trzeba by najpierw rozbić (polecenie, którego jeszcze nie ma).
+- **Odsunięcie polilinii** łączy części przez przecięcie ich przedłużeń (ostre narożniki); gdy przedłużenia się nie przecinają (np. łuk i odcinek, które się rozjechały), oba odsunięte końce łączy prosty odcinek. Odsunięcie, przy którym któraś część zmieniłaby kierunek (figura by się wywinęła), program odrzuca.
+- **Wydłużanie polilinii** działa tylko wtedy, gdy kończy się ona odcinkiem (nie łukiem).
+- **Skala nie zmienia wysokości tekstu i wymiarów** — są w mm wydruku; odbity tekst zostaje czytelny (przesuwa się tylko jego punkt).
 - **Okno na arkuszu pokazuje model tylko do oglądania** — rysuje się w zakładce Model; w oknie można tylko przesunąć widok (dwuklik). Zmiana skali okna przez przybliżanie celowo nie istnieje.
 - **Tekst stoi poziomo** (może mieć kilka wierszy; obrót `rot` jest w modelu danych, ale nie ma jeszcze narzędzia do obracania); szerokość tekstu do zaznaczania jest szacowana (0,56 wysokości na znak).
 - **Cofanie przełącza zakładkę**: cofnięcie zmiany z innej przestrzeni (model / arkusz) pokazuje tę przestrzeń, żeby było widać, co się cofnęło.

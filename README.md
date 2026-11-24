@@ -11,7 +11,7 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 - Kierunki: poziom i pion od punktu, równolegle i prostopadle do linii, przy której był kursor, śledzenie od punktów; ⇧ trzyma kierunek; przełącznik „Kąty proste”.
 - Wymiary wpisywane w trakcie: długość, `szer;wys` dla prostokąta, promień, kąt łuku; liczba bez jednostki jest w jednostce rysunku (m, cm, mm).
 - Warstwy: nazwa, kolor, widoczność, blokada, domyślna kreska; przenoszenie zaznaczenia na warstwę jednym kliknięciem.
-- Kreska „jak warstwa” albo własna na elemencie; sześć grubości (0,13–0,7 mm) i cztery rodzaje linii; na ekranie grubość jak na papierze w skali rysunku, przełącznik „cienkie linie”.
+- Kreska „jak warstwa” albo własna na elemencie; dziewięć grubości z szeregu ISO (0,13–2,0 mm) i cztery rodzaje linii; na ekranie grubość jak na papierze w skali rysunku, przełącznik „cienkie linie”.
 - Skala rysunku (1:1 … 1:1000 albo własna).
 - Zapis i otwieranie plików `.rysio`, autozapis i przywracanie po awarii, tryb jasny i ciemny, skróty do zmiany w oknie skrótów (`?`).
 
@@ -22,7 +22,15 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 - Tekst (Y) i wymiar (U) w modelu i na arkuszu; wysokość w milimetrach wydruku, taka sama w każdym oknie i skali. Wymiar: dwa punkty i miejsce linii, potem łańcuch; Tab — poziomo, pionowo albo równolegle.
 - Eksport (⌘P / Ctrl+P): wektorowy PDF w skali (ten arkusz albo wszystkie w jednym pliku, czarno-biały albo w kolorach warstw) i PNG 200 dpi.
 
-Następne etapy: zmienianie (offset, fillet, trim, extend, obrót, odbicie, skalowanie), bloki i kreskowanie, wymiana DXF/DWG — patrz `OPIS.md`.
+## Zmienianie (etap 3)
+
+- Obróć (E), odbij (⇧E / Shift+E), skaluj (R) — na zaznaczeniu; kąt i skala z klawiatury albo myszą; ⌥ (Ctrl w Windows) robi kopię.
+- Odsunięcie (T): linie, łuki, okręgi i polilinie (także z łukami); odległość wpisana z klawiatury.
+- Zaokrąglij narożnik (G): dwie linie, promień wpisany z klawiatury; promień 0 łączy linie w ostry narożnik.
+- Przytnij / wydłuż (X): klik w kawałek między przecięciami go usuwa, klik przy końcu linii dosuwa ją do najbliższego elementu.
+- Polilinie mogą mieć łuki (powstają przy odsunięciu, przycinaniu i z plików DXF).
+
+Następne etapy: bloki i kreskowanie, wymiana DXF/DWG — patrz `OPIS.md`.
 
 ## Nawigacja
 

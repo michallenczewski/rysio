@@ -294,7 +294,7 @@ window.addEventListener('keydown', e => {
     if (e.key.length === 1 && plain || e.key.length === 1 && e.shiftKey) { if (typing.length < 30) typing += e.key; return refreshUi(); }
     return;
   }
-  if (plain && tool.label() && tool.base() && /^[0-9.,\-]$/.test(e.key)) { e.preventDefault(); typing = e.key; return refreshUi(); }
+  if (plain && tool.label() && (tool.base() || tool.typeAnytime) && /^[0-9.,\-]$/.test(e.key)) { e.preventDefault(); typing = e.key; return refreshUi(); }
   if (e.key === 'Escape') {
     if (closePops()) return;
     if (app.vpEdit) { app.vpEdit = null; refreshUi(); redraw(); return; }
