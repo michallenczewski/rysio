@@ -26,7 +26,7 @@ export function makeTools(app) {
   // z przyciąganiem i kierunkami jak przy rysowaniu.
   T.select = {
     id: 'select', box: null, _down: null, grip: null,
-    get draw() { return !!this.grip; },
+    get draw() { return !!this.grip && (!this.grip.body || this.grip.moved); },
     base() { return this.grip ? this.grip.from : null; }, label: () => null, reading: () => null,
     // uchwyty zaznaczonych elementów (przy bardzo dużym zaznaczeniu nie pokazujemy — byłby gąszcz)
     grips() {
@@ -52,10 +52,17 @@ export function makeTools(app) {
       }
       const g = !e.shiftKey && this.gripAt(p);
       if (g) { this.grip = { e: g.e, k: g.k, from: g.p, p: g.p, moved: false }; app.dragEnt = g.e.id; app.cursorClass?.(); return; }
+      // tekst chwyta się w dowolnym miejscu napisu: przeciągnięcie go przesuwa, samo kliknięcie zaznacza
+      const hit = !e.shiftKey && app.pick(p);
+      if (hit && hit.t === 'text') { this.grip = { e: hit, k: 'mv', from: [...p], p: [...p], moved: false, body: true }; return; }
       this._down = p; this.box = null; this._shift = e.shiftKey;
     },
     move(p) {
-      if (this.grip) { this.grip.p = p; if (V.dist(p, this.grip.from) * app.view.ppm > 4) this.grip.moved = true; return; }
+      if (this.grip) {
+        this.grip.p = p;
+        if (!this.grip.moved && V.dist(p, this.grip.from) * app.view.ppm > 4) { this.grip.moved = true; if (this.grip.body) { app.dragEnt = this.grip.e.id; app.cursorClass?.(); } }
+        return;
+      }
       if (this._down && V.dist(this._down, p) * app.view.ppm > 4) this.box = { a: this._down, b: p };
     },
     preview() {
@@ -64,6 +71,11 @@ export function makeTools(app) {
       return patch ? [{ ...e, ...patch }] : [{ ...e }];
     },
     up(p) {
+      if (this.grip && this.grip.body) {   // tekst: przeciągnięty — przesuwamy i zaznaczamy; kliknięty — tylko zaznaczamy
+        const t = this.grip.e;
+        if (this.grip.moved) this.finishGrip(p); else { this.grip = null; app.dragEnt = null; }
+        app.sel.clear(); app.sel.add(t.id); app.selectionChanged(); return;
+      }
       if (this.grip) { if (this.grip.moved) this.finishGrip(p); else this.grip.armedAt = performance.now(); return; }   // bez ruchu: czekamy na klik w nowe miejsce
       if (!this._down) return;
       if (this.box) {
@@ -479,13 +491,35 @@ export function makeTools(app) {
       if (r.error) return err(r.error);
       app.edit(_t('Zaokrąglij'), tx => { tx.set(f.e.id, r.l1); tx.set(s.id, r.l2); if (r.arc) tx.add({ ...r.arc, layer: f.e.layer, w: f.e.w, lt: f.e.lt }); });
     },
-    move() {},
+    move(p) { this.cur = p; },
+    // podgląd wyniku pod kursorem: po pierwszym kliknięciu — narożnik z elementem pod kursorem; bez niego — narożnik polilinii
+    preview() {
+      const p = this.cur; if (!p) return [];
+      const s = app.pick(p); if (!s) return [];
+      const ch = this.mode === 'chamfer', st = e => ({ layer: e.layer, w: e.w, lt: e.lt });
+      try {
+        if (!this.first) {
+          if (s.t !== 'pline') return [];
+          const r = ch ? plineCorner(s, p, 'chamfer', this.d1, this.d2) : plineCorner(s, p, 'fillet', this.r);
+          return r.error ? [] : [{ ...s, pts: r.pts, _replaces: s.id, _sel: true }];
+        }
+        const f = this.first; if (s.id === f.e.id) return [];
+        if (ch ? s.t !== 'line' : !['line', 'arc', 'circle'].includes(s.t)) return [];
+        const r = ch ? chamferLines(f.e, f.p, s, p, this.d1, this.d2) : filletCurves(f.e, f.p, s, p, this.r);
+        if (r.error) return [];
+        const extra = r.arc ? [{ ...r.arc, ...st(f.e) }] : r.line ? [{ ...r.line, ...st(f.e) }] : [];
+        // oba elementy po zmianie w kolorze zaznaczenia (zamiast oryginałów), nowy łuk / odcinek zwykłą kreską
+        return [{ ...f.e, ...r.l1, _replaces: f.e.id, _sel: true }, { ...s, ...r.l2, _replaces: s.id, _sel: true }, ...extra];
+      } catch (err) { return []; }
+    },
+    // pierwszy wskazany element rysuje się jak zaznaczony
+    picked() { return this.first ? [this.first.e.id] : []; },
     typed(s) {
       if (this.mode === 'chamfer') { const v = parseLengths(s); if (!v || !v.length || v.length > 2 || v.some(x => !(x >= 0))) return false; this.d1 = v[0]; this.d2 = v[1] ?? v[0]; return true; }
       const v = parseLength(s); if (!(v >= 0)) return false; this.r = v; return true;
     },
-    highlight() { return this.first ? new Set([this.first.e.id]) : new Set(); },
-    preview: () => [], enter: () => false, cancel() { if (this.first) { this.first = null; return true; } return false; }
+    highlight() { return new Set(); },
+    enter: () => false, cancel() { if (this.first) { this.first = null; return true; } return false; }
   };
 
   /* ---------- przytnij (X) i wydłuż (⇧X): klik albo przeciągnięcie przez kilka kawałków, jak gumka ---------- */
@@ -729,7 +763,9 @@ export function makeTools(app) {
       const r = regionAt(this.faces(), p);
       if (!r) { app.toast(this._faces?.truncated ? _t('W widoku jest za dużo linii, żeby znaleźć obszar — przybliż rysunek do tego miejsca.') : _t('Tu nie ma zamkniętego obszaru — obrys musi się domykać (wystarczą przecięcia linii).')); return; }
       const o = this.opts;
-      app.edit(_t('Kreskowanie'), tx => tx.add({ t: 'hatch', loops: r.loops, pat: o.pat, ps: o.ps, ang: o.ang, w: app.doc.cur.w ?? 0.13 }));
+      const h = app.edit(_t('Kreskowanie'), tx => tx.add({ t: 'hatch', loops: r.loops, pat: o.pat, ps: o.ps, ang: o.ang, w: app.doc.cur.w ?? 0.13 }));
+      // położone kreskowanie zostaje zaznaczone — pasek u góry zmienia je, dopóki nie klikniesz następnego obszaru
+      app.sel.clear(); app.sel.add(h.id); app.selectionChanged();
       this.region = null;
     },
     preview() { return this.region ? [{ t: 'hatch', loops: this.region.loops, ...this.opts, ...app.newStroke(), w: app.doc.cur.w ?? 0.13, _ghost: true }] : []; },

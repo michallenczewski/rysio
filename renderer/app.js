@@ -398,13 +398,14 @@ app.redraw = redraw;
 function frame() {
   rafPending = false;
   const hi = tool.highlight ? [...tool.highlight()].map(id => app.doc.ents.find(e => e.id === id)).filter(Boolean) : [];
+  const pv = cursorScreen || !tool.draw ? tool.preview() : [], hid = new Set(pv.filter(e => e._replaces).map(e => e._replaces));   // podgląd zastępuje element (np. zaokrąglanie)
   app.view.render({
-    doc: app.doc, sel: app.sel, thin: app.thin, grid: app.grid, ents: app.hideEnt || app.dragEnt ? app.ents().filter(e => e.id !== app.hideEnt && e.id !== app.dragEnt) : app.ents(), scale: app.spaceScale(), sheet: app.sheet(), vpEdit: app.vpEdit,
+    doc: app.doc, sel: tool.picked ? new Set([...app.sel, ...tool.picked()]) : app.sel, thin: app.thin, grid: app.grid, ents: app.hideEnt || app.dragEnt || hid.size ? app.ents().filter(e => e.id !== app.hideEnt && e.id !== app.dragEnt && !hid.has(e.id)) : app.ents(), scale: app.spaceScale(), sheet: app.sheet(), vpEdit: app.vpEdit,
     fmt: app.space ? app.fmtSheet : app.fmtModel, fmtModel: app.fmtModel,
-    hover: [...hi, ...(hoverEnt && !app.sel.has(hoverEnt.id) ? [hoverEnt] : [])], hoverColor: tool.id === 'eraser' || tool.id === 'trim' ? '#c0533f' : null,
+    hover: [...hi, ...(hoverEnt && !app.sel.has(hoverEnt.id) && !hid.has(hoverEnt.id) ? [hoverEnt] : [])], hoverColor: tool.id === 'eraser' || tool.id === 'trim' ? '#c0533f' : null,
     guides: snapRes ? snapRes.guides : [], snap: snapRes, marks: tool.draw ? app.snapper.refPts : [],
     ghost: blockGhost(),
-    preview: cursorScreen || !tool.draw ? tool.preview() : [], grips: tool.grips ? tool.grips() : null, box: tool.box, path: tool.path && tool.path.length > 1 ? tool.path : null
+    preview: pv, grips: tool.grips ? tool.grips() : null, box: tool.box, path: tool.path && tool.path.length > 1 ? tool.path : null
   });
   showSnapLabel(); showVpBar(); placeTextEd();
 }
@@ -651,7 +652,7 @@ const PAT_SVG = {
   soil: '<path d="M2 12l3-3M4 12l3-3M6 12l3-3M12 6l3-3M14 6l3-3M16 6l3-3" stroke="currentColor" stroke-width="1"/>',
   solid: '<rect x="2" y="2" width="18" height="12" rx="1" fill="currentColor" opacity=".8"/>'
 };
-const selHatches = () => tool.id === 'select' && app.sel.size ? app.ents().filter(e => app.sel.has(e.id)) : [];
+const selHatches = () => (tool.id === 'select' || tool.id === 'hatch') && app.sel.size ? app.ents().filter(e => app.sel.has(e.id)) : [];
 // pasek narzędzia: rodzaj wymiaru, zaokrąglij / fazuj, wynik mierzenia
 function showToolBar() {
   let el = $('#toolBar2');
@@ -721,8 +722,11 @@ function showHatchBar() {
 const fmtNum = v => String(+(+v).toFixed(3)).replace('.', DEC);
 function setHatch(patch) {
   const hs = selHatches();
-  if (tool.id !== 'hatch' && hs.length && hs.every(e => e.t === 'hatch')) app.edit(_t('Kreskowanie'), tx => hs.forEach(e => tx.set(e.id, patch)));
-  else { const o = app.tools.hatch.opts; if (patch.pat && patch.pat !== o.pat) patch.ang = PATTERNS[patch.pat].ang * Math.PI / 180; Object.assign(o, patch); }
+  const o = app.tools.hatch.opts, onSel = hs.length && hs.every(e => e.t === 'hatch');
+  if (patch.pat && patch.pat !== (onSel ? hs[0].pat : o.pat)) patch.ang = PATTERNS[patch.pat].ang * Math.PI / 180;
+  // zaznaczone kreskowania (też to właśnie położone) zmieniają się od razu; w narzędziu kreskowania ustawienia idą też na następne
+  if (onSel) app.edit(_t('Kreskowanie'), tx => hs.forEach(e => tx.set(e.id, patch)));
+  if (!onSel || tool.id === 'hatch') Object.assign(o, patch);
   refreshUi(); redraw();
 }
 

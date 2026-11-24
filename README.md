@@ -11,6 +11,7 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 - Przyciąganie z czytelnym znaczkiem i podpisem: koniec, środek, przecięcie, prostopadle, środek okręgu, styczna, najbliższy.
 - Tryb minimalny (Tab): znikają paski, zostaje kartka i plakietka w rogu z narzędziem, warstwą i kreską (kliknięcie otwiera wybór); wpisywany wymiar pokazuje się przy kursorze. Tab wraca do pełnego widoku, program pamięta wybór.
 - Siatka (I albo przełącznik na dole): wyłączona → kropki → linie; oczka co 1 cm … 10 m zależnie od przybliżenia, co dziesiąte wyraźniejsze; rysowanie przyciąga do węzłów. Tylko w modelu, nie trafia na wydruk.
+- Tekst przesuwa się, chwytając go w dowolnym miejscu napisu i przeciągając (samo kliknięcie zaznacza, dwuklik poprawia treść).
 - Uchwyty: zaznaczone elementy mają kwadraciki na końcach, wierzchołkach, środkach i kwadrantach — przeciągnij albo kliknij i kliknij nowe miejsce (z przyciąganiem). Środek linii i środek okręgu przesuwają cały element.
 - Kierunki: poziom i pion od punktu, równolegle i prostopadle do linii, przy której był kursor, śledzenie od punktów; ⇧ trzyma kierunek; przełącznik „Kąty proste”.
 - Wymiary wpisywane w trakcie: długość, `szer;wys` dla prostokąta, promień, kąt łuku; liczba bez jednostki jest w jednostce rysunku (m, cm, mm).
@@ -33,13 +34,14 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 - Obróć (E), odbij (⇧E / Shift+E), skaluj (R) — na zaznaczeniu; kąt i skala z klawiatury albo myszą; ⌥ (Ctrl w Windows) robi kopię.
 - Odsunięcie (T): linie, łuki, okręgi i polilinie (także z łukami); odległość wpisana z klawiatury.
 - Fazuj: drugie naciśnięcie G (albo przycisk na pasku narożnika) — dwie linie albo narożnik polilinii ścięty odcinkiem; odległość wpisana z klawiatury, dwie różne po średniku (0,3;0,5).
+- Zaokrąglanie i fazowanie: pierwszy wskazany element jest w kolorze zaznaczenia, a pod kursorem widać wynik (przycięte elementy i nowy łuk albo odcinek) jeszcze przed drugim kliknięciem.
 - Zaokrąglij narożnik (G): dwie linie, linia i łuk, dwa łuki (także okrąg, który zostaje cały) albo jedno kliknięcie w polilinię przy narożniku; promień wpisany z klawiatury; promień 0 łączy elementy w ostry narożnik.
 - Przytnij (X): klik w kawałek między przecięciami go usuwa. Wydłuż (⇧X / Shift+X): klik w linię blisko końca dosuwa ją do najbliższego elementu. W obu przeciągnięcie przez kilka kawałków robi to z nimi wszystkimi naraz.
 - Polilinie mogą mieć łuki (powstają przy odsunięciu, przycinaniu i z plików DXF).
 
 - DXF i DWG: Plik → Otwórz wczytuje rysunek CAD jako nowy rysunek (warstwy z kolorami, rodzajami i grubościami linii; nazwane bloki zostają blokami, wymiary są rozbijane na linie i teksty; kreskowania wchodzą z wzorem i kątem; teksty z DWG wchodzą, a gdyby psuły odczyt pliku — rysunek wczytuje się bez nich i program to mówi). Plik → Eksport DXF (wersja AutoCAD 2000) zapisuje model w jednostkach rysunku z grubościami linii, bloki jako bloki, kreskowania jako kreskowania (beton jako regularny wzór), wymiary jako wymiary, a arkusze jako układy wydruku z oknami w skali, ukrytymi warstwami okien i ramką z tabelką (warstwa RAMKA, w milimetrach). Nazwy warstw i bloków tracą polskie litery i spacje.
 
-- Kreskowanie (H): klik wewnątrz zamkniętego obszaru (także z otworami — np. ściana między dwoma obrysami); obrys podświetla się przed kliknięciem. Sześć wzorów (ukośne, krzyżowe, beton, izolacja, grunt, pełne), skala i kąt na pasku u góry; gęstość w milimetrach wydruku. Zaznaczone kreskowania zmienia ten sam pasek.
+- Kreskowanie (H): klik wewnątrz zamkniętego obszaru (także z otworami — np. ściana między dwoma obrysami); obrys podświetla się przed kliknięciem. Sześć wzorów (ukośne, krzyżowe, beton, izolacja, grunt, pełne), skala i kąt na pasku u góry; gęstość w milimetrach wydruku. Położone kreskowanie zostaje zaznaczone i pasek zmienia je od razu (aż do kliknięcia następnego obszaru); zaznaczone kreskowania zmienia ten sam pasek.
 - Bloki (K): z zaznaczeniem — nowy blok (nazwa na pasku, klik w punkt wstawienia); bez zaznaczenia — wstawianie (wybór z miniaturami, cyfry wpisują obrót). Zaznaczony blok: nazwa, Edytuj w miejscu (też dwuklik), Rozbij, Zamień na… W edycji reszta rysunku jest przygaszona; Gotowe albo Esc kończy, Anuluj cofa zmiany. Przesuń, obróć, odbij, skaluj i kopiuj działają na blokach.
 
 ## Nawigacja
