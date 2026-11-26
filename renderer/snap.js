@@ -64,8 +64,11 @@ export class Snapper {
       if (segHit) this.addRefSeg(segHit.a, segHit.b);
       if (o.grid) { const g = o.grid, q = [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g]; if (V.dist(q, p) <= tol) cands.push({ p: q, kind: 'grid', e: null }); }
     }
-    const pointHit = cands.filter(c => c.kind !== 'near' && V.dist(c.p, p) <= tol)
-      .sort((a, b) => SNAP[a.kind].pri - SNAP[b.kind].pri || V.dist(a.p, p) - V.dist(b.p, p))[0];
+    // punkt elementu: jak w AutoCAD-zie wygrywa najbliższy kursora; rodzaj rozstrzyga dopiero przy tej samej odległości
+    const pointHit = cands.filter(c => SNAP[c.kind].pri <= SNAP.tan.pri && V.dist(c.p, p) <= tol)
+      .sort((a, b) => { const d = V.dist(a.p, p) - V.dist(b.p, p); return Math.abs(d) > 1e-9 ? d : SNAP[a.kind].pri - SNAP[b.kind].pri; })[0];
+    const gridC = cands.find(c => c.kind === 'grid') || null;
+    const nears = cands.filter(c => c.kind === 'near');
 
     // 2) kierunki: od punktu bazowego i od punktów śledzenia
     const guides = [];
@@ -82,18 +85,31 @@ export class Snapper {
       guides.push({ o: r, d: [1, 0], kind: 'h', from: 'ref' }, { o: r, d: [0, 1], kind: 'v', from: 'ref' });
     }
     const gd = g => V.dist(projOnLine(p, g.o, g.d), p);
+    const onGuide = (q, g) => V.dist(projOnLine(q, g.o, g.d), q) < 1e-7;
+    const onEnt = (q, e) => { const n = nearestOn(e, q); return !!n && n.d < 1e-7; };
+    // najbliższe kursora przecięcie kierunku z elementem pod kursorem
+    //    (w trybie kątów prostych odległość liczona od punktu na kierunku, bo kursor bywa daleko od niego)
+    const guideHit = (gs, at = () => p) => {
+      let best = null;
+      for (const g of gs) for (const c of nears) for (const x of guideEnt(g, c.e)) {
+        const d = V.dist(x, at(g));
+        if (d <= tol && (!best || d < best.d)) best = { p: x, g, e: c.e, d };
+      }
+      return best;
+    };
 
     // tryb „tylko kąty proste” i zablokowany kierunek: punkt zawsze leży na kierunku od bazy
     if (base && (o.ortho || o.lockDir)) {
-      const opts = guides.filter(g => g.from === 'base');
-      const g = opts.sort((a, b) => gd(a) - gd(b))[0];
-      const src = pointHit ? pointHit.p : p;
-      out.p = projOnLine(src, g.o, g.d);
-      out.kind = pointHit ? pointHit.kind : 'guide'; out.label = pointHit ? SNAP[pointHit.kind].label : GUIDE_NAME[g.kind];
-      out.guides = [g]; out.ent = pointHit ? pointHit.e : null;
-      return out;
+      const g = guides.filter(g => g.from === 'base').sort((a, b) => gd(a) - gd(b))[0];
+      out.guides = [g];
+      if (pointHit) return Object.assign(out, { p: projOnLine(pointHit.p, g.o, g.d), kind: pointHit.kind, label: SNAP[pointHit.kind].label, ent: pointHit.e });
+      const gi = guideHit([g], g => projOnLine(p, g.o, g.d));
+      if (gi) return Object.assign(out, { p: gi.p, kind: 'guideInt', label: SNAP.guideInt.label, ent: gi.e });
+      // węzeł siatki: na kierunku — „Siatka”; obok — punkt przesunięty na kierunek, podpisany nazwą kierunku
+      if (gridC && onGuide(gridC.p, g)) return Object.assign(out, { p: [...gridC.p], kind: 'grid', label: SNAP.grid.label });
+      return Object.assign(out, { p: projOnLine(gridC ? gridC.p : p, g.o, g.d), kind: 'guide', label: GUIDE_NAME[g.kind] });
     }
-    if (pointHit && SNAP[pointHit.kind].pri <= SNAP.tan.pri) {
+    if (pointHit) {
       Object.assign(out, { p: [...pointHit.p], kind: pointHit.kind, label: SNAP[pointHit.kind].label, ent: pointHit.e });
       // kierunek, na którym ten punkt akurat leży, też pokazujemy
       out.guides = guides.filter(g => g.from === 'base' && V.dist(out.p, g.o) > 1e-9 && V.dist(projOnLine(out.p, g.o, g.d), out.p) < 1e-7);
@@ -101,7 +117,7 @@ export class Snapper {
       return out;
     }
     // 3) przecięcia dwóch kierunków w pobliżu kursora
-    const close = guides.filter(g => gd(g) <= tol);
+    const close = guides.filter(g => gd(g) <= tol).sort((a, b) => gd(a) - gd(b));
     let best = null;
     for (let i = 0; i < close.length; i++) for (let j = i + 1; j < close.length; j++) {
       const a = close[i], b = close[j];
@@ -109,22 +125,26 @@ export class Snapper {
       const x = lineX(a.o, a.d, b.o, b.d);
       if (x && V.dist(x, p) <= tol * 1.5 && (!best || V.dist(x, p) < V.dist(best.p, p))) best = { p: x, guides: [a, b] };
     }
-    if (best) return Object.assign(out, { p: best.p, kind: 'track', label: SNAP.track.label, guides: best.guides });
-    // 4) jeden kierunek: punkt na nim; jeśli kierunek przecina element pod kursorem — to przecięcie
-    const g = close.sort((a, b) => gd(a) - gd(b))[0];
-    if (g) {
-      const q = projOnLine(p, g.o, g.d);
-      let gi = null;
-      for (const c of cands.filter(c => c.kind === 'near')) for (const x of guideEnt(g, c.e)) if (V.dist(x, p) <= tol && (!gi || V.dist(x, p) < V.dist(gi, p))) gi = x;
-      if (gi) return Object.assign(out, { p: gi, kind: 'guideInt', label: SNAP.guideInt.label, guides: [g] });
-      return Object.assign(out, { p: q, kind: 'guide', label: GUIDE_NAME[g.kind], guides: [g] });
+    // 4) kursor bliżej elementu niż kierunków: przyciąganie do elementu ma pierwszeństwo (jak w AutoCAD-zie);
+    //    kursor bliżej kierunku: kierunek, z przecięciem z elementem albo węzłem siatki na nim
+    const dN = nears.length ? Math.min(...nears.map(c => V.dist(c.p, p))) : Infinity;
+    const elemFirst = dN < Math.min(close.length ? gd(close[0]) : Infinity, best ? V.dist(best.p, p) : Infinity);
+    if (best && (!elemFirst || nears.some(c => onEnt(best.p, c.e)))) return Object.assign(out, { p: best.p, kind: 'track', label: SNAP.track.label, guides: best.guides });
+    const gi = guideHit(close);
+    if (gi) return Object.assign(out, { p: gi.p, kind: 'guideInt', label: SNAP.guideInt.label, guides: [gi.g], ent: gi.e });
+    if (elemFirst) {
+      if (gridC && nears.some(c => onEnt(gridC.p, c.e))) return Object.assign(out, { p: [...gridC.p], kind: 'grid', label: SNAP.grid.label });
+      const nearest = nears.sort((a, b) => V.dist(a.p, p) - V.dist(b.p, p))[0];
+      return Object.assign(out, { p: [...nearest.p], kind: 'near', label: SNAP.near.label, ent: nearest.e });
     }
-    // 5) najbliższy punkt na elemencie
-    const nearest = cands.filter(c => c.kind === 'near').sort((a, b) => V.dist(a.p, p) - V.dist(b.p, p))[0];
-    if (nearest) return Object.assign(out, { p: [...nearest.p], kind: 'near', label: SNAP.near.label, ent: nearest.e });
-    // 6) węzeł siatki — najsłabszy: punkty elementów, kierunki i śledzenie mają pierwszeństwo
-    const gridHit = cands.find(c => c.kind === 'grid');
-    if (gridHit) return Object.assign(out, { p: [...gridHit.p], kind: 'grid', label: SNAP.grid.label });
+    // 5) jeden kierunek: punkt na nim; węzeł siatki leżący na kierunku przyciąga
+    const g = close[0];
+    if (g) {
+      if (gridC && onGuide(gridC.p, g)) return Object.assign(out, { p: [...gridC.p], kind: 'grid', label: SNAP.grid.label, guides: [g] });
+      return Object.assign(out, { p: projOnLine(p, g.o, g.d), kind: 'guide', label: GUIDE_NAME[g.kind], guides: [g] });
+    }
+    // 6) węzeł siatki — najsłabszy
+    if (gridC) return Object.assign(out, { p: [...gridC.p], kind: 'grid', label: SNAP.grid.label });
     return out;
   }
 }
