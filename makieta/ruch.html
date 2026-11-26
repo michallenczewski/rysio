@@ -61,8 +61,8 @@ header{grid-column:1/-1;display:flex;align-items:center;gap:6px;padding:0 12px 0
 .ib:active svg{transform:scale(.86)}
 
 /* przełącznik „włączone” — §4 (cienkie linie) */
-.ib.on-state{background:transparent;color:#fff}
-.ib.on-state::before{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--accent)}
+.ib.on-state,.ib.on-state:hover{background:transparent;color:var(--card)}
+.ib.on-state::before{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--ink)}
 .ib.on-state svg{position:relative}
 .ib.wlacza::before{animation:wypelnij .42s var(--spring)}
 @keyframes wypelnij{from{transform:scale(.4);opacity:0}to{transform:none;opacity:1}}
