@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Wzorzec przycisków — rodzina Blat / Gapa / Modo / Ryś</title>
+<!--
+  WZORZEC PRZYCISKÓW. Ten plik jest źródłem prawdy dla reakcji przycisków we wszystkich programach z rodziny.
+  Otwórz go w przeglądarce, żeby zobaczyć, jak ma to działać. Do swojego programu skopiuj DOKŁADNIE:
+    1) blok CSS między „KOPIUJ: CSS — początek” i „koniec”,
+    2) blok JS między „KOPIUJ: JS — początek” i „koniec”,
+  a w kodzie przycisków zastosuj ten sam układ HTML: <button class="ib"><svg>…</svg></button>
+  (ikona SVG jako BEZPOŚREDNIE dziecko przycisku). Jeśli program ma inne klasy, zmień nazwy klas,
+  ale nie liczby, krzywe ani układ. Kolory zmiennych (--hover, --toolon…) dopasuj do motywu programu.
+-->
+<style>
+/* tylko do pokazu wzorca (nie kopiuj) */
+:root{--bg:#f7f7f5;--paper:#f2f1ed;--text:#1a1a19;--text2:#4a4945;--muted:#8a8984;--hover:#ecebe7;--soft:#efeeea;--line:#e6e5e1;--card:#fff;--cardline:#ecebe7;--toolon:#fff;--accent:#FF6B1A}
+[data-theme=dark]{--bg:#161616;--paper:#1a1a1a;--text:#e9e9e7;--text2:#c4c4c1;--muted:#8d8d89;--hover:#242423;--soft:#222221;--line:#2a2a29;--card:#1d1d1c;--cardline:#2a2a29;--toolon:#3a3a38}
+body{margin:0;background:var(--paper);color:var(--text);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:28px}
+a{color:var(--text2)}
+h1{font-size:15px;font-weight:500;margin:0 0 6px}p{color:var(--muted);max-width:640px;margin:0 0 16px}
+.bar{display:flex;align-items:center;gap:10px;height:52px;padding:0 14px;border-radius:12px;background:var(--bg);box-shadow:0 0 0 1px var(--line);max-width:620px}
+.sep{width:1px;height:18px;background:var(--line)}.sp{margin-right:auto}
+#tip{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:6px 12px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none}
+#tip.on{opacity:.92}
+
+/* ===== KOPIUJ: CSS — początek ===== */
+:root { --spring: cubic-bezier(.34, 1.56, .64, 1); }          /* jedna krzywa „sprężyna” dla całej rodziny */
+
+/* przycisk z ikoną: 30 × 28 px, ikona 15 px jako bezpośrednie dziecko */
+.ib { position: relative; width: 30px; height: 28px; border: 0; border-radius: 7px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; background: transparent;
+  color: var(--text2); cursor: pointer; transition: background-color .15s, color .15s; }
+.ib:hover { background: var(--hover); color: var(--text); }
+.ib > svg { width: 15px; height: 15px; display: block; transition: transform .35s var(--spring); }
+.ib:hover > svg { transform: translateY(-1px); }                                    /* najechanie: ikona się unosi */
+.ib.wcis > svg { transform: scale(.84); transition: transform .09s ease-out; }      /* wciśnięcie: szybko w dół… */
+/* …a po puszczeniu ikona wraca SPRĘŻYNĄ (przejście z .ib > svg). Klasę .wcis dodaje JS (niżej), nie :active. */
+
+/* grupa narzędzi z jednym wspólnym, przeskakującym wskaźnikiem */
+.tools { position: relative; display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--soft); }
+.tools .ind { position: absolute; top: 2px; left: 0; width: 30px; height: 28px; border-radius: 7px; pointer-events: none;
+  background: var(--toolon); box-shadow: 0 0 0 1px var(--cardline), 0 1px 2px rgba(0,0,0,.06);
+  transition: transform .42s var(--spring); }
+.tools .ib { z-index: 1; }
+.tools .ib.on, .tools .ib:hover { background: transparent; color: var(--text); }
+
+/* przełącznik „włączone”: kolor akcentu wyrasta od środka, ikona biała i wypełniona */
+.ib.on-state, .ib.on-state:hover { background: transparent; color: #fff; }
+.ib.on-state::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--accent); }
+.ib.on-state > svg { position: relative; }
+.ib.on-state .fill { fill: currentColor; }
+.ib.wlacz::before { animation: wypelnij .42s var(--spring); }
+.ib.wlacz > svg { animation: wbij .48s var(--spring); }
+.ib.wylacz > svg { animation: wyjmij .32s ease-out; }
+@keyframes wypelnij { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes wbij { 0% { transform: translateY(-5px) rotate(-28deg); } 60% { transform: translateY(1px) rotate(4deg); } 100% { transform: none; } }
+@keyframes wyjmij { 40% { transform: translateY(-3px) rotate(-14deg); } 100% { transform: none; } }
+
+/* reakcja na wynik akcji: „tak” (udało się) i „nie” (nie da się) */
+.ib.tak { animation: tak .55s ease-out; }
+@keyframes tak { 0% { background: var(--hover); } 100% { background: transparent; } }
+.ib.tak > svg > * { transform-box: fill-box; transform-origin: center; animation: wskocz .5s var(--spring) both; }
+.ib.tak > svg > :nth-child(2) { animation-delay: .03s; } .ib.tak > svg > :nth-child(3) { animation-delay: .06s; }
+.ib.tak > svg > :nth-child(4) { animation-delay: .09s; }
+@keyframes wskocz { from { transform: translate(-2px, 1.5px) rotate(-10deg) scale(.6); } }
+.ib.nie { animation: nie .38s ease-out; }
+@keyframes nie { 20% { transform: translateX(-3px); } 45% { transform: translateX(3px); } 70% { transform: translateX(-2px); } 100% { transform: none; } }
+
+/* mniej ruchu, gdy system o to prosi */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+/* ===== KOPIUJ: CSS — koniec ===== */
+</style>
+</head>
+<body>
+<h1>Wzorzec przycisków</h1>
+<p>Najedź na przycisk (ikona się unosi), kliknij (ikona ugina się i sprężyście wraca — także przy bardzo szybkim kliknięciu).
+Narzędzia: wskaźnik przeskakuje. „Ułóż”: klik = udało się, Shift+klik = nie da się. Pinezka: włącz / wyłącz.
+<a href="#" id="motyw">Przełącz motyw</a></p>
+
+<div class="bar">
+  <div class="tools" id="tools">
+    <div class="ind"></div>
+    <button class="ib on" data-tool="a" title="Zaznaczanie (V)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5 12 8l-3.6.9L10.5 13l-1.6.8-2.1-4.1L4 12.5z"/></svg></button>
+    <button class="ib" data-tool="b" title="Notatka (T)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M3 3.5h10M8 3.5v9"/></svg></button>
+    <button class="ib" data-tool="c" title="Mazak (M)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l.9-3.2 7-7a1.6 1.6 0 0 1 2.3 2.3l-7 7z"/><path d="M9.6 4.1l2.3 2.3"/></svg></button>
+  </div>
+  <div class="sep"></div>
+  <span class="sp"></span>
+  <button class="ib" id="uloz" title="Ułóż (A)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="3.5" width="11" height="3.5" rx="1"/><rect x="2.5" y="9" width="11" height="3.5" rx="1"/></svg></button>
+  <button class="ib" id="pin" title="Zawsze na wierzchu (P)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><g transform="rotate(45 8 8)"><path class="fill" d="M5.5 2.5h5l-.8 4.5h-3.4z"/><path d="M6.3 7h3.4l1.8 2.5h-7zM8 9.5v4.5"/></g></svg></button>
+</div>
+<div id="tip"></div>
+
+<script>
+/* ===== KOPIUJ: JS — początek ===== */
+// 1) Wciśnięcie: :active trwa tyle co kliknięcie (~0,1 s), więc przy szybkim kliknięciu ugięcia prawie nie widać.
+//    Dodajemy klasę .wcis na pointerdown i zdejmujemy ją po puszczeniu, ale nie wcześniej niż po 90 ms.
+document.addEventListener('pointerdown', e => {
+  const b = e.target.closest && e.target.closest('.ib'); if (!b || e.button) return;
+  b.classList.add('wcis'); const t0 = performance.now();
+  const up = () => { removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+    setTimeout(() => b.classList.remove('wcis'), Math.max(0, 90 - (performance.now() - t0))); };
+  addEventListener('pointerup', up); addEventListener('pointercancel', up);
+});
+// 2) Wskaźnik narzędzi: przesuń go pod wybrany przycisk (sprężynę daje CSS).
+function wybierzNarzedzie(grupa, przycisk) {
+  grupa.querySelectorAll('.ib').forEach(b => b.classList.toggle('on', b === przycisk));
+  grupa.querySelector('.ind').style.transform = 'translateX(' + przycisk.offsetLeft + 'px)';
+}
+// 3) Jednorazowa animacja (tak / nie / wlacz / wylacz) — także przy kolejnych kliknięciach pod rząd.
+function zagraj(przycisk, klasa) {
+  przycisk.classList.remove('tak', 'nie', 'wlacz', 'wylacz'); void przycisk.offsetWidth; przycisk.classList.add(klasa);
+}
+/* ===== KOPIUJ: JS — koniec ===== */
+
+// tylko do pokazu wzorca
+const tools = document.getElementById('tools');
+tools.querySelectorAll('.ib').forEach(b => b.onclick = () => wybierzNarzedzie(tools, b));
+wybierzNarzedzie(tools, tools.querySelector('.ib.on'));
+const tip = document.getElementById('tip'); let tt = 0; const pokaz = t => { tip.textContent = t; tip.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => tip.classList.remove('on'), 1800); };
+document.getElementById('uloz').onclick = e => { if (e.shiftKey) { zagraj(e.currentTarget, 'nie'); pokaz('Zaznacz co najmniej dwa obrazy'); } else zagraj(e.currentTarget, 'tak'); };
+document.getElementById('pin').onclick = e => { const b = e.currentTarget, on = !b.classList.contains('on-state'); b.classList.toggle('on-state', on); zagraj(b, on ? 'wlacz' : 'wylacz'); };
+document.getElementById('motyw').onclick = e => { e.preventDefault(); const d = document.documentElement; d.dataset.theme = d.dataset.theme === 'dark' ? '' : 'dark'; };
+</script>
+</body>
+</html>

@@ -20,7 +20,8 @@ Do samego przenikania kolorów i przezroczystości — zwykłe `ease` / `ease-ou
 | ruch | czas | krzywa |
 |---|---|---|
 | kolor tła przycisku przy najechaniu | 0,15 s | ease |
-| ikona: uniesienie przy najechaniu, ugięcie przy wciśnięciu | 0,35 s | sprężyna |
+| ikona: uniesienie przy najechaniu, powrót po wciśnięciu | 0,35 s | sprężyna |
+| ikona: ugięcie przy wciśnięciu (trzymane co najmniej 90 ms) | 0,09 s | ease-out |
 | wskaźnik wybranego narzędzia (przeskok) | 0,42 s | sprężyna |
 | wysuwana grupa opcji (np. kolory mazaka) | 0,42 s | sprężyna (max-width) + 0,2 s przezroczystość |
 | włączenie przełącznika (wypełnienie od środka) | 0,42 s | sprężyna |
@@ -30,13 +31,38 @@ Do samego przenikania kolorów i przezroczystości — zwykłe `ease` / `ease-ou
 
 ## 2. Przycisk z ikoną: najechanie i wciśnięcie
 
+Gotowy, działający kod jest w `projekt/wzorzec_przyciskow.html`. **Kopiuj go stamtąd dosłownie**
+(bloki oznaczone „KOPIUJ”), zamiast odtwarzać z opisu.
+
 ```css
 .ib { transition: background-color .15s, color .15s; }
 .ib:hover { background: var(--hover); color: var(--text); }
-.ib svg { transition: transform .35s var(--spring); }
-.ib:hover svg { transform: translateY(-1px); }     /* ikona lekko się unosi */
-.ib:active svg { transform: scale(.86); }          /* i ugina przy wciśnięciu */
+.ib > svg { transition: transform .35s var(--spring); }
+.ib:hover > svg { transform: translateY(-1px); }                                /* ikona lekko się unosi */
+.ib.wcis > svg { transform: scale(.84); transition: transform .09s ease-out; }  /* ugina się przy wciśnięciu */
 ```
+
+```js
+// klasa .wcis zamiast :active — :active trwa tyle co kliknięcie (~0,1 s), więc ugięcia prawie nie widać
+document.addEventListener('pointerdown', e => {
+  const b = e.target.closest && e.target.closest('.ib'); if (!b || e.button) return;
+  b.classList.add('wcis'); const t0 = performance.now();
+  const up = () => { removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+    setTimeout(() => b.classList.remove('wcis'), Math.max(0, 90 - (performance.now() - t0))); };
+  addEventListener('pointerup', up); addEventListener('pointercancel', up);
+});
+```
+
+Pułapki, przez które animacja „nie działa”:
+
+- Ikona musi być **bezpośrednim dzieckiem** przycisku (`<button class="ib"><svg>`). Jeśli jest owinięta w `span`
+  albo to `img`, zmień selektor tak, żeby trafiał w element ikony.
+- Na ikonie nie może być żadnego innego `transform` ani `transition` (np. z biblioteki ikon albo z Tailwinda) —
+  nadpisze ugięcie.
+- Nie zastępuj klasy `.wcis` samym `:active`.
+- Po wdrożeniu sprawdź szybkim kliknięciem: ikona ma się wyraźnie zmniejszyć i sprężyście wrócić.
+  Jeśli nic się nie rusza, sprawdź też, czy w systemie nie jest włączone „Ogranicz ruch” (macOS) /
+  „Pokaż animacje” wyłączone (Windows) — wtedy reguła z punktu 9 słusznie wyłącza ruch.
 
 Ikona przycisku: 15 px, kreska 1,3 px, zaokrąglone końce, **najwyżej 2–3 proste kształty**
 (w tej wielkości szczegóły znikają). Przycisk 30 × 28 px, zaokrąglenie 7 px.

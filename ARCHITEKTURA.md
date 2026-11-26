@@ -132,6 +132,7 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 | `scripts/sprawdziany.mjs` | sprawdziany geometrii i modelu (bez przeglądarki) |
 | `makieta/makieta.html` | zaakceptowana makieta wyglądu (23.11.2026) |
 | `makieta/biblioteka.html` | zaakceptowana makieta biblioteki bloków (26.11.2026) |
+| `wzorzec_przyciskow.html` | wzorzec reakcji przycisków całej rodziny programów (źródło prawdy; otwiera się w przeglądarce) |
 | `WYTYCZNE_INTERAKCJE.md` | wspólny język interakcji całej rodziny programów (wzór: Blat); w Rysiu wprowadzony 26.11.2026 według makiety `makieta/ruch.html` |
 | `.github/workflows/build.yml` | instalatory Windows i Mac, uruchamiane ręcznie |
 | `build/icon.svg` → `build/icon.png` | ikona programu: miękka czarna pętla z kwadracikiem na złamanej bieli (wybór 23.11.2026, `makieta/znak.html`); PNG 1024 px z przezroczystym marginesem robi `scripts/ikona.js` (Electronem; `qlmanage` wypełniał margines na biało i macOS pokazywał białą ramkę) |
@@ -139,6 +140,8 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 ## Ruch i podpowiedzi (wytyczne interakcji)
 
 Według `WYTYCZNE_INTERAKCJE.md`: jedna krzywa `--spring` w `style.css`, przyciski z ikoną 30 × 28 z ikoną 15 px (kreska 1,3), narzędzia w kapsule z jednym wskaźnikiem (`placeInd` w `app.js`; „Pokaż wszystko” jest poleceniem, więc stoi poza kapsułą), paski opcji narzędzi wysuwają się przy pojawieniu (`clip-path`, bo zawartość pasków jest przebudowywana w miejscu), „tak” / „nie” przez `react()`, podpowiedzi `tipShow` / `tipHide` (1,5 s, na sąsiednim od razu; przy pasku narzędzi z boku, w pasku dolnym nad przyciskiem), menu ustawień wyrównane do prawej z wersją i aktualizacją (osobny przycisk nowej wersji w górnym pasku zniknął — o nowej wersji mówi raz komunikat). Ograniczenie ruchu w systemie wyłącza animacje.
+
+Reakcje przycisków z ikoną są przepisane z `wzorzec_przyciskow.html` (bloki „KOPIUJ”, 26.11.2026): wciśnięcie to klasa `.wcis` dodawana w `app.js` na `pointerdown` (w fazie przechwytywania, bo paski zatrzymują to zdarzenie) i zdejmowana po puszczeniu, najwcześniej po 90 ms — samo `:active` trwa za krótko, żeby ugięcie było widać; przełącznik przy włączeniu wypełnia się i ikona wskakuje (`wlacz`), przy wyłączeniu podskakuje (`wylacz`); jednorazowe reakcje odtwarza `react()` (we wzorcu `zagraj`). Ikona musi być bezpośrednim dzieckiem przycisku (`.ib > svg`). Przy zmianie wzorca w rodzinie programów — kopiujemy go na nowo, a nie poprawiamy z opisu.
 
 Świadome odstępstwo: włączony przełącznik (cienkie linie) wypełnia się kolorem kreski (`--ink`), nie kolorem akcentu — decyzja Michała przy makiecie.
 

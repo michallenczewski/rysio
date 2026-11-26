@@ -210,7 +210,7 @@ function runAction(id) {
     case 'delete': if (app.sel.size) { const ids = [...app.sel].filter(id => { const e = app.doc.ents.find(x => x.id === id); return e && isLive(app.doc, e); }); app.edit(_t('Usuń'), tx => ids.forEach(i => tx.del(i))); } return;
     case 'selectAll': setTool('select'); app.sel = new Set(app.ents().filter(e => isLive(app.doc, e)).map(e => e.id)); app.selectionChanged(); return;
     case 'extents': fitSpace(); redraw(); return;
-    case 'thin': { app.thin = !app.thin; const b = $('#thinBtn'); b.setAttribute('aria-pressed', app.thin); b.classList.remove('wlacza'); if (app.thin) { void b.offsetWidth; b.classList.add('wlacza'); } redraw(); return; }
+    case 'thin': { app.thin = !app.thin; const b = $('#thinBtn'); b.setAttribute('aria-pressed', app.thin); react(b, app.thin ? 'wlacz' : 'wylacz'); redraw(); return; }
     case 'ortho': app.ortho = !app.ortho; refreshUi(); return;
     case 'snapToggle': app.snapper.enabled = !app.snapper.enabled; refreshUi(); return;
     case 'mini': return setMini(!app.mini);
@@ -1633,7 +1633,17 @@ $('#pdfBtn').addEventListener('click', e => { e.stopPropagation(); if (!$('#expo
 /* ---------- komunikat ---------- */
 let toastTimer = null;
 // krótka reakcja przycisku: „tak” — udało się, „nie” — nie da się (wytyczne interakcji §5)
-function react(b, cls) { if (!b) return; b.classList.remove('tak', 'nie'); void b.offsetWidth; b.classList.add(cls); clearTimeout(b._react); b._react = setTimeout(() => b.classList.remove(cls), 650); }
+// (wzorzec_przyciskow.html: „zagraj”) — także przy kolejnych kliknięciach pod rząd; wlacz / wylacz — przełącznik
+function react(b, cls) { if (!b) return; b.classList.remove('tak', 'nie', 'wlacz', 'wylacz'); void b.offsetWidth; b.classList.add(cls); clearTimeout(b._react); b._react = setTimeout(() => b.classList.remove(cls), 650); }
+// wciśnięcie przycisku z ikoną (wzorzec_przyciskow.html): :active trwa tyle co kliknięcie (~0,1 s), więc ugięcia prawie
+// nie widać — klasa .wcis od pointerdown do puszczenia, ale co najmniej 90 ms
+document.addEventListener('pointerdown', e => {
+  const b = e.target.closest && e.target.closest('.ib'); if (!b || e.button) return;
+  b.classList.add('wcis'); const t0 = performance.now();
+  const up = () => { removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+    setTimeout(() => b.classList.remove('wcis'), Math.max(0, 90 - (performance.now() - t0))); };
+  addEventListener('pointerup', up); addEventListener('pointercancel', up);
+}, true);   // w fazie przechwytywania: paski i okienka zatrzymują pointerdown dla siebie
 function toast(msg, ms = 2600, action = null) {
   const t = $('#toast'); t.innerHTML = msg;
   if (action) { const b = document.createElement('button'); b.textContent = action[0]; b.addEventListener('click', () => { t.hidden = true; action[1](); }); t.append(b); }
