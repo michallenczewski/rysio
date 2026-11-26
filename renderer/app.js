@@ -51,7 +51,7 @@ const IC = {
   redo: '<path d="M10.5 3l3 3-3 3"/><path d="M13.5 6h-7a4 4 0 0 0 0 8H10"/>',
   thin: '<path d="M2.5 5h11" stroke-width="2.6"/><path d="M2.5 11h11" stroke-width=".8"/>',
   pdf: '<path d="M8 2.5v8M5 7.5l3 3 3-3"/><path d="M2.5 11v2.5h11V11"/>',
-  gear: '<path d="M2.5 4.5h4M9.5 4.5h4M2.5 11.5h7M12.5 11.5h1"/><circle cx="8" cy="4.5" r="1.5"/><circle cx="11" cy="11.5" r="1.5"/>',
+  sliders: '<path d="M2.5 5.5h11M2.5 10.5h11"/><circle cx="6" cy="5.5" r="1.8" fill="var(--bg)"/><circle cx="10.5" cy="10.5" r="1.8" fill="var(--bg)"/>',
   eye: '<path d="M1.8 8S4 3.8 8 3.8 14.2 8 14.2 8 12 12.2 8 12.2 1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.9"/>',
   eyeOff: '<path d="M2.5 2.5l11 11M6.6 4A6.3 6.3 0 0 1 8 3.8c4 0 6.2 4.2 6.2 4.2a11 11 0 0 1-1.8 2.3M10.6 11.6A5.8 5.8 0 0 1 8 12.2C4 12.2 1.8 8 1.8 8a11 11 0 0 1 2.4-2.8"/>',
   lock: '<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>',
@@ -60,12 +60,12 @@ const IC = {
   viewport: '<rect x="2" y="3" width="12" height="10" rx="1"/><path d="M4.5 10.5 7 7.5l2 2 1.5-1.5 1.5 2.5"/>',
   trash: '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 9h5.8l.6-9"/>'
 };
-const ic = (n, s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
+const ic = (n, s = 15) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
 const chev = '<svg class="chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const wtxt = w => w.toFixed(2).replace('.', DEC);
 const sample = (w, lt, len = 26, h = 8) => { const d = (LTYPES[lt] || LTYPES.solid).dash.map(v => Math.max(v * 1.6, 0.6)).join(' '); return `<svg width="${len}" height="${h}" aria-hidden="true"><line x1="1" y1="${h / 2}" x2="${len - 1}" y2="${h / 2}" stroke="currentColor" stroke-width="${Math.max(0.7, w * 3.78).toFixed(2)}" stroke-dasharray="${d}" stroke-linecap="${lt === 'dot' ? 'round' : 'butt'}"/></svg>`; };
-for (const [id, n] of [['#undoBtn', 'undo'], ['#redoBtn', 'redo'], ['#thinBtn', 'thin'], ['#pdfBtn', 'pdf'], ['#setBtn', 'gear']]) $(id).innerHTML = ic(n);
+for (const [id, n] of [['#undoBtn', 'undo'], ['#redoBtn', 'redo'], ['#thinBtn', 'thin'], ['#pdfBtn', 'pdf'], ['#setBtn', 'sliders']]) $(id).innerHTML = ic(n);
 
 /* ---------- stan ---------- */
 const app = {
@@ -155,16 +155,24 @@ function afterChange(info) {
 /* ---------- lewy pasek ---------- */
 const TOOLBAR = ['select', 'eraser', 'brush', null, 'line', 'pline', 'rect', 'circle', 'arc', null, 'move', 'copy', 'rotate', 'mirror', 'scale', null, 'offset', 'fillet', 'trim', 'extend', null, 'hatch', 'block', 'text', 'dim', 'measure', 'viewport', 'grow', 'extents'];
 const toolsEl = $('#tools');
+// narzędzia w jednej kapsule z przeskakującym wskaźnikiem; „Pokaż wszystko” (polecenie, nie narzędzie) zostaje osobno na dole
+const capsEl = document.createElement('div'); capsEl.className = 'caps'; capsEl.innerHTML = '<div class="ind still"></div>'; toolsEl.append(capsEl);
+let toolsBox = capsEl;
 for (const id of TOOLBAR) {
-  if (id === null) { toolsEl.insertAdjacentHTML('beforeend', '<div class="hsep"></div>'); continue; }
-  if (id === 'grow') { toolsEl.insertAdjacentHTML('beforeend', '<div class="grow"></div>'); continue; }
+  if (id === null) { toolsBox.insertAdjacentHTML('beforeend', '<div class="hsep"></div>'); continue; }
+  if (id === 'grow') { toolsEl.insertAdjacentHTML('beforeend', '<div class="grow"></div>'); toolsBox = toolsEl; continue; }
   const a = ACTIONS.find(x => x.id === id), later = !!a.later;
   const b = document.createElement('button');
   b.className = 'ib' + (later ? ' later' : ''); b.dataset.tool = id; b.innerHTML = ic(id);
   const name = id === 'arc' ? _t`Łuk (${app.shiftName} + klik — ze środka; drugie kliknięcie albo drugie B przełącza)` : a.name;
   b.setAttribute('aria-label', name); b.dataset.tip = name + (later ? _t(' — w kolejnej wersji') : ''); b.dataset.act = id;
   b.addEventListener('click', e => runAction(id === 'arc' && e.shiftKey ? 'arcC' : id));
-  toolsEl.append(b);
+  toolsBox.append(b);
+}
+function placeInd() {
+  const on = capsEl.querySelector('.ib.on'), ind = capsEl.querySelector('.ind');
+  ind.hidden = !on; if (on) ind.style.transform = `translateY(${on.offsetTop}px)`;
+  if (ind.classList.contains('still')) requestAnimationFrame(() => ind.classList.remove('still'));   // bez skoku przy starcie
 }
 
 function setTool(id, opts = {}) {
@@ -179,6 +187,7 @@ function setTool(id, opts = {}) {
   lockDir = null; typing = null; app.snapper.clearRefs(); snapRes = null; hoverEnt = null;
   if (cursorScreen) updateCursor(...cursorScreen);
   toolsEl.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === id));
+  placeInd();
   app.cursorClass();
   refreshUi(); redraw();
 }
@@ -193,17 +202,17 @@ function runAction(id) {
   if (app.tools[id]) { if (tool.id === id && tool.toggle) { tool.toggle(); refreshUi(); redraw(); return; } return setTool(id); }
   switch (id) {
     case 'arcC': return setTool('arc', { arcMode: 'c' });
-    case 'undo': { if (tool.undoInTool?.()) { refreshUi(); redraw(); return; } const l = app.hist.undo(); if (l) toast(_t`Cofnięto: ${l}`, 1200); return; }
-    case 'redo': { const l = app.hist.redo(); if (l) toast(_t`Ponowiono: ${l}`, 1200); return; }
+    case 'undo': { if (tool.undoInTool?.()) { refreshUi(); redraw(); return; } const l = app.hist.undo(); if (l) toast(_t`Cofnięto: ${l}`, 1200); else { react($('#undoBtn'), 'nie'); toast(_t('Nie ma czego cofnąć.'), 1500); } return; }
+    case 'redo': { const l = app.hist.redo(); if (l) toast(_t`Ponowiono: ${l}`, 1200); else { react($('#redoBtn'), 'nie'); toast(_t('Nie ma czego ponowić.'), 1500); } return; }
     case 'delete': if (app.sel.size) { const ids = [...app.sel].filter(id => { const e = app.doc.ents.find(x => x.id === id); return e && isLive(app.doc, e); }); app.edit(_t('Usuń'), tx => ids.forEach(i => tx.del(i))); } return;
     case 'selectAll': setTool('select'); app.sel = new Set(app.ents().filter(e => isLive(app.doc, e)).map(e => e.id)); app.selectionChanged(); return;
     case 'extents': fitSpace(); redraw(); return;
-    case 'thin': app.thin = !app.thin; $('#thinBtn').setAttribute('aria-pressed', app.thin); redraw(); return;
+    case 'thin': { app.thin = !app.thin; const b = $('#thinBtn'); b.setAttribute('aria-pressed', app.thin); b.classList.remove('wlacza'); if (app.thin) { void b.offsetWidth; b.classList.add('wlacza'); } redraw(); return; }
     case 'ortho': app.ortho = !app.ortho; refreshUi(); return;
     case 'snapToggle': app.snapper.enabled = !app.snapper.enabled; refreshUi(); return;
     case 'mini': return setMini(!app.mini);
     case 'grid': { const order = [null, 'dots', 'lines']; app.grid = order[(order.indexOf(app.grid) + 1) % 3]; try { localStorage.setItem('rysio.grid', app.grid || ''); } catch (e) {} if (app.grid && app.sheet()) toast(_t('Siatka jest tylko w modelu — na arkuszu jej nie ma.'), 1800); refreshUi(); redraw(); return; }
-    case 'theme': { const order = ['auto', 'light', 'dark']; setTheme(order[(order.indexOf(themePref) + 1) % 3]); toast({ auto: _t('Wygląd automatyczny'), light: _t('Wygląd jasny'), dark: _t('Wygląd ciemny') }[themePref], 1200); return; }
+    case 'theme': { const order = ['auto', 'light', 'dark']; setTheme(order[(order.indexOf(themePref) + 1) % 3]); toast({ auto: _t('Motyw jak w systemie'), light: _t('Jasny motyw'), dark: _t('Ciemny motyw') }[themePref], 1200); return; }
     case 'new': return fileNew();
     case 'open': return fileOpen();
     case 'save': return fileSave(false);
@@ -834,20 +843,22 @@ function blockGhost() {
 }
 
 /* ---------- pasek stanu: jednostka i skala ---------- */
-function showMenu(anchor, items, { up = false } = {}) {
+function showMenu(anchor, items, { up = false, right = false } = {}) {
   const m = $('#menu'); m.innerHTML = '';
   for (const it of items) {
     if (it === 'sep') { m.insertAdjacentHTML('beforeend', '<div class="msep"></div>'); continue; }
     if (it.lbl) { m.insertAdjacentHTML('beforeend', `<div class="mlbl">${it.lbl}</div>`); continue; }
+    if (it.ver) { m.insertAdjacentHTML('beforeend', `<div class="mver">${esc(it.ver)}</div>`); continue; }
     if (it.html) { const d = document.createElement('div'); d.className = 'mrow'; d.innerHTML = it.html; m.append(d); it.bind?.(d); continue; }
-    const b = document.createElement('button'); b.className = it.on ? 'on' : ''; b.disabled = !!it.disabled;
+    const b = document.createElement('button'); b.className = (it.on ? 'on' : '') + (it.hot ? ' hot' : ''); b.disabled = !!it.disabled;
     b.innerHTML = `<span>${it.label}</span>` + (it.kbd ? `<kbd>${prettyCombo(it.kbd, isMac)}</kbd>` : '');
     b.addEventListener('click', () => { closePops(); it.act(); });
     m.append(b);
   }
   m.hidden = false;
   const r = anchor.getBoundingClientRect();
-  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
+  m.style.left = Math.max(8, Math.min(right ? r.right - m.offsetWidth : r.left, innerWidth - m.offsetWidth - 8)) + 'px';
+  m.style.transformOrigin = (up ? 'bottom ' : 'top ') + (right ? 'right' : 'left');
   m.style.top = (up ? r.top - m.offsetHeight - 6 : r.bottom + 6) + 'px';
   anchor.classList.add('open');
 }
@@ -953,14 +964,22 @@ function applyTheme() {
 function setTheme(p) { themePref = p; try { localStorage.setItem('rysio.theme', p); } catch (e) {} applyTheme(); }
 mq.addEventListener('change', applyTheme);
 applyTheme();
+// Ustawienia jak w całej rodzinie programów (wytyczne interakcji §8): motyw, skróty, opcje Rysia (język), na dole wersja i aktualizacje
 $('#setBtn').addEventListener('click', e => {
   e.stopPropagation(); if (!$('#menu').hidden) return closePops();
+  const u = updState, busy = u && (u.state === 'downloading' || u.state === 'ready');
+  const updItem = api.web ? [] : [
+    ...(u?.current ? [{ ver: 'Rysio ' + u.current }] : []),
+    u?.state === 'available' ? { label: _t`Zainstaluj wersję ${esc(u.version)}`, hot: true, act: () => api.updateInstall() }
+    : busy && !(isMac && u.state === 'ready') ? { label: u.state === 'ready' ? _t('Instalowanie…') : _t`Pobieranie ${Math.round(100 * u.got / (u.size || 1))}%`, disabled: true, act: () => {} }
+    : { label: _t('Sprawdź aktualizacje'), act: async () => { const s = await api.updateCheck(); showUpdate(s); if (s.state === 'none') toast(_t`Masz najnowszą wersję (${s.current}).`); else if (s.state === 'error') toast(_t`Nie udało się sprawdzić: ${esc(s.error)}`); } }
+  ];
   showMenu($('#setBtn'), [
-    { lbl: _t('Wygląd') }, ...[['auto', _t('Automatyczny')], ['light', _t('Jasny')], ['dark', _t('Ciemny')]].map(([k, n]) => ({ label: n, on: themePref === k, act: () => setTheme(k) })),
-    'sep', { lbl: _t('Język') }, ...LANGS.map(([k, n]) => ({ label: n, on: lang === k, act: () => { if (k === lang || !confirmDiscard()) return; setLang(k); api.setLang(k); location.reload(); } })),
+    ...[['light', _t('Jasny motyw')], ['dark', _t('Ciemny motyw')], ['auto', _t('Motyw jak w systemie')]].map(([k, n]) => ({ label: n, on: themePref === k, act: () => setTheme(k) })),
     'sep', { label: _t('Skróty klawiszowe'), kbd: 'Shift+Slash', act: openKeys },
-    ...(api.web ? [] : [{ label: _t('Sprawdź aktualizacje'), act: async () => { const s = await api.updateCheck(); showUpdate(s); if (s.state === 'none') toast(_t`Masz najnowszą wersję (${s.current}).`); else if (s.state === 'error') toast(_t`Nie udało się sprawdzić: ${esc(s.error)}`); } }])
-  ]);
+    'sep', { lbl: _t('Język') }, ...LANGS.map(([k, n]) => ({ label: n, on: lang === k, act: () => { if (k === lang || !confirmDiscard()) return; setLang(k); api.setLang(k); location.reload(); } })),
+    ...(updItem.length ? ['sep', ...updItem] : [])
+  ], { right: true });
 });
 $('#thinBtn').addEventListener('click', () => runAction('thin'));
 $('#undoBtn').addEventListener('click', () => runAction('undo'));
@@ -968,13 +987,17 @@ $('#redoBtn').addEventListener('click', () => runAction('redo'));
 $('#snapChip').addEventListener('click', () => runAction('snapToggle'));
 $('#orthoChip').addEventListener('click', () => runAction('ortho'));
 $('#gridChip').addEventListener('click', () => runAction('grid'));
+// stan aktualizacji: pozycja w menu ustawień; o nowej wersji mówi raz krótki komunikat, postęp pobierania i jego wynik — komunikaty na dole
+let updState = null, updTold = null;
 function showUpdate(s) {
-  const b = $('#updBtn');
-  if (!s || !['available', 'downloading', 'ready'].includes(s.state)) { b.hidden = true; return; }
-  b.hidden = false;
-  b.textContent = s.state === 'downloading' ? _t`Pobieranie ${Math.round(100 * s.got / (s.size || 1))}%` : s.state === 'ready' ? _t('Instalowanie…') : _t`Nowa wersja ${s.version} — zainstaluj`;
+  if (!s) return;
+  const was = updState?.state; updState = s;
+  const v = esc(s.version || '');
+  if (s.state === 'available' && was === 'downloading') toast(_t`Nie udało się pobrać wersji ${v}: ${esc(s.error || '')}`, 6000, [_t('Spróbuj jeszcze raz'), () => api.updateInstall()]);
+  else if (s.state === 'available' && updTold !== s.version) { updTold = s.version; toast(_t`Jest nowa wersja ${v}.`, 6000, [_t('Zainstaluj'), () => api.updateInstall()]); }
+  else if (s.state === 'downloading') toast(_t`Pobieranie ${Math.round(100 * s.got / (s.size || 1))}%`, 3000);
+  else if (s.state === 'ready' && was !== 'ready') toast(isMac ? _t('Pobrano — otworzyłem instalator nowej wersji.') : _t('Instalowanie…'), 6000);
 }
-$('#updBtn').addEventListener('click', () => api.updateInstall());
 api.onUpdate(showUpdate);
 api.updateGet().then(showUpdate);
 
@@ -1019,24 +1042,41 @@ function renderKeys() {
   }
 }
 
-/* ---------- wskazówki z opisem skrótu (⌘/⌥ na Macu, Ctrl/Alt w Windows) ---------- */
-let tipEl = null;
+/* ---------- podpowiedzi z opisem skrótu (⌘/⌥ na Macu, Ctrl/Alt w Windows) ----------
+   Wytyczne interakcji §6: pojawia się po 1,5 s bez ruchu, na sąsiednim przycisku (do 0,4 s po zniknięciu poprzedniej) od razu;
+   znika przy zjechaniu, kliknięciu i kółku. Przy pionowym pasku narzędzi stoi z boku, w pasku dolnym nad przyciskiem. */
+let tipEl = null, tipFor = null, tipT = 0, tipLast = 0;
+function tipShow(b) {
+  tipEl?.remove(); tipEl = document.createElement('div'); tipEl.className = 'tip';
+  const k = b.dataset.act ? keysFor(b.dataset.act, app.keys.over)[0] : null;
+  tipEl.innerHTML = `<span>${esc(_t(b.dataset.tip))}</span>` + (k ? `<kbd>${prettyCombo(k, isMac)}</kbd>` : '');
+  document.body.append(tipEl);
+  const r = b.getBoundingClientRect(), side = !!b.closest('#tools'), w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  tipEl.classList.toggle('side', side);
+  if (side) { tipEl.style.left = (r.right + 8) + 'px'; tipEl.style.top = (r.top + r.height / 2 - h / 2) + 'px'; }
+  else {
+    const below = !b.closest('#status') && r.bottom + 8 + h < innerHeight;
+    tipEl.style.left = Math.max(6, Math.min(innerWidth - w - 6, r.left + r.width / 2 - w / 2)) + 'px';
+    tipEl.style.top = (below ? r.bottom + 6 : r.top - h - 6) + 'px';
+  }
+  void tipEl.offsetWidth; tipEl.classList.add('on');
+}
+// „od razu” na sąsiednim tylko po podpowiedzi, która naprawdę była widoczna (przejechanie przez pasek nie zapala ich)
+function tipHide() { clearTimeout(tipT); if (tipEl) tipLast = Date.now(); tipFor = null; tipEl?.remove(); tipEl = null; }
 function bindTips(root) {
   root.querySelectorAll('[data-tip]').forEach(b => {
     if (b._tip) return; b._tip = 1;
     b.addEventListener('mouseenter', () => {
-      tipEl?.remove(); tipEl = document.createElement('div'); tipEl.className = 'tip';
-      const k = b.dataset.act ? keysFor(b.dataset.act, app.keys.over)[0] : null;
-      tipEl.innerHTML = esc(_t(b.dataset.tip)) + (k ? ` <kbd>${prettyCombo(k, isMac)}</kbd>` : '');
-      document.body.append(tipEl);
-      const r = b.getBoundingClientRect(), side = !!b.closest('#tools');
-      tipEl.style.left = (side ? r.right + 8 : Math.max(8, Math.min(r.left, innerWidth - tipEl.offsetWidth - 8))) + 'px';
-      tipEl.style.top = (side ? r.top + 2 : b.closest('#status') ? r.top - 34 : r.bottom + 6) + 'px';
+      if (tipFor === b) return;
+      tipHide(); tipFor = b;
+      tipT = setTimeout(() => { if (tipFor === b && b.isConnected) tipShow(b); }, Date.now() - tipLast < 400 ? 0 : 1500);
     });
-    b.addEventListener('mouseleave', () => { tipEl?.remove(); tipEl = null; });
-    b.addEventListener('pointerdown', () => { tipEl?.remove(); tipEl = null; });
+    b.addEventListener('mouseleave', () => { if (tipFor === b) tipHide(); });
   });
 }
+addEventListener('pointerdown', tipHide, true);
+addEventListener('wheel', tipHide, { passive: true, capture: true });
+addEventListener('keydown', tipHide, true);
 bindTips(document.body);
 
 /* ---------- arkusze: zakładki, przełączanie przestrzeni ---------- */
@@ -1293,10 +1333,10 @@ async function runExport() {
   try {
     if (exp.kind === 'pdf') {
       const bytes = makePdf(app.doc, sheets, { mono: exp.mono, fmtModel: app.fmtModel, fmtSheet: app.fmtSheet });
-      const r = await api.saveBinary(bytes, name, 'pdf'); if (r) toast(_t('Zapisano PDF'), 1500);
+      const r = await api.saveBinary(bytes, name, 'pdf'); if (r) { react($('#pdfBtn'), 'tak'); toast(_t('Zapisano PDF'), 1500); }
     } else {
       const blob = await sheetPng(sheets[0], 200, exp.mono);
-      const r = await api.saveBinary(new Uint8Array(await blob.arrayBuffer()), name, 'png'); if (r) toast(_t('Zapisano PNG'), 1500);
+      const r = await api.saveBinary(new Uint8Array(await blob.arrayBuffer()), name, 'png'); if (r) { react($('#pdfBtn'), 'tak'); toast(_t('Zapisano PNG'), 1500); }
     }
   } catch (err) { toast(_t`Nie udało się zapisać: ${esc(err.message)}`, 5000); }
   finally { syncSpace(); }
@@ -1344,6 +1384,8 @@ $('#pdfBtn').addEventListener('click', e => { e.stopPropagation(); if (!$('#expo
 
 /* ---------- komunikat ---------- */
 let toastTimer = null;
+// krótka reakcja przycisku: „tak” — udało się, „nie” — nie da się (wytyczne interakcji §5)
+function react(b, cls) { if (!b) return; b.classList.remove('tak', 'nie'); void b.offsetWidth; b.classList.add(cls); clearTimeout(b._react); b._react = setTimeout(() => b.classList.remove(cls), 650); }
 function toast(msg, ms = 2600, action = null) {
   const t = $('#toast'); t.innerHTML = msg;
   if (action) { const b = document.createElement('button'); b.textContent = action[0]; b.addEventListener('click', () => { t.hidden = true; action[1](); }); t.append(b); }

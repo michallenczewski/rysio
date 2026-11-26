@@ -4,6 +4,7 @@
   --soft:#efeeea; --hover:#ecebe7; --line:#e6e5e1; --card:#fff; --pill:#fff; --pillsh:0 1px 2px rgba(0,0,0,.08);
   --menush:0 0 0 1px rgba(0,0,0,.06),0 10px 30px rgba(0,0,0,.10); --kbd:#f3f2ef; --ring:#1a1a19; --tip:#1a1a19; --tiptext:#f7f7f5;
   --paper:#fff; --ink:#1a1a19; --sel:#3f63a8; --snap:#b0489e;
+  --toolon:#fff; --cardline:rgba(0,0,0,.06); --spring:cubic-bezier(.34,1.56,.64,1);
   color-scheme:light;
 }
 [data-theme=dark]{
@@ -11,6 +12,7 @@
   --soft:#222221; --hover:#242423; --line:#2a2a29; --card:#1d1d1c; --pill:#363635; --pillsh:0 1px 2px rgba(0,0,0,.4);
   --menush:0 0 0 1px rgba(255,255,255,.07),0 12px 36px rgba(0,0,0,.5); --kbd:#2e2e2d; --ring:#e9e9e7; --tip:#e9e9e7; --tiptext:#161616;
   --paper:#1d1d1c; --ink:#e4e4e1; --sel:#7d9ad6; --snap:#d48bc6;
+  --toolon:#3a3a38; --cardline:rgba(255,255,255,.06);
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -35,15 +37,32 @@ header button,header .seg,header input{-webkit-app-region:no-drag}
 #fileName{font-weight:500;overflow:hidden;text-overflow:ellipsis}
 #saved{color:var(--muted2);font-size:12px}
 .gap{flex:1 1 0;min-width:8px}
-.ib{width:32px;height:32px;border-radius:7px;color:var(--muted);display:flex;align-items:center;justify-content:center;flex:none;position:relative}
+/* przycisk z ikoną (wytyczne interakcji §2): tło przenika, ikona unosi się przy najechaniu i ugina przy wciśnięciu */
+.ib{width:30px;height:28px;border-radius:7px;color:var(--muted);display:flex;align-items:center;justify-content:center;flex:none;position:relative;transition:background-color .15s,color .15s}
 .ib:hover:not(:disabled){background:var(--hover);color:var(--text)}
-.ib.on,.ib[aria-pressed=true]{background:var(--pill);box-shadow:var(--pillsh);color:var(--text)}
+.ib svg{transition:transform .35s var(--spring)}
+.ib:hover:not(:disabled) svg{transform:translateY(-1px)}
+.ib:active:not(:disabled) svg{transform:scale(.86)}
+/* przełącznik włączony (§4) — wypełnienie w kolorze kreski, wyrasta od środka (bez koloru akcentu — decyzja Michała) */
+.ib[aria-pressed=true],.ib[aria-pressed=true]:hover:not(:disabled){background:transparent;color:var(--card)}
+.ib[aria-pressed=true]::before{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--ink)}
+.ib[aria-pressed=true] svg{position:relative}
+.ib.wlacza::before{animation:wypelnij .42s var(--spring)}
+@keyframes wypelnij{from{transform:scale(.4);opacity:0}to{transform:none;opacity:1}}
+/* „tak” i „nie” (§5) */
+.ib.nie{animation:nie .38s ease-out}
+@keyframes nie{20%{transform:translateX(-3px)}45%{transform:translateX(3px)}70%{transform:translateX(-2px)}}
+.ib.tak{animation:tak .55s ease-out}
+@keyframes tak{0%{background:var(--hover)}100%{background:transparent}}
+.ib.tak svg>*{transform-box:fill-box;transform-origin:center;animation:wskocz .5s var(--spring) both}
+.ib.tak svg>*:nth-child(2){animation-delay:30ms}
+.ib.tak svg>*:nth-child(3){animation-delay:60ms}
+@keyframes wskocz{from{transform:translateY(2px) rotate(-10deg) scale(.6);opacity:.4}to{transform:none;opacity:1}}
 .ib.sm{width:26px;height:26px;font-size:16px}
 .tb{height:30px;padding:0 10px;border-radius:7px;color:var(--text2);display:flex;align-items:center;gap:7px;white-space:nowrap;flex:none}
 .tb:hover,.tb.open{background:var(--hover);color:var(--text)}
 .tb svg{color:var(--muted)}
 .tb.soft{background:var(--soft)} .tb.soft:hover{background:var(--hover)}
-#updBtn{background:var(--soft);font-size:12px}
 .seg{display:flex;gap:2px;padding:2px;border-radius:8px;background:var(--soft);flex:none}
 .seg button{height:26px;padding:0 10px;border-radius:6px;color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px}
 .seg button:hover{color:var(--text)}
@@ -63,7 +82,14 @@ header button,header .seg,header input{-webkit-app-region:no-drag}
 
 /* --- narzędzia --- */
 #tools{grid-column:1;grid-row:2/4;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0 12px;overflow:hidden}
-#tools .hsep{height:1px;width:18px;background:var(--line);margin:5px 0;flex:none}
+/* kapsuła narzędzi z jednym przeskakującym wskaźnikiem (§3) */
+#tools .caps{position:relative;display:flex;flex-direction:column;gap:2px;padding:2px;border-radius:9px;background:var(--soft);flex:none}
+#tools .ind{position:absolute;top:0;left:2px;width:30px;height:28px;border-radius:7px;background:var(--toolon);box-shadow:0 0 0 1px var(--cardline),0 1px 2px rgba(0,0,0,.06);transition:transform .42s var(--spring);pointer-events:none}
+#tools .ind.still{transition:none}
+#tools .caps .ib{z-index:1}
+#tools .caps .ib.on,#tools .caps .ib:hover:not(:disabled){background:transparent;color:var(--text)}
+#tools .hsep{height:1px;width:16px;background:var(--line);margin:3px auto;flex:none}
+[data-theme=dark] #tools .caps .hsep{background:#333331}
 #tools .grow{flex:1}
 #tools .ib.later{opacity:.32}
 
@@ -78,6 +104,13 @@ header button,header .seg,header input{-webkit-app-region:no-drag}
 [data-theme=dark] .snapLbl{color:#161616}
 .reading{position:absolute;z-index:5;height:20px;padding:0 6px;border-radius:5px;background:var(--card);box-shadow:var(--pillsh),0 0 0 1px var(--line);font-size:11px;color:var(--text);display:flex;align-items:center;font-variant-numeric:tabular-nums;pointer-events:none;white-space:nowrap}
 .toolbar{position:absolute;z-index:6;left:12px;top:10px;display:flex;align-items:center;gap:8px;height:40px;padding:0 6px 0 12px;border-radius:10px;background:var(--card);box-shadow:var(--menush);font-size:12px;white-space:nowrap}
+/* pasek opcji narzędzia wysuwa się, gdy się pojawia (§7) */
+.toolbar{animation:wysun .42s var(--spring),pokaz .2s ease}
+.toolbar.right{animation-name:wysunP,pokaz}
+/* koniec z zapasem na cień paska (0 10px 30px), żeby nie doskakiwał po animacji */
+@keyframes wysun{from{clip-path:inset(-40px 100% -60px -40px)}to{clip-path:inset(-40px -40px -60px -40px)}}
+@keyframes wysunP{from{clip-path:inset(-40px -40px -60px 100%)}to{clip-path:inset(-40px -40px -60px -40px)}}
+@keyframes pokaz{from{opacity:0}to{opacity:1}}
 .toolbar .t{font-weight:500}
 .toolbar .smp{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-radius:7px;background:var(--soft);color:var(--text)}
 .toolbar .smp i{width:8px;height:8px;border-radius:2px}
@@ -178,11 +211,16 @@ header button,header .seg,header input{-webkit-app-region:no-drag}
 .menu .msep{height:1px;background:var(--line);margin:4px 6px}
 .menu .mlbl{padding:5px 10px 3px;font-size:11px;color:var(--muted2)}
 .menu .mrow{display:flex;gap:6px;padding:4px 6px}
+.menu{transform-origin:top right;animation:menu .22s var(--spring)}
+@keyframes menu{from{opacity:0;transform:scale(.96) translateY(-3px)}to{opacity:1;transform:none}}
+.menu .mver{padding:5px 10px 2px;font-size:12px;color:var(--muted2)}
+.menu button.hot span{color:var(--text);font-weight:500}
 
 /* wskazówka i komunikat */
-.tip{position:fixed;z-index:70;display:flex;align-items:center;gap:8px;height:28px;padding:0 6px 0 10px;border-radius:7px;background:var(--tip);color:var(--tiptext);font-size:12px;white-space:nowrap;pointer-events:none}
-.tip kbd{background:#3a3a38;color:#f7f7f5;box-shadow:none}
-[data-theme=dark] .tip kbd{background:#d6d6d3;color:#161616}
+.tip{position:fixed;z-index:70;display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:6px;background:var(--tip);color:var(--tiptext);font-size:11.5px;line-height:1;white-space:nowrap;pointer-events:none;opacity:0;transform:translateY(-2px);transition:opacity .12s,transform .2s var(--spring)}
+.tip.side{transform:translateX(-2px)}
+.tip.on{opacity:.94;transform:none}
+.tip kbd{font:inherit;font-size:10.5px;opacity:.6;background:none;box-shadow:none;padding:0;color:inherit}
 #toast{position:fixed;left:50%;bottom:56px;transform:translateX(-50%);background:var(--tip);color:var(--tiptext);padding:8px 14px;border-radius:9px;font-size:12.5px;z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.18);max-width:70vw}
 #toast button{color:var(--tiptext);text-decoration:underline;text-underline-offset:3px;margin-left:10px}
 
@@ -248,3 +286,6 @@ body.mini .toolbar{top:52px}
 #blocksPop .blk img{width:84px;height:56px;background:var(--card);border-radius:6px}
 #blocksPop .blk b{font-weight:500;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #blocksPop .blk span{font-size:10.5px;color:var(--muted)}
+
+/* mniej ruchu, gdy system o to prosi (§9) */
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}

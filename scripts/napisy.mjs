@@ -63,13 +63,13 @@ function skipExpr(src, i) {
 
 for (const f of fs.readdirSync(R).filter(f => f.endsWith('.js'))) scanJs(fs.readFileSync(path.join(R, f), 'utf8'), f);
 
-// index.html: teksty między znacznikami i atrybuty title / aria-label / placeholder (bez translate="no", skryptów, stylów i SVG)
+// index.html: teksty między znacznikami i atrybuty title / aria-label / placeholder / data-tip (bez translate="no", skryptów, stylów i SVG)
 {
   const html = fs.readFileSync(path.join(R, 'index.html'), 'utf8').replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<svg[\s\S]*?<\/svg>|<!--[\s\S]*?-->/g, '');
   const ent = s => s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#(\d+);/g, (m, d) => String.fromCharCode(+d));
   // usuwamy elementy z translate="no" (proste, bez zagnieżdżeń tego samego znacznika)
   const clean = html.replace(/<(\w+)[^>]*translate="no"[^>]*>[\s\S]*?<\/\1>/g, '');
-  for (const m of clean.matchAll(/\b(?:title|aria-label|placeholder)="([^"]*)"/g)) add(ent(m[1]).trim(), 'index.html');
+  for (const m of clean.matchAll(/\b(?:title|aria-label|placeholder|data-tip)="([^"]*)"/g)) add(ent(m[1]).trim(), 'index.html');
   for (const m of clean.matchAll(/>([^<>]+)</g)) { const t = ent(m[1]).trim(); if (t && /\p{L}/u.test(t)) add(t, 'index.html'); }
 }
 

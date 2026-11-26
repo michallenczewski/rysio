@@ -2,7 +2,7 @@
 //   _t('Zaznacz')                  → zwykły napis
 //   _t`Liczba boków: ${n}.`        → szablon; klucz to części dosłowne ze znacznikami {0}, {1}… („Liczba boków: {0}.”)
 // Po angielsku napis bierze się ze słownika lang/en.js; brak tłumaczenia = napis polski (nic się nie psuje).
-// Język wybiera się w ustawieniach (koło zębate, obok wyglądu) i zmienia go przeładowanie okna (napisy w tablicach modułów liczą się raz, przy starcie).
+// Język wybiera się w ustawieniach (ikona suwaków w prawym górnym rogu, pod motywem i skrótami) i zmienia go przeładowanie okna (napisy w tablicach modułów liczą się raz, przy starcie).
 import EN from './lang/en.js';
 
 const KEY = 'rysio.lang';
