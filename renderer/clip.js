@@ -111,5 +111,5 @@ export function pasteClip(tx, doc, clip, { k, d, toSheet, forbid }) {
     const { sp, ...rest } = e;
     made.push(tx.add({ ...rest, layer: lay(e.layer) }));
   }
-  return { made, skipped };
+  return { made, skipped, blocks: blockId };
 }

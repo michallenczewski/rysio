@@ -791,7 +791,7 @@ export function makeTools(app) {
     hint() {
       if (this.mode === 'none') return _t('<b>Bloki:</b> wstawia się je w modelu — przejdź do zakładki Model.');
       if (this.mode === 'create') return _t`<b>Nowy blok z ${this.sel.length} el.:</b> nazwa jest na pasku u góry; kliknij punkt wstawienia — za ten punkt blok będzie się wstawiać.`;
-      if (!this.cur) return _t`<b>Bloki:</b> w rysunku nie ma jeszcze bloków — zaznacz elementy i naciśnij ${app.keyName('block') || _t('przycisk bloków')}, żeby utworzyć pierwszy.`;
+      if (!this.cur) return _t`<b>Bloki:</b> w rysunku nie ma jeszcze bloków — wybierz blok z biblioteki albo zaznacz elementy i naciśnij ${app.keyName('block') || _t('przycisk bloków')}, żeby utworzyć pierwszy.`;
       return _t('<b>Wstaw blok:</b> kliknij miejsce (przyciąganie działa), wpisz kąt, żeby obrócić. Esc kończy.');
     },
     down(p) {
@@ -816,6 +816,16 @@ export function makeTools(app) {
     typed(s) { if (this.mode !== 'insert') return false; const v = parseFloat(String(s).replace(',', '.')); if (!Number.isFinite(v)) return false; this.rot = normDeg(v) * Math.PI / 180; return true; },
     preview() { return this.mode === 'insert' && this.cur && this.at ? [{ t: 'ins', b: this.cur, p: this.at, rot: this.rot, s: 1, mx: false, ...app.newStroke(), _ghost: true }] : []; },
     enter: () => false, cancel: () => false
+  };
+
+  /* ---------- punkt wstawienia bloku zapisywanego do biblioteki (z okienka „Zapisz do biblioteki”) ---------- */
+  T.libpt = {
+    id: 'libpt', draw: true,
+    base: () => null, label: () => null, reading: () => null, badge: () => _t('Punkt wstawienia'),
+    hint: () => _t('<b>Punkt wstawienia:</b> kliknij punkt, za który blok będzie się wstawiać z biblioteki (przyciąganie działa). Bloków w tym rysunku to nie przesunie. Esc wraca.'),
+    down(p) { app.libPointPicked?.(p); },
+    move() {}, typed: () => false, preview: () => [], enter: () => false,
+    cancel() { app.libPointPicked?.(null); return true; }
   };
 
   return T;

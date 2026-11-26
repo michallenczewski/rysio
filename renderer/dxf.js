@@ -411,7 +411,10 @@ export function parseDxf(input, o = {}) {
   if (doc.layers.some(L => !drop(L))) doc.layers = doc.layers.filter(L => !drop(L));
   doc.cur = { layer: (doc.layers.find(L => L.visible && !L.locked) || doc.layers[0]).id, w: null, lt: null };   // rysujemy na warstwie widocznej i odblokowanej
   if (!doc.ents.length && !Object.keys(skipped).length) throw new Error(_t('W pliku nie ma rysunku.'));
-  return { doc: fixDoc(doc), info: { count: doc.ents.filter(e => !e.sp).length, blocks: doc.blocks.length, skipped, units: fileUnits, guessed, truncated: out.length >= LIMIT } };
+  // punkt bazowy pliku ($INSBASE) w metrach modelu — za niego wstawia się plik jako blok (biblioteka bloków)
+  const ib = header.$INSBASE ? [+((header.$INSBASE.find(x => x[0] === 10) || [])[1]) || 0, +((header.$INSBASE.find(x => x[0] === 20) || [])[1]) || 0] : [0, 0];
+  const base = [r6(ib[0] * u - (doc.origin ? doc.origin[0] : 0)), r6(ib[1] * u - (doc.origin ? doc.origin[1] : 0))];
+  return { doc: fixDoc(doc), info: { count: doc.ents.filter(e => !e.sp).length, blocks: doc.blocks.length, skipped, units: fileUnits, guessed, truncated: out.length >= LIMIT, base } };
 }
 // obwody kreskowania z kodów HATCH: ścieżki-polilinie (z wybrzuszeniami) i ścieżki z krawędzi (odcinki, łuki, elipsy, splajny)
 function hatchLoops(c) {
@@ -468,7 +471,7 @@ function guessExtent(ents) {   // rozpiętość osobno w X i w Y (mapy mają X i
 const esc = s => String(s).replace(/[^\x20-\x7e]/g, ch => ch === '\n' ? ' ' : '\\U+' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0'));
 // nazwy warstw i bloków: litery A–Z, cyfry i $ - _ (polskie litery bez ogonków, reszta → _) — pewne w każdym programie CAD
 const PL = { ą: 'a', ć: 'c', ę: 'e', ł: 'l', ń: 'n', ó: 'o', ś: 's', ź: 'z', ż: 'z', Ą: 'A', Ć: 'C', Ę: 'E', Ł: 'L', Ń: 'N', Ó: 'O', Ś: 'S', Ź: 'Z', Ż: 'Z' };
-const layerName = s => String(s).trim().replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, ch => PL[ch]).replace(/[^A-Za-z0-9$_-]/g, '_') || 'Warstwa';
+export const layerName = s => String(s).trim().replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, ch => PL[ch]).replace(/[^A-Za-z0-9$_-]/g, '_') || 'Warstwa';
 const num = v => { const x = Math.round(v * 1e6) / 1e6; return Object.is(x, -0) ? '0' : String(x); };
 
 

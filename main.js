@@ -173,6 +173,56 @@ ipcMain.handle('autosave-list', async () => {
 });
 ipcMain.handle('open-external', (e, url) => { if (/^https:\/\//.test(url)) shell.openExternal(url); });
 
+/* ---------- biblioteka bloków ---------- */
+// Zwykły folder wskazany przez użytkownika: pliki DXF (jeden plik = jeden blok), podfoldery = kategorie.
+// Ścieżki od okna są względne i nie mogą wyjść poza folder biblioteki.
+const libDir = () => settings.libDir || null;
+const inLib = rel => {
+  const d = libDir(); if (!d || typeof rel !== 'string') return null;
+  const root = path.resolve(d), f = path.resolve(root, rel), pre = root.endsWith(path.sep) ? root : root + path.sep;   // dysk Z:\ albo / kończy się już separatorem
+  return f.startsWith(pre) && f.length > pre.length && /\.dxf$/i.test(f) ? f : null;
+};
+const libExists = async () => { try { return (await fsp.stat(libDir())).isDirectory(); } catch (e) { return false; } };
+ipcMain.handle('lib-info', async () => ({ dir: libDir(), ok: !!libDir() && await libExists() }));
+ipcMain.handle('lib-choose', async e => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  const r = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], defaultPath: libDir() || app.getPath('documents') });
+  if (r.canceled || !r.filePaths[0]) return null;
+  settings.libDir = r.filePaths[0]; saveSettings();
+  return { dir: settings.libDir, ok: true };
+});
+// pliki DXF w folderze i w podfolderach (kategoria = pierwszy podfolder), bez ukrytych
+ipcMain.handle('lib-list', async () => {
+  const root = libDir(), out = [];
+  if (!root || !await libExists()) return null;
+  const walk = async (dir, rel, depth) => {
+    let items = []; try { items = await fsp.readdir(dir, { withFileTypes: true }); } catch (err) { return; }
+    for (const it of items) {
+      if (it.name.startsWith('.') || out.length >= 2000) continue;
+      const r = rel ? rel + '/' + it.name : it.name, f = path.join(dir, it.name);
+      if (it.isDirectory() && depth < 3) await walk(f, r, depth + 1);
+      else if (it.isFile() && /\.dxf$/i.test(it.name)) {
+        try { const st = await fsp.stat(f); out.push({ rel: r, name: it.name.replace(/\.dxf$/i, ''), cat: rel ? rel.split('/')[0] : '', mtime: st.mtimeMs }); } catch (err) {}
+      }
+    }
+  };
+  await walk(root, '', 0);
+  return out;
+});
+// czy folder jest zupełnie pusty (bez plików i podfolderów, nie licząc ukrytych) — tylko do takiego wgrywamy bloki na start
+ipcMain.handle('lib-empty', async () => { try { return (await fsp.readdir(libDir())).filter(n => !n.startsWith('.')).length === 0; } catch (err) { return false; } });
+ipcMain.handle('lib-read', async (e, rel) => { const f = inLib(rel); if (!f) throw new Error('?'); return new Uint8Array(await fsp.readFile(f)); });
+// zapis pliku bloku; gdy plik już jest, a overwrite nie jest ustawione — { exists: true } bez zapisu
+ipcMain.handle('lib-write', async (e, rel, text, overwrite) => {
+  const f = inLib(rel); if (!f) throw new Error('?');
+  if (!overwrite) { try { await fsp.stat(f); return { exists: true }; } catch (err) {} }
+  await fsp.mkdir(path.dirname(f), { recursive: true });
+  await fsp.writeFile(f + '.zapis', text, 'utf8');
+  await fsp.rename(f + '.zapis', f);
+  return { ok: true };
+});
+ipcMain.handle('lib-show', async () => { if (libDir()) await shell.openPath(libDir()); });
+
 /* ---------- aktualizacje z wydań na GitHubie (jak w Modo i Gapie) ---------- */
 const REPO = 'michallenczewski/rysio';
 let upd = { state: 'idle', version: null, url: null, name: null, size: 0, got: 0, error: '' };

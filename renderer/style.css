@@ -285,7 +285,37 @@ body.mini .toolbar{top:52px}
 #blocksPop .blk:hover,#blocksPop .blk.on{box-shadow:0 0 0 1.5px var(--sel)}
 #blocksPop .blk img{width:84px;height:56px;background:var(--card);border-radius:6px}
 #blocksPop .blk b{font-weight:500;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#blocksPop .blk span{font-size:10.5px;color:var(--muted)}
+#blocksPop .blk span{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* biblioteka bloków */
+#blocksPop{gap:8px;padding:10px 10px 8px}
+#blocksPop .row{padding:0}
+#blocksPop .blocks{max-height:min(340px,55vh);padding:2px;margin:-2px}
+#blocksPop .blk{position:relative;min-width:0;transition:box-shadow .15s}
+#blocksPop .blk img:not([src]){visibility:hidden}
+#blocksPop .blk.bad img{opacity:.35}
+#blocksPop .blk .indoc{position:absolute;top:9px;right:9px;width:6px;height:6px;border-radius:50%;background:var(--sel)}
+#blocksPop .none{grid-column:1/-1;color:var(--muted);padding:18px 4px;text-align:center}
+#blocksPop .libq{height:28px;border-radius:7px;padding:0 9px}
+.pop .cats{display:flex;flex-wrap:wrap;gap:4px;max-width:304px}
+.pop .cats button{height:24px;padding:0 9px;border-radius:6px;font-size:12px;color:var(--muted);transition:background-color .15s,color .15s}
+.pop .cats button:hover{background:var(--soft);color:var(--text)}
+.pop .cats button.on{background:var(--ink);color:var(--card)}
+.libempty{width:304px;padding:10px 4px 4px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;color:var(--text2);line-height:1.45}
+.libempty .ttl{color:var(--text)}
+.libfoot{display:flex;align-items:center;gap:6px;border-top:1px solid var(--line);padding-top:7px;max-width:304px}
+.libfoot .path{flex:1;min-width:0;font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.libfoot .path span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.libfoot .path svg,.tbs svg{flex:none}
+#blockBar [data-b=tolib]{display:inline-flex;align-items:center;gap:6px}
+#libSavePop{width:320px;gap:8px}
+#libSavePop .row{padding:0}
+#libSavePop .fld2{height:30px;border-radius:7px;background:var(--soft);display:flex;align-items:center;gap:8px;padding:0 10px}
+#libSavePop .fld2 em{font-style:normal;color:var(--muted);font-size:12px}
+#libSavePop .fld2 input{flex:1;border:0;background:none;outline:none;min-width:0;font:inherit;color:var(--text)}
+#libSavePop .fld2.newcat{height:24px;padding:0 8px;flex:1;min-width:110px}
+#libSavePop .cats{max-width:none}
+#libSavePop .sub{font-size:11.5px;color:var(--muted);line-height:1.4;word-break:break-word}
+#libSavePop .sub b{color:var(--text);font-weight:500}
 
 /* mniej ruchu, gdy system o to prosi (§9) */
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}

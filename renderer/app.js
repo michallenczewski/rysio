@@ -14,6 +14,7 @@ import { makeTools } from './tools.js';
 import { setUnit, getUnit, fmtLength } from './units.js';
 import { ACTIONS, loadKeys, saveKeyOverride, keysFor, comboOf, prettyCombo } from './keys.js';
 import { installTestApi } from './testapi.js';
+import { libPack, libGhosts, importLib, libFile, starterFiles, fileSafe } from './library.js';
 
 const api = window.api;
 const $ = s => document.querySelector(s);
@@ -190,6 +191,8 @@ function setTool(id, opts = {}) {
   placeInd();
   app.cursorClass();
   refreshUi(); redraw();
+  // bloki bez żadnego bloku w rysunku: od razu okienko z biblioteką
+  if (id === 'block' && tool.mode === 'insert' && !tool.cur) setTimeout(() => { const b = $('#blockBar [data-b=pick]'); if (b && $('#blocksPop')?.hidden !== false) openBlocksPop(b, pickForInsert, null, 'lib'); }, 0);
 }
 app.setTool = setTool;
 app.cursorClass = () => { $('#view').className = tool.draw ? 'c-draw' : ''; };
@@ -503,7 +506,7 @@ function placePop(pop, anchor) {
 }
 function closePops() {
   let any = false;
-  for (const id of ['#layersPop', '#strokePop', '#menu', '#sheetPop', '#titlePop', '#exportPop', '#blocksPop']) { const el = $(id); if (el && !el.hidden) { el.hidden = true; any = true; } }
+  for (const id of ['#layersPop', '#strokePop', '#menu', '#sheetPop', '#titlePop', '#exportPop', '#blocksPop', '#libSavePop']) { const el = $(id); if (el && !el.hidden) { el.hidden = true; any = true; } }
   document.querySelectorAll('.pill.open, .tb.open').forEach(b => b.classList.remove('open'));
   colorFor = null; renaming = null; strokeTarget = 'auto';
   return any;
@@ -742,15 +745,22 @@ function setHatch(patch) {
 /* ---------- bloki: pasek (wstawianie, nowy blok, zaznaczony blok, edycja w miejscu) ---------- */
 const blockName = id => (app.doc.blocks.find(b => b.id === id) || {}).name || '?';
 const insCount = id => app.doc.ents.filter(e => e.t === 'ins' && e.b === id).length;
-function blockThumb(id, w = 160, h = 108) {
+const blockThumb = id => thumbOf(blockEnts(id));
+// miniatura bloku (elementy w układzie bloku) z niebieskim krzyżykiem w punkcie wstawienia
+function thumbOf(ents, w = 160, h = 108) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
-  const ents = blockEnts(id); let b = null; for (const e of ents) b = boxUnion(b, bbox(e));
+  let b = null; for (const e of ents) { try { b = boxUnion(b, bbox(e)); } catch (err) {} }
   if (!b) return c.toDataURL();
-  const bw = Math.max(b[2] - b[0], 1e-6), bh = Math.max(b[3] - b[1], 1e-6), k = Math.min((w - 16) / bw, (h - 16) / bh);
-  const cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2;
-  const pen = new CanvasPen(c.getContext('2d'), { toScreen: p => [w / 2 + (p[0] - cx) * k, h / 2 - (p[1] - cy) * k], ppm: k });
-  const ink = getComputedStyle(document.body).getPropertyValue('--ink').trim() || '#1a1a19';
+  b = boxUnion(b, [0, 0, 0, 0]);   // punkt wstawienia zawsze w kadrze
+  const bw = Math.max(b[2] - b[0], 1e-6), bh = Math.max(b[3] - b[1], 1e-6), k = Math.min((w - 24) / bw, (h - 24) / bh);
+  const cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2, toScreen = p => [w / 2 + (p[0] - cx) * k, h / 2 - (p[1] - cy) * k];
+  const ctx = c.getContext('2d'), pen = new CanvasPen(ctx, { toScreen, ppm: k }), css = getComputedStyle(document.body);
+  const ink = css.getPropertyValue('--ink').trim() || '#1a1a19';
   for (const e of ents) drawEnt(pen, app.doc, e, { ppm: k, ink, thin: true, scale: app.doc.scale });
+  const [x, y] = toScreen([0, 0]);
+  ctx.strokeStyle = css.getPropertyValue('--sel').trim() || '#3f63a8'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x - 9, y); ctx.lineTo(x + 9, y); ctx.moveTo(x, y - 9); ctx.lineTo(x, y + 9); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.stroke();
   return c.toDataURL();
 }
 function selIns() { if (tool.id !== 'select' || app.sel.size !== 1 || app.blockEdit) return null; const e = app.ents().find(x => app.sel.has(x.id)); return e && e.t === 'ins' ? e : null; }
@@ -776,10 +786,11 @@ function showBlockBar() {
   if (be) html = `<span class="t">${_t`Edycja bloku „${esc(blockName(be.id))}”`}</span><span class="lbl">${_t`zmiana obejmie wszystkie wstawienia (${insCount(be.id)})`}</span>
     <button class="tbs pri" data-b="done">${_t('Gotowe')}</button><button class="tbs" data-b="cancel">${_t('Anuluj')}</button>`;
   else if (bt && bt.mode === 'create') html = `<span class="t">${_t('Nowy blok')}</span><label class="fld"><em>${_t('Nazwa')}</em><input data-b="newname" value="${esc(bt.name)}"></label><span class="lbl">${_t('kliknij punkt wstawienia')}</span>`;
-  else if (bt && bt.mode === 'insert') html = `<span class="t">${_t('Bloki')}</span>` + (bt.cur ? `<button class="tbs" data-b="pick">${esc(blockName(bt.cur))} ${chev}</button><span class="lbl">${_t('klik wstawia · cyfry wpisują obrót')}</span>` : `<span class="lbl">${_t('nie ma jeszcze bloków')}</span>`);
+  else if (bt && bt.mode === 'insert') html = `<span class="t">${_t('Bloki')}</span>` + (bt.cur ? `<button class="tbs" data-b="pick">${esc(blockName(bt.cur))} ${chev}</button><span class="lbl">${_t('klik wstawia · cyfry wpisują obrót')}</span>` : `<button class="tbs" data-b="pick">${_t('Wybierz blok')} ${chev}</button><span class="lbl">${_t('w rysunku nie ma jeszcze bloków')}</span>`);
   else if (bt) { el.remove(); return; }
   else html = `<span class="t">${_t('Blok')}</span><label class="fld"><input data-b="rename" value="${esc(blockName(si.b))}" title="${_t('Nazwa bloku')}"></label><span class="lbl">${_t`${insCount(si.b)} w rysunku`}</span>
-    <button class="tbs" data-b="edit">${_t('Edytuj w miejscu')}</button><button class="tbs" data-b="explode">${_t('Rozbij')}</button>` + (app.doc.blocks.length > 1 ? `<button class="tbs" data-b="swap">${_t('Zamień na…')} ${chev}</button>` : '');
+    <button class="tbs" data-b="edit">${_t('Edytuj w miejscu')}</button><button class="tbs" data-b="explode">${_t('Rozbij')}</button><button class="tbs" data-b="swap">${_t('Zamień na…')} ${chev}</button>
+    <button class="tbs" data-b="tolib" data-tip="${_t('Zapisz blok w bibliotece — będzie pod ręką w innych rysunkach')}">${IC_FOLDER}${_t('Do biblioteki')}</button>`;
   if (el._html !== html && !el.contains(document.activeElement)) { el.innerHTML = html; el._html = html; }
 }
 function onBlockBar(e) {
@@ -788,8 +799,9 @@ function onBlockBar(e) {
   const act = b.dataset.b;
   if (act === 'done') return endBlockEdit(false);
   if (act === 'cancel') return endBlockEdit(true);
-  if (act === 'pick') return openBlocksPop(b, id => { app.tools.block.cur = id; refreshUi(); redraw(); });
+  if (act === 'pick') return openBlocksPop(b, pickForInsert);
   const ins = selIns(); if (!ins) return;
+  if (act === 'tolib') return openSavePop(b, { insId: ins.id, base: null, name: blockName(ins.b), cat: null, exists: false });
   if (act === 'edit') return startBlockEdit(ins);
   if (act === 'explode') {
     const ids = [];
@@ -798,17 +810,253 @@ function onBlockBar(e) {
   }
   if (act === 'swap') return openBlocksPop(b, id => { if (id !== ins.b) app.edit(_t('Zamień blok'), tx => tx.set(ins.id, { b: id })); }, ins.b);
 }
-function openBlocksPop(anchor, onPick, skip = null) {
+const pickForInsert = id => { app.tools.block.cur = id; refreshUi(); redraw(); };
+/* okienko bloków: zakładki „W rysunku” i „Biblioteka” (folder z plikami DXF — zob. library.js i main.js: lib-*) */
+const lib = { info: null, list: null, cache: new Map(), pending: new Map(), tab: null, cat: '', q: '', loading: null, gen: 0 };
+const IC_FOLDER = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4.5V12a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H8L6.5 3.5H3A1 1 0 0 0 2 4.5z"/></svg>';
+// miniatura pamiętana do zmiany pliku albo motywu (kolor kreski)
+const inkNow = () => getComputedStyle(document.body).getPropertyValue('--ink').trim();
+const libFresh = (c, it) => !!c && c.mtime === it.mtime && c.ink === inkNow();
+const libShort = dir => api.web ? _t('Biblioteka w przeglądarce') : String(dir || '').split(/[\\/]/).filter(Boolean).slice(-3).join(' › ');
+const libShowLabel = () => isMac ? _t('Pokaż w Finderze') : _t('Pokaż w Eksploratorze');
+// wczytanie listy plików; równoczesne wywołania czekają na to samo (force po trwającym — jeszcze raz, po nim)
+function libLoad(force = false) {
+  if (!force && (lib.info || lib.loading)) return lib.loading || Promise.resolve();
+  const run = async () => {
+    try { lib.info = await api.libInfo(); lib.list = lib.info.ok ? (await api.libList()) || [] : null; }
+    catch (err) { lib.info = { dir: null, ok: false }; lib.list = null; }
+  };
+  const p = (lib.loading ? lib.loading.then(run) : run()).finally(() => { if (lib.loading === p) lib.loading = null; });
+  return lib.loading = p;
+}
+// błąd z procesu głównego → zrozumiały komunikat
+function libErr(err) {
+  const m = String(err && err.message || err).replace(/^Error invoking remote method '[^']*': (\w*Error: )?/, '');
+  if (/EACCES|EPERM/.test(m)) return _t('brak uprawnień do zapisu w tym folderze');
+  if (/ENOSPC/.test(m)) return _t('brak miejsca na dysku');
+  if (/ENOENT/.test(m)) return _t('nie ma takiego pliku albo folderu');
+  if (m === 'FULL') return _t('pamięć przeglądarki jest pełna');
+  if (m === '?') return _t('niedozwolona nazwa pliku');
+  return m;
+}
+// plik → paczka i miniatura (pamiętane do zmiany pliku)
+async function libEntry(it) {
+  const c = lib.cache.get(it.rel);
+  if (libFresh(c, it)) return c;
+  if (lib.pending.has(it.rel)) return lib.pending.get(it.rel);
+  const p = libEntryLoad(it).finally(() => lib.pending.delete(it.rel));
+  lib.pending.set(it.rel, p); return p;
+}
+async function libEntryLoad(it) {
+  const e = { mtime: it.mtime, ink: inkNow() };
+  try {
+    e.pack = libPack(await api.libRead(it.rel), it.name, app.doc.scale);
+    const g = libGhosts(e.pack); e.thumb = thumbOf(g);
+    let b = null; for (const x of g) { try { b = boxUnion(b, bbox(x)); } catch (err) {} }
+    if (b) e.size = `${fmtLength(b[2] - b[0]).replace(/ \S+$/, '')} × ${fmtLength(b[3] - b[1])}`;
+  } catch (err) { e.err = libErr(err); }
+  lib.cache.set(it.rel, e); return e;
+}
+async function libChoose() {
+  const r = await api.libChoose(); if (!r) return false;
+  lib.cache.clear(); lib.cat = ''; await libLoad(true);
+  // zupełnie pusty folder: bloki na start (do folderu z innymi plikami — tylko na życzenie, przyciskiem)
+  if (lib.list && !lib.list.length && await api.libEmpty()) await libSeed();
+  return true;
+}
+async function libSeed() {
+  let n = 0;
+  try { for (const f of starterFiles(app.doc.scale)) { const r = await api.libWrite(f.rel, f.text, false); if (r && r.ok) n++; } }
+  catch (err) { toast(_t`Nie udało się zapisać w folderze biblioteki: ${esc(libErr(err))}`, 5000); }
+  await libLoad(true);
+  if (n) toast(_t`Wgrano bloki na start: ${n}.`, 3000);
+}
+
+function openBlocksPop(anchor, onPick, skip = null, tab = null) {
   let pop = $('#blocksPop');
-  if (!pop) { pop = document.createElement('section'); pop.id = 'blocksPop'; pop.className = 'pop'; pop.hidden = true; document.body.append(pop); pop.addEventListener('pointerdown', e => e.stopPropagation()); }
+  if (!pop) {
+    pop = document.createElement('section'); pop.id = 'blocksPop'; pop.className = 'pop'; pop.hidden = true; document.body.append(pop);
+    pop.addEventListener('pointerdown', e => e.stopPropagation());
+    pop.addEventListener('keydown', e => { if (e.key === 'Escape') { closePops(); e.preventDefault(); } e.stopPropagation(); });
+    pop.addEventListener('input', e => { if (e.target.dataset.q != null) { lib.q = e.target.value; renderLibGrid(pop); } });
+    pop.addEventListener('click', onBlocksPopClick);
+  }
   const was = !pop.hidden; closePops(); if (was) return;
-  const list = app.doc.blocks.filter(b => b.id !== skip);
-  pop.innerHTML = `<div class="row"><span class="ttl grow">${_t('Bloki w rysunku')}</span></div><div class="blocks">${list.map(b => { const n = insCount(b.id);
-    return `<button class="blk${app.tools.block.cur === b.id && !skip ? ' on' : ''}" data-id="${b.id}"><img src="${blockThumb(b.id)}" alt=""><b translate="no">${esc(b.name)}</b><span>${n ? _t`${n} w rysunku` : _t('nieużywany')}</span></button>`; }).join('')}</div>
-    <div class="lbl" style="padding:2px 4px">${_t`Nowy blok: zaznacz elementy i naciśnij ${app.keyName('block') || 'K'}.`}</div>`;
-  pop.onclick = e => { const x = e.target.closest('[data-id]'); if (!x) return; closePops(); onPick(+x.dataset.id); };
+  pop._ctx = { anchor, onPick, skip };
+  pop._tab = tab || (app.doc.blocks.some(b => b.id !== skip) ? lib.tab || 'doc' : 'lib');
+  renderBlocksPop(pop);
   placePop(pop, anchor);
 }
+function renderBlocksPop(pop) {
+  const { skip } = pop._ctx, tab = pop._tab;
+  const tabs = `<div class="seg" role="tablist"><button data-tab="doc" class="${tab === 'doc' ? 'on' : ''}">${_t('W rysunku')}</button><button data-tab="lib" class="${tab === 'lib' ? 'on' : ''}">${_t('Biblioteka')}</button></div>`;
+  let body;
+  if (tab === 'doc') {
+    const list = app.doc.blocks.filter(b => b.id !== skip);
+    body = `<div class="blocks">${list.map(b => { const n = insCount(b.id);
+      return `<button class="blk${app.tools.block.cur === b.id && !skip ? ' on' : ''}" data-id="${b.id}"><img src="${blockThumb(b.id)}" alt=""><b translate="no">${esc(b.name)}</b><span>${n ? _t`${n} w rysunku` : _t('nieużywany')}</span></button>`; }).join('')
+      || `<div class="none">${_t('W rysunku nie ma jeszcze bloków.')}</div>`}</div>
+      <div class="lbl" style="padding:2px 4px">${_t`Nowy blok: zaznacz elementy i naciśnij ${app.keyName('block') || 'K'}.`}</div>`;
+  } else if (!lib.info) {
+    body = `<div class="libempty"><span class="lbl">${_t('Czytam bibliotekę…')}</span></div>`;
+    libLoad().then(() => { if (lib.info && !pop.hidden && pop._tab === 'lib') renderBlocksPop(pop); });
+  } else if (!lib.info.ok) {
+    body = `<div class="libempty">${IC_FOLDER.replace(/"14"/g, '"22"')}
+      <span class="ttl">${lib.info.dir ? _t('Folder biblioteki jest niedostępny') : _t('Biblioteka nie ma jeszcze folderu')}</span>
+      <span>${lib.info.dir ? _t`Nie ma folderu ${esc(lib.info.dir)} — może dysk w chmurze jest odłączony. Wskaż go jeszcze raz albo wybierz inny.` : _t('Wskaż folder, w którym będą leżeć bloki. Jeśli wybierzesz folder w OneDrive, Dropboxie albo iCloud, ta sama biblioteka będzie w biurze i w domu.')}</span>
+      ${lib.info.dir ? '' : `<span class="lbl">${_t('Do pustego folderu wgramy ponad dwadzieścia podstawowych bloków na start.')}</span>`}
+      <button class="tbs pri" data-lib="choose">${_t('Wskaż folder…')}</button></div>`;
+  } else if (!lib.list.length) {
+    body = `<div class="libempty"><span class="ttl">${_t('W folderze nie ma jeszcze bloków')}</span>
+      <span>${_t('Zaznacz wstawiony blok i naciśnij „Do biblioteki” albo wrzuć do folderu pliki DXF.')}</span>
+      <button class="tbs" data-lib="seed">${_t('Wgraj bloki na start')}</button></div>` + libFoot();
+  } else {
+    const cats = [...new Set(lib.list.map(it => it.cat))].sort((a, b) => a.localeCompare(b));
+    if (lib.cat && lib.cat !== '~' && !cats.includes(lib.cat)) lib.cat = '';
+    body = `<label class="search libq"><input data-q placeholder="${_t('Szukaj w bibliotece')}" value="${esc(lib.q)}" spellcheck="false"></label>
+      <div class="cats">${['', ...cats.filter(Boolean)].map(c => `<button data-cat="${esc(c)}" class="${c === lib.cat ? 'on' : ''}">${c ? esc(c) : _t('Wszystkie')}</button>`).join('')}${cats.includes('') && cats.length > 1 ? `<button data-cat="~" class="${lib.cat === '~' ? 'on' : ''}">${_t('Bez kategorii')}</button>` : ''}</div>
+      <div class="blocks" data-grid></div>` + libFoot();
+  }
+  pop.innerHTML = `<div class="row">${tabs}</div>${body}`;
+  if (pop.querySelector('[data-grid]')) renderLibGrid(pop);
+}
+const libFoot = () => `<div class="libfoot"><span class="path" title="${esc(lib.info.dir || '')}">${IC_FOLDER}<span>${esc(libShort(lib.info.dir))}</span></span>${api.web ? '' : `<button class="tbs" data-lib="show">${libShowLabel()}</button>`}<button class="tbs" data-lib="choose">${_t('Zmień…')}</button></div>`;
+function renderLibGrid(pop) {
+  const grid = pop.querySelector('[data-grid]'); if (!grid) return;
+  const q = lib.q.trim().toLowerCase();
+  const items = lib.list.filter(it => (!lib.cat || (lib.cat === '~' ? !it.cat : it.cat === lib.cat)) && (!q || it.name.toLowerCase().includes(q))).sort((a, b) => a.cat.localeCompare(b.cat) || a.name.localeCompare(b.name, undefined, { numeric: true }));
+  grid.innerHTML = items.map(it => { const c = lib.cache.get(it.rel), ok = libFresh(c, it);
+    const sub = ok && c.err ? _t('nie da się odczytać') : !lib.cat && it.cat ? esc(it.cat) : ok && c.size ? c.size : '';
+    const inDoc = app.doc.blocks.some(b => b.name === it.name);
+    return `<button class="blk${ok && c.err ? ' bad' : ''}" data-rel="${esc(it.rel)}" title="${esc(it.name)}"><img ${ok && c.thumb ? `src="${c.thumb}"` : ''} alt=""><b translate="no">${esc(it.name)}</b><span>${sub || '&nbsp;'}</span>${inDoc ? `<i class="indoc" title="${_t('Już jest w rysunku')}"></i>` : ''}</button>`; }).join('')
+    || `<div class="none">${_t('Nic nie pasuje.')}</div>`;
+  // miniatury po kolei, bez blokowania okna
+  // jedna kolejka naraz: nowe rysowanie siatki (np. kolejna litera w szukaniu) kończy poprzednią
+  const todo = items.filter(it => !libFresh(lib.cache.get(it.rel), it)), gen = ++lib.gen;
+  (async () => {
+    for (const it of todo) {
+      if (gen !== lib.gen || pop.hidden || !grid.isConnected) return;
+      const c = await libEntry(it), el = [...grid.querySelectorAll('[data-rel]')].find(x => x.dataset.rel === it.rel); if (!el) continue;
+      if (c.thumb) el.querySelector('img').src = c.thumb;
+      el.classList.toggle('bad', !!c.err);
+      if (c.err) el.querySelector('span').textContent = _t('nie da się odczytać');
+      else if (lib.cat && c.size) el.querySelector('span').textContent = c.size;
+    }
+  })();
+}
+async function onBlocksPopClick(e) {
+  const pop = $('#blocksPop'), t = e.target;
+  const tb = t.closest('[data-tab]'); if (tb) { pop._tab = lib.tab = tb.dataset.tab; renderBlocksPop(pop); return; }
+  const cb = t.closest('[data-cat]'); if (cb) { lib.cat = cb.dataset.cat; renderBlocksPop(pop); return; }
+  const lb = t.closest('[data-lib]');
+  if (lb) {
+    const a = lb.dataset.lib;
+    if (a === 'show') return api.libShow();
+    if (a === 'seed') { await libSeed(); if (!pop.hidden) renderBlocksPop(pop); return; }
+    if (a === 'choose') { if (await libChoose() && !pop.hidden) renderBlocksPop(pop); return; }
+  }
+  const x = t.closest('[data-id]'); if (x) { closePops(); pop._ctx.onPick(+x.dataset.id); return; }
+  const r = t.closest('[data-rel]'); if (!r) return;
+  const it = lib.list.find(i => i.rel === r.dataset.rel); if (!it) return;
+  const ctx = pop._ctx, c = await libEntry(it);
+  if (pop.hidden || pop._ctx !== ctx) return;   // w czasie czytania pliku okienko zamknięto
+  if (c.err) { react(r, 'nie'); toast(_t`Nie da się odczytać „${esc(it.name)}”: ${esc(c.err)}`, 4000); return; }
+  if (app.space) { toast(_t('Bloki wstawia się w modelu — przejdź do zakładki Model.')); return; }
+  const had = app.doc.blocks.find(b => b.name === it.name);
+  const id = had ? had.id : app.edit(_t('Blok z biblioteki'), tx => importLib(tx, app.doc, c.pack));
+  closePops(); ctx.onPick(id);
+  if (!had && ctx.onPick === pickForInsert) toast(_t`„${esc(it.name)}” skopiowany z biblioteki do rysunku — kliknij miejsce na kartce.`, 3000);
+}
+
+/* zapis bloku do biblioteki: nazwa, kategoria (podfolder), punkt wstawienia */
+let saveSt = null;
+function openSavePop(anchor, st) {
+  let pop = $('#libSavePop');
+  if (!pop) {
+    pop = document.createElement('section'); pop.id = 'libSavePop'; pop.className = 'pop'; pop.hidden = true; document.body.append(pop);
+    pop.addEventListener('pointerdown', e => e.stopPropagation());
+    pop.addEventListener('keydown', e => { if (e.key === 'Escape') { closePops(); e.preventDefault(); } else if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); saveToLib(); } e.stopPropagation(); });
+    pop.addEventListener('input', e => { if (!saveSt) return; if (e.target.dataset.s === 'name') saveSt.name = e.target.value; if (e.target.dataset.s === 'newcat') saveSt.cat = e.target.value; saveSt.exists = false; renderSaveFoot(pop); });
+    pop.addEventListener('click', onSavePopClick);
+  }
+  const was = !pop.hidden; closePops(); if (was) return;
+  saveSt = st; pop._anchor = anchor;
+  renderSavePop(pop);
+  pop.hidden = false;
+  const r = anchor.getBoundingClientRect();
+  pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 8)) + 'px';
+  pop.style.top = (r.bottom + 6) + 'px';
+  if (!lib.info) libLoad().then(() => { if (lib.info && !pop.hidden && saveSt === st) renderSavePop(pop); });
+  pop.querySelector('[data-s=name]')?.select();
+}
+function renderSavePop(pop) {
+  const st = saveSt;
+  if (lib.info && !lib.info.ok) {
+    pop.innerHTML = `<div class="row"><span class="ttl grow">${_t('Zapisz do biblioteki')}</span></div>
+      <div class="libempty" style="width:280px"><span>${lib.info.dir ? _t`Folder biblioteki ${esc(lib.info.dir)} jest niedostępny.` : _t('Najpierw wskaż folder biblioteki — zwykły folder na dysku, najlepiej w OneDrive, Dropboxie albo iCloud.')}</span>
+      <button class="tbs pri" data-s="choose">${_t('Wskaż folder…')}</button></div>`;
+    return;
+  }
+  const cats = lib.list ? [...new Set(lib.list.map(it => it.cat).filter(Boolean))].sort((a, b) => a.localeCompare(b)) : [];
+  // kategoria: ta, w której leży plik o tej nazwie (blok przyszedł z biblioteki), inaczej Meble albo pierwsza
+  if (st.cat === null && lib.list) { const same = lib.list.find(it => it.name === st.name); st.cat = same ? same.cat : cats.includes(_t('Meble')) ? _t('Meble') : (cats[0] || ''); }
+  const custom = st.newCat;
+  pop.innerHTML = `<div class="row"><span class="ttl grow">${_t('Zapisz do biblioteki')}</span></div>
+    <label class="fld2"><em>${_t('Nazwa')}</em><input data-s="name" value="${esc(st.name)}" spellcheck="false"></label>
+    <div class="lbl" style="padding:0 2px">${_t('Kategoria')}</div>
+    <div class="cats">${cats.map(c => `<button data-scat="${esc(c)}" class="${!custom && c === st.cat ? 'on' : ''}">${esc(c)}</button>`).join('')}<button data-scat="" class="${!custom && !st.cat ? 'on' : ''}">${_t('Bez kategorii')}</button>${custom ? `<label class="fld2 newcat"><input data-s="newcat" value="${esc(st.cat)}" placeholder="${_t('Nowa kategoria')}" spellcheck="false"></label>` : `<button data-s="newcat">${_t('+ Nowa…')}</button>`}</div>
+    <div class="row"><span class="lbl grow">${st.base ? _t('Punkt wstawienia: wskazany na rysunku') : _t('Punkt wstawienia: ten, który blok ma w rysunku (krzyżyk na miniaturze)')}</span><button class="tbs" data-s="point">${st.base ? _t('Wskaż jeszcze raz') : _t('Wskaż inny')}</button></div>
+    <div data-foot></div>`;
+  renderSaveFoot(pop);
+  if (custom) pop.querySelector('[data-s=newcat]').focus();
+}
+const saveRel = st => ((st.cat || '').trim() ? fileSafe(st.cat) + '/' : '') + fileSafe(st.name || _t('Blok')) + '.dxf';
+function renderSaveFoot(pop) {
+  const st = saveSt, f = pop.querySelector('[data-foot]'); if (!f || !lib.info) return;
+  f.innerHTML = `<div class="sub">${st.exists ? `<b>${_t('Taki plik już jest w bibliotece.')}</b> ${_t('Zastąpić go? Rysunki, do których blok już wstawiono, się nie zmienią.')}` : _t`Plik: ${esc(libShort(lib.info.dir) + ' › ' + saveRel(st).replace(/\//g, ' › '))} — otworzy go też AutoCAD.`}</div>
+    <div class="row" style="justify-content:flex-end;margin-top:6px"><button class="tbs" data-s="cancel">${_t('Anuluj')}</button><button class="tbs pri" data-s="save">${st.exists ? _t('Zastąp') : _t('Zapisz')}</button></div>`;
+}
+async function onSavePopClick(e) {
+  const pop = $('#libSavePop'), st = saveSt, t = e.target; if (!st) return;
+  const c = t.closest('[data-scat]'); if (c) { st.cat = c.dataset.scat; st.newCat = false; st.exists = false; renderSavePop(pop); return; }
+  const b = t.closest('[data-s]'); if (!b || b.tagName === 'INPUT' || b.tagName === 'LABEL') return;
+  const a = b.dataset.s;
+  if (a === 'cancel') { closePops(); return; }
+  if (a === 'choose') { if (await libChoose()) renderSavePop(pop); return; }
+  if (a === 'newcat') { st.newCat = true; st.cat = ''; st.exists = false; renderSavePop(pop); return; }
+  if (a === 'point') { closePops(); app.libPick = st; setTool('libpt'); return; }
+  if (a === 'save') saveToLib();
+}
+async function saveToLib() {
+  const pop = $('#libSavePop'), st = saveSt; if (!st || !lib.info?.ok) return;
+  const ins = app.doc.ents.find(e => e.id === st.insId);
+  const name = (st.name || '').trim();
+  if (!ins || !name) { react(pop.querySelector('[data-s=save]'), 'nie'); return; }
+  try {
+    const text = libFile(app.doc, ins.b, name, st.base || [0, 0]);
+    const r = await api.libWrite(saveRel({ ...st, name }), text, st.exists);
+    if (r && r.exists) { st.exists = true; renderSaveFoot(pop); return; }
+    closePops(); saveSt = null;
+    lib.cache.delete(saveRel({ ...st, name })); await libLoad(true);
+    react($('#blockBar [data-b=tolib]'), 'tak');
+    toast(_t`Zapisano „${esc(name)}” w bibliotece` + ((st.cat || '').trim() ? ` (${esc(st.cat.trim())}).` : '.'), 2600);
+  } catch (err) { toast(_t`Nie udało się zapisać w folderze biblioteki: ${esc(libErr(err))}`, 5000); }
+}
+// punkt wskazany narzędziem „libpt” → w układzie bloku (odwrotność wstawienia: przesunięcie, obrót, skala, odbicie)
+app.libPointPicked = p => {
+  const st = app.libPick; if (!st) return; app.libPick = null;
+  const ins = app.doc.ents.find(e => e.id === st.insId);
+  if (p && ins) {
+    const d = V.sub(p, ins.p), c = Math.cos(ins.rot || 0), s = Math.sin(ins.rot || 0), k = ins.s || 1, m = ins.mx ? -1 : 1;
+    st.base = [(d[0] * c + d[1] * s) / (k * m), (-d[0] * s + d[1] * c) / k];
+  }
+  setTimeout(() => {
+    if (tool.id === 'libpt') setTool('select');
+    if (tool.id !== 'select' || !ins || !app.doc.ents.some(e => e.id === ins.id)) return;
+    app.sel = new Set([ins.id]); app.selectionChanged();
+    setTimeout(() => { const a = $('#blockBar [data-b=tolib]'); if (a) openSavePop(a, st); }, 0);
+  }, 0);
+};
 // edycja w miejscu: pracujemy w układzie bloku, reszta rysunku jest przygaszonym tłem (przeniesionym odwrotnie)
 function startBlockEdit(ins) {
   if (app.space) { toast(_t('Bloki edytuje się w modelu.')); return; }

@@ -7,7 +7,9 @@
     i.onchange = () => res(i.files[0] || null); i.click();
   });
   const download = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); };
-  const AUTO = 'rysio.autozapis';
+  const AUTO = 'rysio.autozapis', LIB = 'rysio.biblioteka';
+  const lib = () => { try { return JSON.parse(localStorage.getItem(LIB) || 'null'); } catch (e) { return null; } };
+  const libPut = L => { try { localStorage.setItem(LIB, JSON.stringify(L)); return true; } catch (e) { return false; } };
   window.api = {
     web: true,
     platform: /Mac/.test(navigator.platform) ? 'darwin' : /Win/.test(navigator.platform) ? 'win32' : 'linux',
@@ -27,6 +29,14 @@
     async autosaveRead(key) { try { const r = JSON.parse(localStorage.getItem(AUTO) || 'null'); return r && r.key === key ? r : null; } catch (e) { return null; } },
     async autosaveList(mine) { try { const r = JSON.parse(localStorage.getItem(AUTO) || 'null'); return r && r.key !== mine ? [{ key: r.key, name: r.name, path: null, time: r.time }] : []; } catch (e) { return []; } },
     openExternal(url) { window.open(url, '_blank'); },
+    // biblioteka bloków w przeglądarce: pliki w pamięci przeglądarki zamiast folderu (do testów)
+    async libInfo() { const L = lib(); return { dir: L ? L.dir : null, ok: !!L }; },
+    async libChoose() { const L = lib() || { dir: 'web', files: {} }; libPut(L); return { dir: L.dir, ok: true }; },
+    async libList() { const L = lib(); return L ? Object.entries(L.files).map(([rel, f]) => ({ rel, name: rel.split('/').pop().replace(/\.dxf$/i, ''), cat: rel.includes('/') ? rel.split('/')[0] : '', mtime: f.mtime })) : null; },
+    async libEmpty() { const L = lib(); return !!L && !Object.keys(L.files).length; },
+    async libRead(rel) { const f = lib()?.files[rel]; if (!f) throw new Error('?'); return f.text; },
+    async libWrite(rel, text, overwrite) { const L = lib(); if (!L) throw new Error('?'); if (L.files[rel] && !overwrite) return { exists: true }; L.files[rel] = { text, mtime: Date.now() }; if (!libPut(L)) throw new Error('FULL'); return { ok: true }; },
+    async libShow() {},
     setDirty() {}, closeNow() {}, newWindow() { window.open(location.pathname, '_blank'); }, setTheme() {},
     onSaveThenClose() {}, onFullscreen() {}, onUpdate() {},
     async updateGet() { return { state: 'idle' }; }, async updateCheck() { return { state: 'idle' }; }, async updateInstall() { return false; }

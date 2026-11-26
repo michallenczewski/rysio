@@ -62,6 +62,8 @@ Etap 2 dodał:
 
 `hatch`, `insert` + `blocks` — etap 4.
 
+**Biblioteka bloków (26.11.2026, makieta `makieta/biblioteka.html`).** Zwykły folder wskazany przez użytkownika (`settings.libDir` w `main.js`), w nim pliki DXF: jeden plik = jeden blok, nazwa bloku = nazwa pliku (DXF gubi polskie litery w nazwach bloków, nazwa pliku nie), kategoria = pierwszy podfolder. Plik zapisuje Rysio jako DXF z blokiem i jednym jego wstawieniem w zerze (punkt wstawienia bloku = zero pliku); czytamy też zwykłe pliki z AutoCAD-a (cały model za punktem `$INSBASE`, jak WBLOCK). Zamiana plik ↔ blok w `renderer/library.js` przez paczkę jak w schowku (`packClip` / `pasteClip`), więc warstwy i bloki zagnieżdżone łączą się po nazwie. Zasady: warstwy porównujemy bez polskich liter (plik ich nie ma), elementy z warstwy „0” trafiają na bieżącą warstwę rysunku (tak są zrobione bloki na start, tak robią biblioteki AutoCAD-a); blok o tej samej nazwie już w rysunku jest używany bez ponownego czytania; blok w rysunku jest kopią — zmiana pliku nie zmienia starych rysunków. Inny punkt wstawienia przy zapisie: narzędzie `libpt` (bez przycisku) bierze punkt z rysunku i przelicza go odwrotnością wstawienia. Bloki na start (`starterFiles`) są w kodzie jako geometria i zapisują się do pustego folderu przy jego wskazaniu. Miniatury liczą się w oknie (plik po pliku, w tle) i są pamiętane do zmiany pliku albo motywu. W wersji przeglądarkowej „folder” to pamięć przeglądarki (`web-api.js`).
+
 ### Jednostki i skala
 
 - Geometria zawsze w metrach. Jednostka (m / cm / mm) dotyczy tylko wpisywania i pokazywania liczb (`renderer/units.js`).
@@ -123,11 +125,13 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 | `renderer/keys.js` | skróty klawiszowe i ich zmiana |
 | `renderer/i18n.js`, `renderer/lang/en.js` | tłumaczenie napisów (`_t`), znak dziesiętny `DEC` (przecinek / kropka); słownik angielski pełny od 24.11.2026 |
 | `scripts/napisy.mjs` | wyszukuje wszystkie `_t(…)` i stałe teksty `index.html`, pokazuje brakujące tłumaczenia (kod 1, gdy są) |
+| `renderer/library.js` | biblioteka bloków: plik DXF ↔ blok (`libPack`, `importLib`, `libFile`), miniatura (`libGhosts`), bloki na start (`starterFiles`); folder obsługuje `main.js` (`lib-info`, `lib-choose`, `lib-list`, `lib-read`, `lib-write`, `lib-show` — ścieżki tylko wewnątrz folderu, tylko `.dxf`) |
 | `renderer/web-api.js` | zastępczy most dla wersji przeglądarkowej |
 | `renderer/testapi.js` | `window.rysioTest` — polecenia testowe bez klikania |
 | `scripts/serve-web.js` | serwer wersji przeglądarkowej |
 | `scripts/sprawdziany.mjs` | sprawdziany geometrii i modelu (bez przeglądarki) |
 | `makieta/makieta.html` | zaakceptowana makieta wyglądu (23.11.2026) |
+| `makieta/biblioteka.html` | zaakceptowana makieta biblioteki bloków (26.11.2026) |
 | `WYTYCZNE_INTERAKCJE.md` | wspólny język interakcji całej rodziny programów (wzór: Blat); w Rysiu wprowadzony 26.11.2026 według makiety `makieta/ruch.html` |
 | `.github/workflows/build.yml` | instalatory Windows i Mac, uruchamiane ręcznie |
 | `build/icon.svg` → `build/icon.png` | ikona programu: miękka czarna pętla z kwadracikiem na złamanej bieli (wybór 23.11.2026, `makieta/znak.html`); PNG 1024 px z przezroczystym marginesem robi `scripts/ikona.js` (Electronem; `qlmanage` wypełniał margines na biało i macOS pokazywał białą ramkę) |
@@ -176,6 +180,7 @@ PDF powstaje bez biblioteki (zob. wyżej).
 
 - **Przerysowanie całości przy każdym ruchu myszy** — wystarczy do kilkunastu tysięcy elementów. Przy podkładach (etap 5) trzeba będzie rysować rysunek do bufora, a na wierzch tylko kursor i podgląd, oraz dodać indeks przestrzenny.
 - **Kreskowanie nie jest skojarzone** z obrysem — po zmianie ścian trzeba je narysować na nowo. Szukanie obszaru bierze pod uwagę widoczną część rysunku (z zapasem 15%).
+- **Biblioteka czyta tylko DXF** (bez DWG) i tylko do trzech poziomów podfolderów; folder w chmurze, który nie jest pobrany na dysk (pliki „na żądanie”), może czytać się wolno przy pierwszym otwarciu.
 - **Wstawienie bloku ma jedną skalę** (bez osobnej X i Y); takie wstawienia z DXF są rozbijane.
 - **Uchwyty** nie mają wpisywania długości z klawiatury — tylko przeciąganie albo klik w nowe miejsce, z przyciąganiem i kierunkami.
 - **Zaokrąglanie działa na dwóch pojedynczych liniach** — nie na wierzchołkach polilinii ani na łukach. Polilinię trzeba by najpierw rozbić (polecenie, którego jeszcze nie ma).

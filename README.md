@@ -43,6 +43,7 @@ Lekki program do rysunku 2D w skali — rzut, przekrój, schemat, detal, plansza
 
 - Kreskowanie (H): klik wewnątrz zamkniętego obszaru (także z otworami — np. ściana między dwoma obrysami); obrys podświetla się przed kliknięciem. Sześć wzorów (ukośne, krzyżowe, beton, izolacja, grunt, pełne), skala i kąt na pasku u góry; gęstość w milimetrach wydruku. Położone kreskowanie zostaje zaznaczone i pasek zmienia je od razu (aż do kliknięcia następnego obszaru); zaznaczone kreskowania zmienia ten sam pasek.
 - Bloki (K): z zaznaczeniem — nowy blok (nazwa na pasku, klik w punkt wstawienia); bez zaznaczenia — wstawianie (wybór z miniaturami, cyfry wpisują obrót). Zaznaczony blok: nazwa, Edytuj w miejscu (też dwuklik), Rozbij, Zamień na… W edycji reszta rysunku jest przygaszona; Gotowe albo Esc kończy, Anuluj cofa zmiany. Przesuń, obróć, odbij, skaluj i kopiuj działają na blokach.
+- Biblioteka bloków: druga zakładka okienka bloków. To zwykły folder (najlepiej w OneDrive, Dropboxie albo iCloud — wtedy ta sama w biurze i w domu), w nim pliki DXF: jeden plik to jeden blok, podfoldery to kategorie. Do pustego folderu program wgrywa ponad dwadzieścia prostych bloków na start. Klik na blok z biblioteki kopiuje go do rysunku i od razu się go wstawia; niebieski krzyżyk na miniaturze to punkt wstawienia. Zaznaczony blok → „Do biblioteki” zapisuje go jako plik (nazwa, kategoria, w razie potrzeby inny punkt wstawienia). Blok w rysunku jest kopią — późniejsza zmiana pliku nie zmienia starych rysunków.
 
 ## Nawigacja
 

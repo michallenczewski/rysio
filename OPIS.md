@@ -24,6 +24,7 @@ Zmienianie:
 Porządek:
 - warstwy: nazwa, kolor, widoczność, blokada, domyślna grubość i rodzaj linii
 - bloki: utwórz z zaznaczenia, wstaw, edytuj w miejscu (zmiana jednego zmienia wszystkie), rozbij
+- biblioteka bloków: folder z plikami DXF (kategorie = podfoldery), wstawianie z niej i zapis do niej (dodane 26.11.2026 na prośbę Michała, makieta `makieta/biblioteka.html`)
 - kreskowanie (hatch): wypełnienie zamkniętego obszaru wskazanego kliknięciem — kilka wzorów (ukośne linie, krzyżowe, beton, izolacja, grunt, pełne) ze skalą i kątem
 - ramka (border): obrys arkusza z tabelką rysunkową do wypełnienia
 

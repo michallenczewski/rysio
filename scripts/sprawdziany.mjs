@@ -693,6 +693,45 @@ przypadek('wymiar promienia i średnicy', 'okrąg r=1; opis na zewnątrz; skala 
     'po skalowaniu ×2': [G.adimGeom(s2).value, 2], 'po przesunięciu': [mv.c, [8, 4]] };
 });
 
+/* ---------- biblioteka bloków ---------- */
+const LB = await import(R + 'library.js');
+przypadek('biblioteka: bloki na start', 'pliki DXF bloków startowych wczytane z powrotem: drzwi 90 — zawias w zerze, skrzydło łukiem r = 0,9 m; elementy z warstwy „0” trafiają na bieżącą warstwę rysunku', () => {
+  const files = LB.starterFiles(50), f = files.find(x => x.rel === 'Drzwi i okna/Drzwi 90.dxf');
+  const pack = LB.libPack(f.text, 'Drzwi 90', 50), main = pack.blocks[pack.blocks.length - 1];
+  const arc = main.ents.find(e => e.t === 'arc');
+  const dst = M.newDoc(); dst.layers.push({ id: 5, name: 'Wyposażenie', color: '#000', visible: true, locked: false, w: 0.25, lt: 'solid' }); dst.cur.layer = 5; dst.next = 10;
+  const h = new M.History(dst); let id; h.edit('Blok z biblioteki', tx => { id = LB.importLib(tx, dst, pack); });
+  const inB = dst.ents.filter(e => e.sp === 'b' + id);
+  const all = files.map(x => { try { const p = LB.libPack(x.text, 'x', 50); return p.blocks[p.blocks.length - 1].ents.length > 0; } catch (e) { return false; } });
+  return { 'liczba bloków na start': [files.length, 22], 'każdy się wczytuje': [all.every(Boolean), true], 'łuk skrzydła': [[...arc.c, arc.r], [0, 0, 0.9]],
+    'blok w rysunku': [[dst.blocks.map(b => b.name), inB.length], [['Drzwi 90'], 2]], 'warstwa elementów': [[...new Set(inB.map(e => e.layer))], [5]], 'nowe warstwy': [dst.layers.length, 2] };
+});
+przypadek('biblioteka: zapis z innym punktem wstawienia', 'blok „Stół” (linia 0–2 m na warstwie „Ściany”) zapisany z punktem (1; 0) i wczytany do rysunku, który ma „Ściany”; drugi raz ten sam blok nie powstaje', () => {
+  const src = blockDoc(); src.layers.push({ id: 20, name: 'Ściany', color: '#c00', visible: true, locked: false, w: 0.5, lt: 'solid' });
+  for (const e of src.ents) e.layer = 20;
+  const text = LB.libFile(src, 9, 'Stół duży', [1, 0]);
+  const pack = LB.libPack(text, 'Stół duży', 50), main = pack.blocks[pack.blocks.length - 1], ln = main.ents.find(e => e.t === 'line');
+  const dst = M.newDoc(); dst.layers.push({ id: 7, name: 'Ściany', color: '#c00', visible: true, locked: false, w: 0.5, lt: 'solid' }); dst.next = 10;
+  const h = new M.History(dst); let a, b;
+  h.edit('Blok z biblioteki', tx => { a = LB.importLib(tx, dst, pack); });
+  h.edit('Blok z biblioteki', tx => { b = LB.importLib(tx, dst, pack); });
+  const inB = dst.ents.filter(e => e.sp === 'b' + a);
+  return { 'linia po przesunięciu punktu': [r4([...ln.a, ...ln.b]), [-1, 0, 1, 0]], 'warstwa bez nowej „Sciany”': [[dst.layers.map(L => L.name), [...new Set(inB.map(e => e.layer))]], [['Rysunek', 'Ściany'], [7]]],
+    'drugi raz ten sam': [[a === b, dst.blocks.length], [true, 1]], 'elementy bloku': [inB.length, 3] };
+});
+przypadek('biblioteka: zwykły plik DXF z punktem bazowym', 'plik w milimetrach bez bloków, $INSBASE (1000; 500): linia (1000; 500)–(3000; 500) staje się blokiem od (0; 0) do (2; 0)', () => {
+  const t = dxfOf(['9', '$INSUNITS', '70', '4', '9', '$INSBASE', '10', '1000', '20', '500', '30', '0'], ['0', 'LINE', '8', 'Osie', '10', '1000', '20', '500', '11', '3000', '21', '500']);
+  const pack = LB.libPack(t, 'Oś', 50), ln = pack.blocks[0].ents[0];
+  return { 'nazwa': [pack.blocks[0].name, 'Oś'], 'linia': [r4([...ln.a, ...ln.b]), [0, 0, 2, 0]], 'warstwa': [ln.layer, 'Osie'], 'nazwa pliku': [LB.fileSafe(' Szafa: 60/180 '), 'Szafa- 60-180'],
+    'nazwy zakazane': [[LB.fileSafe('...'), LB.fileSafe('CON'), LB.fileSafe('.ukryty.')], ['Blok', 'CON_', 'ukryty']] };
+});
+przypadek('biblioteka: plik z jednym obróconym wstawieniem', 'plik z AutoCAD-a: blok z linią (0; 0)–(1; 0) wstawiony w (5; 5) z obrotem 90° i skalą 2 — blok z biblioteki wygląda tak samo jak w pliku: linia (0; 0)–(0; 2)', () => {
+  const blk = ['0', 'BLOCK', '2', 'B1', '10', '0', '20', '0', '0', 'LINE', '8', '0', '10', '0', '20', '0', '11', '1', '21', '0', '0', 'ENDBLK'];
+  const t = dxfOf(['9', '$INSUNITS', '70', '6'], ['0', 'INSERT', '8', 'Osie', '2', 'B1', '10', '5', '20', '5', '41', '2', '42', '2', '50', '90'], blk);
+  const pack = LB.libPack(t, 'Kreska', 50), ln = pack.blocks[pack.blocks.length - 1].ents.find(e => e.t === 'line');
+  return { 'linia': [r4([...ln.a, ...ln.b]), [0, 0, 0, 2]] };
+});
+
 /* ---------- uruchomienie ---------- */
 const args = process.argv.slice(2), verbose = args.includes('-v'), filt = args.find(a => a !== '-v')?.toLowerCase();
 const fmt = x => typeof x === 'number' ? (Number.isInteger(x) ? String(x) : x.toFixed(6)) : Array.isArray(x) && x.length && x.every(v => typeof v === 'number') ? pt(x) : JSON.stringify(x);
