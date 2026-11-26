@@ -497,11 +497,16 @@ function renderPills() {
 
 /* ---------- okienka: warstwy ---------- */
 let colorFor = null, renaming = null;
+// okienko spod przycisku na górnym pasku unosi się nad kartką: górna krawędź = kartka + 12 px, prawa krawędź równo
+// z prawą krawędzią przycisku (wytyczne-uklad-i-przyciski §2); spod przycisku gdzie indziej — tuż pod nim, od lewej
+const POP_GAP = 12;
+const fromTop = a => !!a.closest('#top');
+const belowBar = (anchor, r) => fromTop(anchor) ? $('#view').getBoundingClientRect().top + POP_GAP : r.bottom + 6;
 function placePop(pop, anchor) {
   pop.hidden = false;
-  const r = anchor.getBoundingClientRect();
-  pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + 'px';
-  pop.style.top = (r.bottom + 6) + 'px';
+  const r = anchor.getBoundingClientRect(), w = pop.offsetWidth;
+  pop.style.left = Math.max(8, Math.min(fromTop(anchor) && r.left + r.width / 2 > innerWidth / 2 ? r.right - w : r.left, innerWidth - w - 8)) + 'px';
+  pop.style.top = belowBar(anchor, r) + 'px';
   anchor.classList.add('open');
 }
 function closePops() {
@@ -607,14 +612,15 @@ document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop, .me
 
 // przebudowa paska albo okienka „w miejscu”: te same elementy zostają (zmieniają się tylko napisy i atrybuty),
 // więc kliknięty przycisk nie znika i jego animacja wciśnięcia / „tak” się odgrywa; pole z kursorem zostaje nietknięte
-const KEEP_CLS = ['wcis', 'tak', 'nie', 'wlacz', 'wylacz', 'open'];
+const KEEP_CLS = ['wcis', 'tak', 'nie', 'wlacz', 'wylacz', 'open', 'zind'];
 // „tożsamość” elementu: id i nazwy atrybutów data-* z wartościami kluczy — inny element na tym miejscu (np. nowa zakładka
 // tam, gdzie był „+”, wiersz kolorów zamiast wiersza warstwy) jest podmieniany, a nie przerabiany (nie przejmuje animacji ani podpowiedzi)
 const KEY_ATTR = ['data-sp', 'data-id', 'data-rel', 'data-for', 'data-tab', 'data-cat'];
 const keyOf = e => (e.id || '') + '|' + [...e.attributes].filter(a => a.name.startsWith('data-')).map(a => a.name + (KEY_ATTR.includes(a.name) ? '=' + a.value : '')).sort().join(',');
 function morph(el, html) { const t = document.createElement('template'); t.innerHTML = html; syncKids(el, t.content); }
 function syncKids(old, neu) {
-  const a = [...old.childNodes], b = [...neu.childNodes];
+  // wskaźnik zakładek (.seg > .ind) dokłada app.js — nie ma go w nowym kodzie, więc go pomijamy
+  const a = [...old.childNodes].filter(x => !(x.nodeType === 1 && x.classList.contains('ind') && old.classList?.contains('seg'))), b = [...neu.childNodes];
   for (let i = 0; i < b.length; i++) {
     const o = a[i], n = b[i];
     if (!o) { old.append(n); continue; }
@@ -1133,9 +1139,10 @@ function showMenu(anchor, items, { up = false, right = false } = {}) {
   }
   m.hidden = false;
   const r = anchor.getBoundingClientRect();
+  if (fromTop(anchor)) right = r.left + r.width / 2 > innerWidth / 2;   // menu z górnego paska jak okienka (§2); Plik po lewej — od lewej krawędzi przycisku
   m.style.left = Math.max(8, Math.min(right ? r.right - m.offsetWidth : r.left, innerWidth - m.offsetWidth - 8)) + 'px';
   m.style.transformOrigin = (up ? 'bottom ' : 'top ') + (right ? 'right' : 'left');
-  m.style.top = (up ? r.top - m.offsetHeight - 6 : r.bottom + 6) + 'px';
+  m.style.top = (up ? r.top - m.offsetHeight - 6 : belowBar(anchor, r)) + 'px';
   anchor.classList.add('open');
 }
 $('#unitBtn').addEventListener('click', e => { e.stopPropagation(); if (!$('#menu').hidden) return closePops(); showMenu($('#unitBtn'), [{ lbl: _t('Jednostka wymiarów') }, ...['m', 'cm', 'mm'].map(u => ({ label: { m: _t('metry'), cm: _t('centymetry'), mm: _t('milimetry') }[u], on: app.doc.units === u, act: () => app.edit(_t('Jednostka'), tx => tx.setDoc({ units: u })) }))], { up: true }); });
@@ -1406,14 +1413,14 @@ function openSheetPop() {
   const sh = app.sheet(); if (!sh) return;
   closePops();
   const pop = $('#sheetPop');
-  pop.innerHTML = `<div class="row"><span class="ttl grow">${_t('Arkusz')}</span></div>
+  morph(pop, `<div class="row"><span class="ttl grow">${_t('Arkusz')}</span></div>
     <div class="row"><span class="lbl w72">${_t('Format')}</span><div class="seg stretch grow">${Object.keys(PAPER).reverse().map(k => `<button data-size="${k}" class="${sh.size === k ? 'on' : ''}">${k}</button>`).join('')}</div></div>
     <div class="row"><span class="lbl w72">${_t('Układ')}</span><div class="seg stretch grow"><button data-land="1" class="${sh.land ? 'on' : ''}">${_t('Poziomo')}</button><button data-land="0" class="${sh.land ? '' : 'on'}">${_t('Pionowo')}</button></div></div>
     <div class="row"><span class="lbl w72">${_t('Ramka')}</span><span class="grow">${_t('z tabelką rysunkową')}</span><button class="tgl${sh.frame ? ' on' : ''}" data-frame role="switch" aria-checked="${sh.frame}" aria-label="${_t('Ramka z tabelką')}"></button></div>
     <div class="row"><span class="lbl w72">${_t('Nazwa')}</span>${fld('name', sh.name)}</div>
     <div class="hr"></div>
     <div class="row"><p class="note grow">${_t('Ramka ma margines 20 mm z lewej do wpięcia i 10 mm z pozostałych stron.')}</p></div>
-    <div class="row"><span class="grow"></span><button class="tbs" data-delsheet>${_t('Usuń arkusz')}</button></div>`;
+    <div class="row"><span class="grow"></span><button class="tbs" data-delsheet>${_t('Usuń arkusz')}</button></div>`);
   placePopUp(pop, $('#fmtChip'));
 }
 $('#sheetPop').addEventListener('click', e => {
@@ -1585,15 +1592,13 @@ function openExport() {
   closePops();
   if (!app.doc.sheets.length) return toast(_t('Najpierw dodaj arkusz (+ na dole) — PDF powstaje z arkuszy.'), 4000);
   const pop = $('#exportPop'), cur = app.sheet(), all = exp.kind === 'pdf' && (exp.all || !cur), pngSheet = cur || app.doc.sheets[0];
-  pop.innerHTML = `<div class="row"><span class="ttl grow">${_t('Eksport')}</span></div>
+  morph(pop, `<div class="row"><span class="ttl grow">${_t('Eksport')}</span></div>
     <div class="seg stretch"><button data-k="pdf" class="${exp.kind === 'pdf' ? 'on' : ''}">${_t('PDF wektorowy')}</button><button data-k="png" class="${exp.kind === 'png' ? 'on' : ''}">PNG</button></div>
     <div class="row"><span class="lbl w72">${_t('Arkusze')}</span><div class="seg stretch grow"><button data-all="0" class="${all ? '' : 'on'}" ${cur ? '' : 'disabled'}>${_t('Ten')}</button><button data-all="1" class="${all ? 'on' : ''}" ${exp.kind === 'png' ? 'disabled' : ''}>${_t`Wszystkie (${app.doc.sheets.length})`}</button></div></div>
     <div class="row"><span class="lbl w72">${_t('Kolory')}</span><div class="seg stretch grow"><button data-mono="0" class="${exp.mono ? '' : 'on'}">${_t('Warstw')}</button><button data-mono="1" class="${exp.mono ? 'on' : ''}">${_t('Czarno-białe')}</button></div></div>
     <div class="hr"></div><p class="note">${exp.kind === 'pdf' ? _t('Kreski w milimetrach jak w pasku kreski, okna w swoich skalach. Wszystkie arkusze trafiają do jednego pliku, każdy na osobnej stronie.') : _t`Obraz arkusza „${esc(pngSheet.name)}” w 200 dpi.`}</p>
-    <div class="row" style="justify-content:flex-end;gap:6px"><button class="tbs" id="expPrint">${_t('Drukuj…')}</button><button class="primary" id="expGo">${exp.kind === 'pdf' ? _t('Zapisz PDF…') : _t('Zapisz PNG…')}</button></div>`;
-  pop.hidden = false;
-  const r = $('#pdfBtn').getBoundingClientRect();
-  pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 8)) + 'px'; pop.style.top = (r.bottom + 6) + 'px';
+    <div class="row" style="justify-content:flex-end;gap:6px"><button class="tbs" id="expPrint">${_t('Drukuj…')}</button><button class="primary" id="expGo">${exp.kind === 'pdf' ? _t('Zapisz PDF…') : _t('Zapisz PNG…')}</button></div>`);
+  placePop(pop, $('#pdfBtn'));
 }
 $('#exportPop').addEventListener('click', async e => {
   e.stopPropagation();
@@ -1663,10 +1668,39 @@ let toastTimer = null;
 // krótka reakcja przycisku: „tak” — udało się, „nie” — nie da się (wytyczne interakcji §5)
 // (wzorzec_przyciskow.html: „zagraj”) — także przy kolejnych kliknięciach pod rząd; wlacz / wylacz — przełącznik
 function react(b, cls) { if (!b) return; b.classList.remove('tak', 'nie', 'wlacz', 'wylacz'); void b.offsetWidth; b.classList.add(cls); clearTimeout(b._react); b._react = setTimeout(() => b.classList.remove(cls), 650); }
+// zakładki (.seg): wspólny wskaźnik idzie pod przycisk z klasą .on — bez względu na to, które miejsce w kodzie ją ustawia.
+// Zakładki powstają w paskach i okienkach w trakcie pracy, więc każdą nową kapsułę wyłapuje obserwator całego okna.
+function segInd(seg) {
+  if (seg._ind) return; seg._ind = 1;
+  const ind = document.createElement('div'); ind.className = 'ind cicho'; seg.prepend(ind); seg.classList.add('zind');
+  let first = true;
+  const move = () => {
+    if (ind.parentNode !== seg) seg.prepend(ind);   // przebudowa zawartości kapsuły mogła go zdjąć
+    const on = seg.querySelector(':scope > button.on'); ind.style.opacity = on ? 1 : 0; if (!on || !on.offsetWidth) return;
+    ind.style.width = on.offsetWidth + 'px'; ind.style.transform = `translateX(${on.offsetLeft}px)`;
+    if (first) { first = false; requestAnimationFrame(() => requestAnimationFrame(() => ind.classList.remove('cicho'))); }
+  };
+  new MutationObserver(move).observe(seg, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
+  new ResizeObserver(() => { ind.classList.add('cicho'); move(); requestAnimationFrame(() => ind.classList.remove('cicho')); }).observe(seg);
+  move();
+}
+document.querySelectorAll('.seg').forEach(segInd);
+new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches('.seg')) segInd(n); n.querySelectorAll?.('.seg').forEach(segInd); } })
+  .observe(document.body, { childList: true, subtree: true });
+// „tak” po kliknięciu przycisku z tekstem (§4); fokus nie zostaje na przycisku klikniętym myszą (§5) — inaczej skrót
+// zapala na nim ramkę fokusu, a spacja albo Enter klikają go jeszcze raz
+document.addEventListener('click', e => {   // w fazie przechwytywania: paski i okienka zatrzymują kliknięcie dla siebie
+  const b = e.target.closest && e.target.closest('.tb, .tbs, .primary'); if (b && !b.disabled && !b.classList.contains('chip')) react(b, 'tak');
+}, true);
+document.addEventListener('click', e => {
+  if (e.detail === 0) return;
+  const b = e.target.closest && e.target.closest('button, input[type="checkbox"]');
+  if (b && document.activeElement === b) b.blur();
+}, true);
 // wciśnięcie przycisku z ikoną (wzorzec_przyciskow.html): :active trwa tyle co kliknięcie (~0,1 s), więc ugięcia prawie
 // nie widać — klasa .wcis od pointerdown do puszczenia, ale co najmniej 90 ms
 // przyciski z ikoną (.ib — ugina się ikona) i z samym tekstem (ugina się cały przycisk, wytyczne §2b)
-const PRESS = '.ib, .tb, .tbs, .pill, .menu button, .seg button, .pop .cats button, #blocksPop .blk, #toast button, .toolbar .pick, .toolbar .pats button, .tabs button, .pop .mv';
+const PRESS = '.ib, .tb, .tbs, .pill, .menu button, .seg button, .pop .cats button, #blocksPop .blk, #toast button, .toolbar .pick, .toolbar .pats button, .tabs button, .pop .mv, .primary';
 document.addEventListener('pointerdown', e => {
   const b = e.target.closest && e.target.closest(PRESS); if (!b || e.button || b.disabled) return;
   b.classList.add('wcis'); const t0 = performance.now();
