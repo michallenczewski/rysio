@@ -22,6 +22,7 @@ Do samego przenikania kolorów i przezroczystości — zwykłe `ease` / `ease-ou
 | kolor tła przycisku przy najechaniu | 0,15 s | ease |
 | ikona: uniesienie przy najechaniu, powrót po wciśnięciu | 0,35 s | sprężyna |
 | ikona: ugięcie przy wciśnięciu (trzymane co najmniej 90 ms) | 0,09 s | ease-out |
+| przycisk z samym tekstem: ugięcie całego do 0,97 / powrót | 0,09 s / 0,35 s | ease-out / sprężyna |
 | wskaźnik wybranego narzędzia (przeskok) | 0,42 s | sprężyna |
 | wysuwana grupa opcji (np. kolory mazaka) | 0,42 s | sprężyna (max-width) + 0,2 s przezroczystość |
 | włączenie przełącznika (wypełnienie od środka) | 0,42 s | sprężyna |
@@ -63,6 +64,18 @@ Pułapki, przez które animacja „nie działa”:
 - Po wdrożeniu sprawdź szybkim kliknięciem: ikona ma się wyraźnie zmniejszyć i sprężyście wrócić.
   Jeśli nic się nie rusza, sprawdź też, czy w systemie nie jest włączone „Ogranicz ruch” (macOS) /
   „Pokaż animacje” wyłączone (Windows) — wtedy reguła z punktu 9 słusznie wyłącza ruch.
+
+### 2b. Przycisk z samym tekstem
+
+Przycisk bez ikony (czynność w panelu, wiersz listy, pozycja menu, przycisk w oknie potwierdzenia) nie ma czego
+ugiąć, więc **ugina się cały**: do 0,97 w 0,09 s (ease-out), po puszczeniu wraca sprężyną w 0,35 s. Tę samą klasę
+`.wcis` dodaje ten sam kod JS co przy ikonach (dopisz selektor przycisków tekstowych). Po kliknięciu, jak wszędzie,
+„tak”: tło błyska kolorem najechania i gaśnie (na ciemnym głównym przycisku zamiast tła — przezroczystość 0,6 → 1).
+
+```css
+.act { transition: background-color .15s, color .15s, opacity .15s, transform .35s var(--spring); }
+.act.wcis { transform: scale(.97); transition: transform .09s ease-out; }
+```
 
 Ikona przycisku: 15 px, kreska 1,3 px, zaokrąglone końce, **najwyżej 2–3 proste kształty**
 (w tej wielkości szczegóły znikają). Przycisk 30 × 28 px, zaokrąglenie 7 px.

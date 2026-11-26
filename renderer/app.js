@@ -1637,8 +1637,10 @@ let toastTimer = null;
 function react(b, cls) { if (!b) return; b.classList.remove('tak', 'nie', 'wlacz', 'wylacz'); void b.offsetWidth; b.classList.add(cls); clearTimeout(b._react); b._react = setTimeout(() => b.classList.remove(cls), 650); }
 // wciśnięcie przycisku z ikoną (wzorzec_przyciskow.html): :active trwa tyle co kliknięcie (~0,1 s), więc ugięcia prawie
 // nie widać — klasa .wcis od pointerdown do puszczenia, ale co najmniej 90 ms
+// przyciski z ikoną (.ib — ugina się ikona) i z samym tekstem (ugina się cały przycisk, wytyczne §2b)
+const PRESS = '.ib, .tb, .tbs, .pill, .menu button, .seg button, .pop .cats button, #blocksPop .blk, #toast button';
 document.addEventListener('pointerdown', e => {
-  const b = e.target.closest && e.target.closest('.ib'); if (!b || e.button) return;
+  const b = e.target.closest && e.target.closest(PRESS); if (!b || e.button || b.disabled) return;
   b.classList.add('wcis'); const t0 = performance.now();
   const up = () => { removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
     setTimeout(() => b.classList.remove('wcis'), Math.max(0, 90 - (performance.now() - t0))); };
