@@ -1,7 +1,7 @@
 {
   "name": "rysio",
   "productName": "Rysio",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Lekki program do rysunku 2D w skali",
   "author": "Michał Lenczewski",
   "license": "GPL-3.0-or-later",
