@@ -161,6 +161,7 @@ footer{display:flex;align-items:center;gap:8px;padding:0 12px 0 6px;min-width:0}
     <div><b>Gdzie leży biblioteka</b>Zwykły folder, który wskazujesz raz. Najlepiej w OneDrive, Dropboxie albo iCloud — wtedy ta sama biblioteka jest w biurze i w domu. Podfoldery to kategorie (Drzwi i okna, Meble…).</div>
     <div><b>Jeden blok = jeden plik DXF</b>Na przykład <i>Meble/Stół 80×160.dxf</i>. Taki plik otworzy też AutoCAD, a bloki z biura wystarczy wrzucić do folderu — pojawią się w bibliotece.</div>
     <div><b>Wstawianie</b>Klik na blok z biblioteki kopiuje go do rysunku i od razu wstawiasz go na kartce, jak każdy blok. Można go też przeciągnąć z okienka na kartkę. Niebieska kropka znaczy: ten blok już jest w rysunku.</div>
+    <div><b>Punkt wstawienia</b>Każdy blok ma swój — ten wskazany przy tworzeniu bloku; zapisuje się w pliku. Na miniaturach i przy kursorze to niebieski krzyżyk. Przy zapisie do biblioteki można wskazać inny. Bloki startowe mają punkty „od ściany”: drzwi — zawias przy ościeżu, okno — narożnik lica muru, WC i umywalka — środek tylnej krawędzi, wanna i blaty — narożnik, stół — środek, schody — pierwszy stopień.</div>
     <div><b>Kopia, nie połączenie</b>Blok w rysunku jest kopią. Gdy później zmienisz plik w bibliotece, stare rysunki się nie zmienią — tak jak w AutoCAD-zie. Dzięki temu rysunek nie zależy od folderu.</div>
     <div><b>Zapis</b>Zaznacz wstawiony blok; na jego pasku jest nowy przycisk „Do biblioteki”. Wybierasz nazwę i kategorię. Jeśli plik o tej nazwie już jest, program zapyta, czy go zastąpić.</div>
     <div class="q"><b>Pytanie do Ciebie</b>Czy przy pierwszym wskazaniu pustego folderu wgrać kilkanaście prostych bloków na start (te z makiety: drzwi, okna, meble, łazienka, kuchnia, schody)?</div>
@@ -170,35 +171,36 @@ footer{display:flex;align-items:center;gap:8px;padding:0 12px 0 6px;min-width:0}
 <script>
 const $ = s => document.querySelector(s);
 const S = 'fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"';
-// bloki w centymetrach: [nazwa, kategoria, szerokość, wysokość, rysunek]
+// bloki w centymetrach: [nazwa, kategoria, szerokość, wysokość, rysunek, punkt wstawienia x, y]
 const LIB = [
-  ['Drzwi 90', 'Drzwi i okna', 100, 95, `<path d="M5 92H10M100 92H95M10 92V2h4v90M14 2A86 86 0 0 1 95 92"/>`],
-  ['Drzwi 80', 'Drzwi i okna', 90, 85, `<path d="M5 82H10M90 82H85M10 82V2h4v80M14 2A76 76 0 0 1 85 82"/>`],
-  ['Drzwi przesuwne 90', 'Drzwi i okna', 110, 30, `<path d="M2 10H108M2 20H108M10 8h50v4H10zM50 18h50v4H50z"/>`],
-  ['Okno 120', 'Drzwi i okna', 130, 30, `<path d="M5 5H125V25H5zM5 13H125M5 17H125M65 5V25"/>`],
-  ['Okno 90', 'Drzwi i okna', 100, 30, `<path d="M5 5H95V25H5zM5 13H95M5 17H95"/>`],
-  ['Stół 80×160', 'Meble', 220, 150, `<path d="M30 35H190V115H30z"/><path d="M45 12h40v20H45zM135 12h40v20h-40zM45 118h40v20H45zM135 118h40v20h-40zM4 55h20v40H4zM196 55h20v40h-20z"/>`],
-  ['Stół okrągły ø100', 'Meble', 160, 160, `<circle cx="80" cy="80" r="50"/><path d="M60 4h40v20H60zM60 136h40v20H60zM4 60h20v40H4zM136 60h20v40h-20z"/>`],
-  ['Łóżko 160×200', 'Meble', 170, 210, `<path d="M5 5H165V205H5z"/><path d="M15 15h65v35H15zM90 15h65v35H90zM5 70H165M5 70q80 25 160 0"/>`],
-  ['Sofa 3-os.', 'Meble', 220, 95, `<path d="M5 5H215V90H5zM5 5h20v85M195 5v85M25 25H195M25 25v65M82 25v65M138 25v65"/>`],
-  ['Fotel', 'Meble', 90, 90, `<path d="M5 5H85V85H5zM5 5h15v80M70 5v80M20 22H70"/>`],
-  ['Szafa 60×180', 'Meble', 190, 70, `<path d="M5 5H185V65H5zM5 35H185M65 5v60M125 5v60"/>`],
-  ['Biurko 140', 'Meble', 150, 120, `<path d="M5 5H145V75H5z"/><path d="M50 82h50v34H50z"/>`],
-  ['Miska WC', 'Łazienka', 45, 70, `<path d="M5 5H40V20H5z"/><path d="M8 20C8 50 14 66 22.5 66S37 50 37 20"/>`],
-  ['Umywalka 60', 'Łazienka', 65, 50, `<path d="M5 5H60V45H5z"/><ellipse cx="32.5" cy="27" rx="20" ry="13"/><path d="M32.5 9v5"/>`],
-  ['Wanna 170×75', 'Łazienka', 175, 80, `<rect x="3" y="3" width="169" height="74" rx="4"/><rect x="13" y="11" width="150" height="58" rx="26"/><circle cx="148" cy="40" r="3"/>`],
-  ['Brodzik 90×90', 'Łazienka', 95, 95, `<path d="M3 3H92V92H3zM3 3L92 92M92 3L3 92"/><circle cx="47.5" cy="47.5" r="5"/>`],
-  ['Pralka', 'Łazienka', 65, 65, `<path d="M3 3H62V62H3z"/><circle cx="32.5" cy="35" r="18"/>`],
-  ['Zlewozmywak', 'Kuchnia', 110, 55, `<path d="M3 3H107V52H3z"/><rect x="10" y="10" width="40" height="35" rx="4"/><rect x="58" y="10" width="40" height="35" rx="4"/>`],
-  ['Płyta 4-pol.', 'Kuchnia', 65, 55, `<path d="M3 3H62V52H3z"/><circle cx="18" cy="16" r="8"/><circle cx="46" cy="16" r="8"/><circle cx="18" cy="38" r="10"/><circle cx="46" cy="38" r="7"/>`],
-  ['Lodówka 60', 'Kuchnia', 65, 65, `<path d="M3 3H62V62H3zM3 3L62 62"/>`],
-  ['Schody proste 10', 'Schody', 280, 100, `<path d="M5 5H275V95H5z"/><path d="M32 5v90M59 5v90M86 5v90M113 5v90M140 5v90M167 5v90M194 5v90M221 5v90M248 5v90"/><path d="M18 50H262M250 42l12 8-12 8"/>`],
-  ['Schody zabiegowe', 'Schody', 200, 200, `<path d="M5 5H195V195H105V95H5z"/><path d="M5 30h100M5 55h100M5 80h100M105 95L195 5M105 95L150 5M105 95L195 50M130 95v100M155 95v100M180 95v100"/>`],
+  ['Drzwi 90', 'Drzwi i okna', 100, 95, `<path d="M5 92H10M100 92H95M10 92V2h4v90M14 2A86 86 0 0 1 95 92"/>`, 10, 92],
+  ['Drzwi 80', 'Drzwi i okna', 90, 85, `<path d="M5 82H10M90 82H85M10 82V2h4v80M14 2A76 76 0 0 1 85 82"/>`, 10, 82],
+  ['Drzwi przesuwne 90', 'Drzwi i okna', 110, 30, `<path d="M2 10H108M2 20H108M10 8h50v4H10zM50 18h50v4H50z"/>`, 2, 15],
+  ['Okno 120', 'Drzwi i okna', 130, 30, `<path d="M5 5H125V25H5zM5 13H125M5 17H125M65 5V25"/>`, 5, 25],
+  ['Okno 90', 'Drzwi i okna', 100, 30, `<path d="M5 5H95V25H5zM5 13H95M5 17H95"/>`, 5, 25],
+  ['Stół 80×160', 'Meble', 220, 150, `<path d="M30 35H190V115H30z"/><path d="M45 12h40v20H45zM135 12h40v20h-40zM45 118h40v20H45zM135 118h40v20h-40zM4 55h20v40H4zM196 55h20v40h-20z"/>`, 110, 75],
+  ['Stół okrągły ø100', 'Meble', 160, 160, `<circle cx="80" cy="80" r="50"/><path d="M60 4h40v20H60zM60 136h40v20H60zM4 60h20v40H4zM136 60h20v40h-20z"/>`, 80, 80],
+  ['Łóżko 160×200', 'Meble', 170, 210, `<path d="M5 5H165V205H5z"/><path d="M15 15h65v35H15zM90 15h65v35H90zM5 70H165M5 70q80 25 160 0"/>`, 85, 5],
+  ['Sofa 3-os.', 'Meble', 220, 95, `<path d="M5 5H215V90H5zM5 5h20v85M195 5v85M25 25H195M25 25v65M82 25v65M138 25v65"/>`, 110, 5],
+  ['Fotel', 'Meble', 90, 90, `<path d="M5 5H85V85H5zM5 5h15v80M70 5v80M20 22H70"/>`, 45, 5],
+  ['Szafa 60×180', 'Meble', 190, 70, `<path d="M5 5H185V65H5zM5 35H185M65 5v60M125 5v60"/>`, 95, 5],
+  ['Biurko 140', 'Meble', 150, 120, `<path d="M5 5H145V75H5z"/><path d="M50 82h50v34H50z"/>`, 75, 5],
+  ['Miska WC', 'Łazienka', 45, 70, `<path d="M5 5H40V20H5z"/><path d="M8 20C8 50 14 66 22.5 66S37 50 37 20"/>`, 22.5, 5],
+  ['Umywalka 60', 'Łazienka', 65, 50, `<path d="M5 5H60V45H5z"/><ellipse cx="32.5" cy="27" rx="20" ry="13"/><path d="M32.5 9v5"/>`, 32.5, 5],
+  ['Wanna 170×75', 'Łazienka', 175, 80, `<rect x="3" y="3" width="169" height="74" rx="4"/><rect x="13" y="11" width="150" height="58" rx="26"/><circle cx="148" cy="40" r="3"/>`, 3, 3],
+  ['Brodzik 90×90', 'Łazienka', 95, 95, `<path d="M3 3H92V92H3zM3 3L92 92M92 3L3 92"/><circle cx="47.5" cy="47.5" r="5"/>`, 3, 3],
+  ['Pralka', 'Łazienka', 65, 65, `<path d="M3 3H62V62H3z"/><circle cx="32.5" cy="35" r="18"/>`, 32.5, 3],
+  ['Zlewozmywak', 'Kuchnia', 110, 55, `<path d="M3 3H107V52H3z"/><rect x="10" y="10" width="40" height="35" rx="4"/><rect x="58" y="10" width="40" height="35" rx="4"/>`, 3, 3],
+  ['Płyta 4-pol.', 'Kuchnia', 65, 55, `<path d="M3 3H62V52H3z"/><circle cx="18" cy="16" r="8"/><circle cx="46" cy="16" r="8"/><circle cx="18" cy="38" r="10"/><circle cx="46" cy="38" r="7"/>`, 3, 3],
+  ['Lodówka 60', 'Kuchnia', 65, 65, `<path d="M3 3H62V62H3zM3 3L62 62"/>`, 3, 3],
+  ['Schody proste 10', 'Schody', 280, 100, `<path d="M5 5H275V95H5z"/><path d="M32 5v90M59 5v90M86 5v90M113 5v90M140 5v90M167 5v90M194 5v90M221 5v90M248 5v90"/><path d="M18 50H262M250 42l12 8-12 8"/>`, 5, 95],
+  ['Schody zabiegowe', 'Schody', 200, 200, `<path d="M5 5H195V195H105V95H5z"/><path d="M5 30h100M5 55h100M5 80h100M105 95L195 5M105 95L150 5M105 95L195 50M130 95v100M155 95v100M180 95v100"/>`, 5, 5],
 ];
 const CATS = ['Wszystkie', 'Drzwi i okna', 'Meble', 'Łazienka', 'Kuchnia', 'Schody'];
 const inDoc = { 'Drzwi 90': 3, 'Stół 80×160': 1, 'Okno 120': 4, 'Łóżko 160×200': 1 };
 const D = () => st.stan === 'first' ? {} : inDoc;
-const svgOf = (b, extra = '') => `<svg viewBox="0 0 ${b[2]} ${b[3]}" preserveAspectRatio="xMidYMid meet" ${extra}><g ${S}>${b[4]}</g></svg>`;
+const mark = (x, y, r) => `<g stroke="var(--sel)" stroke-width="1.6" vector-effect="non-scaling-stroke" fill="none"><path d="M${x - r} ${y}H${x + r}M${x} ${y - r}V${y + r}" vector-effect="non-scaling-stroke"/><circle cx="${x}" cy="${y}" r="${r * .45}" vector-effect="non-scaling-stroke"/></g>`;
+const svgOf = b => { const r = Math.max(b[2], b[3]) * .07, m = r + 2; return `<svg viewBox="${-m} ${-m} ${b[2] + 2 * m} ${b[3] + 2 * m}" preserveAspectRatio="xMidYMid meet"><g ${S}>${b[4]}</g>${mark(b[5], b[6], r)}</svg>`; };
 const find = n => LIB.find(b => b[0] === n);
 
 const st = { stan: 'ins', tab: 'lib', cat: 'Wszystkie', q: '', cur: 'Stół 80×160', sys: 'win', placed: [], ghost: null, popOpen: true };
@@ -223,10 +225,11 @@ const WALLS = `<g fill="none" stroke="currentColor" stroke-width="3"><path d="M1
   <g fill="none" stroke="currentColor" stroke-width="1.2"><path d="M200 60V54H300V66H200zM620 60V54H760V66H620zM880 200H886V330H874V200zM120 400H114V470H126V400z"/></g>`;
 // pozycja bloku na kartce: 1 cm = 1,1 jednostki kartki (skala makiety)
 const K = 1.1;
-function placed(name, x, y, cls = '') {
+// center: x, y to środek bloku (rzut przykładowy); bez — x, y to punkt wstawienia
+function placed(name, x, y, center = true, withMark = false) {
   const b = find(name); if (!b) return '';
-  const w = b[2] * K, h = b[3] * K;
-  return `<g class="${cls}" transform="translate(${x - w / 2} ${y - h / 2}) scale(${K})"><g ${S}>${b[4]}</g></g>`;
+  const ox = center ? x - b[2] * K / 2 : x - b[5] * K, oy = center ? y - b[3] * K / 2 : y - b[6] * K;
+  return `<g transform="translate(${ox} ${oy}) scale(${K})"><g ${S}>${b[4]}</g>${withMark ? mark(b[5], b[6], 7) : ''}</g>`;
 }
 function sheet() {
   const sel = st.stan === 'save';
@@ -234,11 +237,12 @@ function sheet() {
   let s = `<g style="color:var(--ink)">${WALLS}
     ${placed('Drzwi 90', 390, 252)}${placed('Drzwi 90', 530, 330)}${placed('Łóżko 160×200', 300, 180)}${placed('Szafa 60×180', 300, 450)}
     ${placed('Okno 120', 250, 60)}${placed('Okno 120', 690, 60)}${placed('Sofa 3-os.', 690, 450)}`;
-  for (const p of st.placed) s += placed(p.n, p.x, p.y);
+  for (const p of st.placed) s += placed(p.n, p.x, p.y, false);
   s += `</g>`;
   s += `<g style="color:${sel ? 'var(--sel)' : 'var(--ink)'}">${placed('Stół 80×160', 690, 190)}</g>`;
   if (sel) s += `<g fill="var(--sel)"><rect x="686" y="186" width="8" height="8"/></g>`;
-  if (st.ghost && st.stan === 'ins' && !st.popOpen) s += `<g style="color:var(--sel);opacity:.55">${placed(st.cur, st.ghost[0], st.ghost[1])}</g>`;
+  if (sel && st.newPt) s += `<g style="color:var(--sel)" fill="none" stroke="var(--sel)" stroke-width="1.6"><path d="M${st.newPt[0] - 9} ${st.newPt[1]}h18M${st.newPt[0]} ${st.newPt[1] - 9}v18"/><circle cx="${st.newPt[0]}" cy="${st.newPt[1]}" r="4"/></g>`;
+  if (st.ghost && st.stan === 'ins' && !st.popOpen) s += `<g style="color:var(--sel);opacity:.55">${placed(st.cur, st.ghost[0], st.ghost[1], false, true)}</g>`;
   $('#sheet').innerHTML = s;
 }
 
@@ -272,12 +276,14 @@ function pop() {
       <label class="fld2"><em>Nazwa</em><input id="sName" value="Stół 80×160"></label>
       <div class="lbl">Kategoria</div>
       <div class="cats" id="sCats">${CATS.slice(1).map(c => `<button data-c="${c}" class="${c === 'Meble' ? 'on' : ''}">${c}</button>`).join('')}<button data-c="+">+ Nowa…</button></div>
+      <div class="row"><span class="lbl grow">Punkt wstawienia: ${st.newPt ? 'wskazany przed chwilą' : 'ten, który blok ma w rysunku (kwadracik)'}</span><button class="tbs" id="sPt">${st.newPt ? 'Wskaż jeszcze raz' : 'Wskaż inny'}</button></div>
       <div class="sub" id="sPath"></div>
       <div class="row" style="justify-content:flex-end;margin-top:2px"><button class="tbs" id="sCancel">Anuluj</button><button class="tbs pri" id="sOk">Zapisz</button></div>`;
     const upd = () => { const c = $('#sCats .on')?.dataset.c || 'Meble'; $('#sPath').innerHTML = `Plik: <code>${libPath()} › ${c} › ${$('#sName').value || 'Blok'}.dxf</code> — otworzy go też AutoCAD.`; };
     upd(); $('#sName').oninput = upd;
     $('#sCats').onclick = e => { const b = e.target.closest('[data-c]'); if (!b || b.dataset.c === '+') return; $('#sCats .on')?.classList.remove('on'); b.classList.add('on'); upd(); };
-    $('#sCancel').onclick = () => { st.popOpen = false; pop(); };
+    $('#sPt').onclick = () => { st.pickPt = true; st.popOpen = false; render(); };
+    $('#sCancel').onclick = () => { st.popOpen = false; st.newPt = null; render(); };
     $('#sOk').onclick = () => { const c = $('#sCats .on')?.dataset.c; const n = $('#sName').value; st.popOpen = false; pop(); toast(`Zapisano „${n}” w bibliotece (${c}).`); const t = $('#toLib'); t.classList.remove('tak'); t.offsetWidth; t.classList.add('tak'); };
     return;
   }
@@ -324,7 +330,7 @@ function card(n, sub, lib = false) {
 
 function msg() {
   $('#msg').innerHTML = st.stan === 'save'
-    ? '<b>Blok:</b> „Do biblioteki” zapisuje go jako plik, żeby był pod ręką w innych rysunkach.'
+    ? (st.pickPt ? '<b>Punkt wstawienia:</b> kliknij punkt, za który blok będzie się wstawiać z biblioteki (przyciąganie działa). Bloków w tym rysunku to nie przesunie.' : '<b>Blok:</b> „Do biblioteki” zapisuje go jako plik, żeby był pod ręką w innych rysunkach.')
     : st.stan === 'first' ? '<b>Bloki:</b> w rysunku nie ma jeszcze bloków — wybierz z biblioteki albo zaznacz elementy i naciśnij K.'
     : st.popOpen ? '<b>Bloki:</b> wybierz blok z rysunku albo z biblioteki.' : `<b>Wstaw blok „${st.cur}”:</b> kliknij miejsce (przyciąganie działa), wpisz kąt, żeby obrócić. Esc kończy.`;
 }
@@ -336,7 +342,7 @@ function setSeg(sel, v) { document.querySelectorAll(sel + ' button').forEach(b =
 
 $('#stan').onclick = e => {
   const b = e.target.closest('button'); if (!b) return; setSeg('#stan', b.dataset.v); st.stan = b.dataset.v;
-  st.popOpen = true; st.tab = st.stan === 'first' ? 'lib' : 'lib'; st.placed = [];
+  st.popOpen = true; st.tab = 'lib'; st.placed = []; st.newPt = null; st.pickPt = false;
   if (st.stan === 'save') st.popOpen = false;
   render();
 };
@@ -351,6 +357,7 @@ function toSheet(e) { const svg = $('#sheet'), pt = svg.createSVGPoint(); pt.x =
 paper.addEventListener('pointermove', e => { if (st.stan !== 'ins' || st.popOpen) return; st.ghost = toSheet(e); sheet(); });
 paper.addEventListener('pointerleave', () => { st.ghost = null; sheet(); });
 paper.addEventListener('click', e => {
+  if (st.pickPt) { st.newPt = toSheet(e); st.pickPt = false; st.popOpen = true; render(); return; }
   if (st.popOpen) { st.popOpen = false; render(); return; }
   if (st.stan !== 'ins') return;
   const [x, y] = toSheet(e); st.placed.push({ n: st.cur, x, y }); inDoc[st.cur] = (inDoc[st.cur] || 0) + 1; sheet();
