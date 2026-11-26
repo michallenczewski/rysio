@@ -528,7 +528,7 @@ function renderLayersPop() {
     </div>` + (colorFor === L.id ? `<div class="colors">${LAYER_COLORS.map(c => `<button data-setcolor="${c}" data-for="${L.id}" class="${c === L.color ? 'on' : ''}" style="background:${c}" aria-label="${c}"></button>`).join('')}</div>` : '');
   }).join('');
   const note = si ? _t`Zaznaczone: ${si.n}. „Przenieś tutaj” przy warstwie przenosi je na nią; z kreską „jak warstwa” przejmują jej kreskę.` : _t('Klik w nazwę — warstwa dla nowych elementów, dwuklik — zmiana nazwy. Kreska w wierszu zmienia kreskę warstwy.');
-  pop.innerHTML = `<div class="row" style="height:26px"><span class="ttl grow">${_t('Warstwy')}</span><button class="tbs" id="layerAdd">${_t('Dodaj')}</button></div><div class="hr" style="margin-top:4px"></div>${rows}<div class="hr"></div><p class="note">${note}</p>`;
+  morph(pop, `<div class="row" style="height:26px"><span class="ttl grow">${_t('Warstwy')}</span><button class="tbs" id="layerAdd">${_t('Dodaj')}</button></div><div class="hr" style="margin-top:4px"></div>${rows}<div class="hr"></div><p class="note">${note}</p>`);
   const inp = pop.querySelector('[data-rename]'); if (inp) { inp.focus(); inp.select(); }
 }
 $('#layersPop').addEventListener('click', e => {
@@ -586,9 +586,9 @@ function renderStrokePop() {
   const note = s.kind === 'layer' ? _t('Zmiana dotyczy wszystkich elementów tej warstwy z kreską „jak warstwa”.')
     : s.kind === 'sel' ? _t`Zmiana dotyczy zaznaczonych elementów (${s.si.n}). Obwódka — kreska z warstwy.`
     : _t`Dotyczy następnych elementów. Obwódka — kreska z warstwy. Istniejące linie najszybciej przemalujesz pędzlem (${prettyCombo(keysFor('brush', app.keys.over)[0] || 'M', isMac)}).`;
-  pop.innerHTML = `<div class="row" style="height:28px">${head}</div><div class="hr"></div>
+  morph(pop, `<div class="row" style="height:28px">${head}</div><div class="hr"></div>
     <div class="kcols"><div class="kcol"><div class="h">${_t('Grubość, mm')}</div>${ws}</div><div class="kcol"><div class="h">${_t('Rodzaj')}</div>${ts}</div></div>
-    <div class="hr"></div><p class="note">${note}</p>`;
+    <div class="hr"></div><p class="note">${note}</p>`);
 }
 $('#strokePop').addEventListener('click', e => {
   e.stopPropagation();
@@ -605,18 +605,46 @@ $('#strokePop').addEventListener('click', e => {
 });
 document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop, .menu, .pill, #miniBadge, #status .unit, #status .chip, #fileBtn, #setBtn, #pdfBtn, .toolbar')) closePops(); });
 
+// przebudowa paska albo okienka „w miejscu”: te same elementy zostają (zmieniają się tylko napisy i atrybuty),
+// więc kliknięty przycisk nie znika i jego animacja wciśnięcia / „tak” się odgrywa; pole z kursorem zostaje nietknięte
+const KEEP_CLS = ['wcis', 'tak', 'nie', 'wlacz', 'wylacz', 'open'];
+// „tożsamość” elementu: id i nazwy atrybutów data-* z wartościami kluczy — inny element na tym miejscu (np. nowa zakładka
+// tam, gdzie był „+”, wiersz kolorów zamiast wiersza warstwy) jest podmieniany, a nie przerabiany (nie przejmuje animacji ani podpowiedzi)
+const KEY_ATTR = ['data-sp', 'data-id', 'data-rel', 'data-for', 'data-tab', 'data-cat'];
+const keyOf = e => (e.id || '') + '|' + [...e.attributes].filter(a => a.name.startsWith('data-')).map(a => a.name + (KEY_ATTR.includes(a.name) ? '=' + a.value : '')).sort().join(',');
+function morph(el, html) { const t = document.createElement('template'); t.innerHTML = html; syncKids(el, t.content); }
+function syncKids(old, neu) {
+  const a = [...old.childNodes], b = [...neu.childNodes];
+  for (let i = 0; i < b.length; i++) {
+    const o = a[i], n = b[i];
+    if (!o) { old.append(n); continue; }
+    if (o.nodeType !== n.nodeType || o.nodeName !== n.nodeName || (o.nodeType === 1 && keyOf(o) !== keyOf(n))) { o.replaceWith(n); continue; }
+    if (o.nodeType !== 1) { if (o.nodeValue !== n.nodeValue) o.nodeValue = n.nodeValue; continue; }
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(o.nodeName)) { if (o !== document.activeElement) o.replaceWith(n); continue; }
+    for (const at of [...o.attributes]) if (!n.hasAttribute(at.name)) o.removeAttribute(at.name);
+    for (const at of [...n.attributes]) {
+      let v = at.value;
+      if (at.name === 'class') v = [v, ...KEEP_CLS.filter(c => o.classList.contains(c))].join(' ').trim();
+      if (o.getAttribute(at.name) !== v) o.setAttribute(at.name, v);
+    }
+    if (!n.hasAttribute('class')) { const k = KEEP_CLS.filter(c => o.classList.contains(c)); if (k.length) o.setAttribute('class', k.join(' ')); }
+    syncKids(o, n);
+  }
+  for (let i = b.length; i < a.length; i++) a[i].remove();
+}
+
 /* ---------- pasek pędzla ---------- */
 function showBrushBar() {
   let el = $('#brushBar');
   if (!el) { el = document.createElement('div'); el.id = 'brushBar'; el.className = 'toolbar'; view.append(el); el.addEventListener('pointerdown', e => e.stopPropagation()); el.addEventListener('click', e => { const br = app.tools.brush; if (e.target.closest('[data-pick]')) { br.picking = !br.picking; refreshUi(); return; } const b = e.target.closest('[data-mode]'); if (b) { br.mode = b.dataset.mode; showBrushBar(); } }); }
   const br = app.tools.brush, c = br.getCarry(), L = app.doc.layers.find(x => x.id === c.layer) || app.doc.layers[0];
   const w = c.w ?? L.w, lt = c.lt ?? L.lt;
-  el.innerHTML = `<span class="t">${_t('Pędzel')}</span>
+  morph(el, `<span class="t">${_t('Pędzel')}</span>
     <div class="seg">${[['both', _t('Kreska i warstwa')], ['stroke', _t('Tylko kreska')], ['layer', _t('Tylko warstwa')]].map(([m, n]) => `<button data-mode="${m}" class="${br.mode === m ? 'on' : ''}">${n}</button>`).join('')}</div>
     <span class="lbl">${_t('Maluje:')}</span>
     <div class="smp">${br.mode !== 'stroke' ? `<i style="background:${L.color === '#1a1a19' ? 'var(--ink)' : L.color}"></i><span translate="no">${esc(L.name)}</span>` : ''}${br.mode === 'both' ? '<span class="lbl">·</span>' : ''}${br.mode !== 'layer' ? `${sample(w, lt, 30)}<span>${wtxt(w)} ${LTYPES[lt].name}${c.w === null && c.lt === null ? ' <span class="lbl">(' + _t('jak warstwa') + ')</span>' : ''}</span>` : ''}</div>
     <span class="lbl">${_t('z pastylek u góry')}</span>
-    <button data-pick class="pick${br.picking ? ' on' : ''}" title="${_t('Pipeta')} (${app.altName} + ${_t('klik')})">${_t('Pipeta')}</button>`;
+    <button data-pick class="pick${br.picking ? ' on' : ''}" title="${_t('Pipeta')} (${app.altName} + ${_t('klik')})">${_t('Pipeta')}</button>`);
   // pastylki, z których maluje pędzel, dostają obwódkę
   $('#layerPill').classList.toggle('src', br.mode !== 'stroke'); $('#strokePill').classList.toggle('src', br.mode !== 'layer');
 }
@@ -704,7 +732,7 @@ function showToolBar() {
     if (copy) html += `<button class="tbs" data-copy>${_t('Kopiuj wynik')}</button>`;
   }
   el._copy = copy;
-  if (el._html !== html) { el.innerHTML = html; el._html = html; }
+  if (el._html !== html) { morph(el, html); el._html = html; }
 }
 function showHatchBar() {
   const hs = selHatches(), onSel = hs.length && hs.every(e => e.t === 'hatch');
@@ -729,7 +757,7 @@ function showHatchBar() {
     <label class="fld"><em>${_t('Skala')}</em><input data-f="ps" value="${fmtNum(o.ps || 1)}" inputmode="decimal"></label>
     <label class="fld"><em>${_t('Kąt')}</em><input data-f="ang" value="${fmtNum(Math.round((o.ang || 0) * 180 / Math.PI * 10) / 10)}" inputmode="decimal">°</label>
     ${onSel ? `<span class="lbl">${hs.length > 1 ? _t`zmienia ${hs.length} zaznaczone` : _t('zmienia zaznaczone')}</span>` : ''}`;
-  if (el._html !== html && !el.contains(document.activeElement)) { el.innerHTML = html; el._html = html; }
+  if (el._html !== html) { morph(el, html); el._html = html; }
 }
 const fmtNum = v => String(+(+v).toFixed(3)).replace('.', DEC);
 function setHatch(patch) {
@@ -791,7 +819,7 @@ function showBlockBar() {
   else html = `<span class="t">${_t('Blok')}</span><label class="fld"><input data-b="rename" value="${esc(blockName(si.b))}" title="${_t('Nazwa bloku')}"></label><span class="lbl">${_t`${insCount(si.b)} w rysunku`}</span>
     <button class="tbs" data-b="edit">${_t('Edytuj w miejscu')}</button><button class="tbs" data-b="explode">${_t('Rozbij')}</button><button class="tbs" data-b="swap">${_t('Zamień na…')} ${chev}</button>
     <button class="tbs" data-b="tolib" data-tip="${_t('Zapisz blok w bibliotece — będzie pod ręką w innych rysunkach')}">${IC_FOLDER}${_t('Do biblioteki')}</button>`;
-  if (el._html !== html && !el.contains(document.activeElement)) { el.innerHTML = html; el._html = html; }
+  if (el._html !== html) { morph(el, html); el._html = html; }
 }
 function onBlockBar(e) {
   const b = e.target.closest('[data-b]'); if (!b) return;
@@ -917,7 +945,7 @@ function renderBlocksPop(pop) {
       <div class="cats">${['', ...cats.filter(Boolean)].map(c => `<button data-cat="${esc(c)}" class="${c === lib.cat ? 'on' : ''}">${c ? esc(c) : _t('Wszystkie')}</button>`).join('')}${cats.includes('') && cats.length > 1 ? `<button data-cat="~" class="${lib.cat === '~' ? 'on' : ''}">${_t('Bez kategorii')}</button>` : ''}</div>
       <div class="blocks" data-grid></div>` + libFoot();
   }
-  pop.innerHTML = `<div class="row">${tabs}</div>${body}`;
+  morph(pop, `<div class="row">${tabs}</div>${body}`);
   if (pop.querySelector('[data-grid]')) renderLibGrid(pop);
 }
 const libFoot = () => `<div class="libfoot"><span class="path" title="${esc(lib.info.dir || '')}">${IC_FOLDER}<span>${esc(libShort(lib.info.dir))}</span></span>${api.web ? '' : `<button class="tbs" data-lib="show">${libShowLabel()}</button>`}<button class="tbs" data-lib="choose">${_t('Zmień…')}</button></div>`;
@@ -1349,9 +1377,9 @@ function setSpace(id, force = false) {
 app.setSpace = setSpace;
 function renderTabs() {
   const box = $('#tabs');
-  box.innerHTML = `<button data-sp="0" class="${app.space ? '' : 'on'}">${_t('Model')}</button>` +
+  morph(box, `<button data-sp="0" class="${app.space ? '' : 'on'}">${_t('Model')}</button>` +
     app.doc.sheets.map(sh => `<button data-sp="${sh.id}" class="${app.space === sh.id ? 'on' : ''}" translate="no">${esc(sh.name)}</button>`).join('') +
-    `<button class="add" id="tabAdd" data-tip="${_t('Nowy arkusz')}">+</button>`;
+    `<button class="add" id="tabAdd" data-tip="${_t('Nowy arkusz')}">+</button>`);
   bindTips(box);
   toolsEl.querySelector('[data-tool=viewport]')?.toggleAttribute('hidden', !app.space);
 }
@@ -1462,7 +1490,7 @@ function showVpBar() {
       <button class="tbs" data-vp="layers">${_t`Warstwy ${shown} z ${app.doc.layers.length}`} ${chev}</button>
       <button class="tbs" data-vp="lock">${ic(vp.locked ? 'lock' : 'unlock', 14)} ${vp.locked ? _t('Widok zablokowany') : _t('Zablokuj widok')}</button>
       <button class="tbs" data-vp="edit">${_t('Przesuń widok')}</button>`;
-  if (el._html !== html) { el.innerHTML = html; el._html = html; }
+  if (el._html !== html) { morph(el, html); el._html = html; }
   const b = vpBox(vp), a = app.view.toScreen([b[0], b[3]]);
   el.style.left = Math.max(8, Math.min(a[0], view.clientWidth - el.offsetWidth - 8)) + 'px';
   el.style.top = Math.max(app.mini ? 52 : 8, a[1] - 48) + 'px';
@@ -1546,9 +1574,9 @@ function showTextBar() {
       showTextBar(); placeTextEd(); textEd?.el.focus();
     });
   }
-  el.innerHTML = `<span class="t">${_t('Tekst')}</span><span class="lbl">${_t('Wysokość')}</span>
+  morph(el, `<span class="t">${_t('Tekst')}</span><span class="lbl">${_t('Wysokość')}</span>
     <div class="seg">${[1.8, 2.5, 3.5, 5, 7].map(h => `<button data-h="${h}" class="${app.textH === h ? 'on' : ''}">${String(h).replace('.', DEC)}</button>`).join('')}</div><span class="lbl">${_t('mm na wydruku')}</span>
-    <div class="seg">${[['l', _t('Do lewej')], ['c', _t('Do środka')], ['r', _t('Do prawej')]].map(([a, n]) => `<button data-al="${a}" class="${app.textAlign === a ? 'on' : ''}" aria-label="${n}">${ic('align' + a.toUpperCase(), 14)}</button>`).join('')}</div>`;
+    <div class="seg">${[['l', _t('Do lewej')], ['c', _t('Do środka')], ['r', _t('Do prawej')]].map(([a, n]) => `<button data-al="${a}" class="${app.textAlign === a ? 'on' : ''}" aria-label="${n}">${ic('align' + a.toUpperCase(), 14)}</button>`).join('')}</div>`);
 }
 
 /* ---------- eksport: PDF w skali i PNG ---------- */
@@ -1638,7 +1666,7 @@ function react(b, cls) { if (!b) return; b.classList.remove('tak', 'nie', 'wlacz
 // wciśnięcie przycisku z ikoną (wzorzec_przyciskow.html): :active trwa tyle co kliknięcie (~0,1 s), więc ugięcia prawie
 // nie widać — klasa .wcis od pointerdown do puszczenia, ale co najmniej 90 ms
 // przyciski z ikoną (.ib — ugina się ikona) i z samym tekstem (ugina się cały przycisk, wytyczne §2b)
-const PRESS = '.ib, .tb, .tbs, .pill, .menu button, .seg button, .pop .cats button, #blocksPop .blk, #toast button';
+const PRESS = '.ib, .tb, .tbs, .pill, .menu button, .seg button, .pop .cats button, #blocksPop .blk, #toast button, .toolbar .pick, .toolbar .pats button, .tabs button, .pop .mv';
 document.addEventListener('pointerdown', e => {
   const b = e.target.closest && e.target.closest(PRESS); if (!b || e.button || b.disabled) return;
   b.classList.add('wcis'); const t0 = performance.now();

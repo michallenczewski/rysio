@@ -328,10 +328,10 @@ body.mini .toolbar{top:52px}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 /* przycisk z samym tekstem (wytyczne §2b, wzorzec_przyciskow.html „.tx”): nie ma ikony, więc ugina się cały — do 0,97 w 0,09 s,
    wraca sprężyną; „tak” — tło błyska kolorem najechania i gaśnie do własnego (główny ciemny: przezroczystość 0,6 → 1) */
-.tb,.tbs,.pill,.menu button,.seg button,.pop .cats button,#blocksPop .blk,#toast button{transition:background-color .15s,color .15s,opacity .15s,box-shadow .15s,transform .35s var(--spring)}
-:is(.tb,.tbs,.pill,.menu button,.seg button,.pop .cats button,#blocksPop .blk,#toast button).wcis{transform:scale(.97);transition:transform .09s ease-out}
-:is(.tb,.tbs,.pill,.menu button,.seg button,.pop .cats button,#blocksPop .blk).tak{animation:takT .55s ease-out}
+.tb,.tbs,.pill,.menu button,.seg button,.pop .cats button,#blocksPop .blk,#toast button,.toolbar .pick,.toolbar .pats button,.tabs button,.pop .mv{transition:background-color .15s,color .15s,opacity .15s,box-shadow .15s,transform .35s var(--spring)}
+:is(.tb,.tbs,.pill,.menu button,.seg button,.pop .cats button,#blocksPop .blk,#toast button,.toolbar .pick,.toolbar .pats button,.tabs button,.pop .mv).wcis{transform:scale(.97);transition:transform .09s ease-out}
+:is(.tb,.tbs,.pill,.menu button,.seg button,.pop .cats button,#blocksPop .blk,.toolbar .pick,.toolbar .pats button,.tabs button,.pop .mv).tak{animation:takT .55s ease-out}
 .tbs.pri.tak{animation:takP .55s ease-out}
-:is(.tb,.tbs,.pill,.menu button,.seg button,.pop .cats button,#blocksPop .blk).nie{animation:nie .38s ease-out}
+:is(.tb,.tbs,.pill,.menu button,.seg button,.pop .cats button,#blocksPop .blk,.toolbar .pick,.toolbar .pats button,.tabs button,.pop .mv).nie{animation:nie .38s ease-out}
 @keyframes takT{from{background:var(--hover)}}
 @keyframes takP{from{opacity:.6}}
