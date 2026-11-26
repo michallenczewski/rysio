@@ -192,7 +192,7 @@ przypadek('grubość kreski na ekranie', '0,5 mm w 1:50 przy powiększeniu „pa
 });
 przypadek('wymiary z klawiatury', 'jednostka cm: „600;400” = 6 × 4 m, „3,5m” = 3,5 m, „35mm” = 0,035 m', () => {
   U.setUnit('cm', false);
-  const r = { '600;400': [U.parseLengths('600;400'), [6, 4]], '3,5m': [U.parseLength('3,5m'), 3.5], '35mm': [U.parseLength('35mm'), 0.035], 'bzdura': [U.parseLength('abc'), null] };
+  const r = { '600;400': [U.parseLengths('600;400'), [6, 4]], '3,5m': [U.parseLength('3,5m'), 3.5], '35mm': [U.parseLength('35mm'), 0.035], 'bzdura': [U.parseLength('abc'), null], '3 4 (spacja w liczbie)': [U.parseLength('3 4'), null], '3,5 m (spacja przed jednostką)': [U.parseLength('3,5 m'), 3.5], '1 000 i - 3': [[U.parseLength('1 000'), U.parseLength('- 3')], [10, -0.03]] };
   U.setUnit('m', false); return r;
 });
 
@@ -693,6 +693,56 @@ przypadek('wymiar promienia i średnicy', 'okrąg r=1; opis na zewnątrz; skala 
     'po skalowaniu ×2': [G.adimGeom(s2).value, 2], 'po przesunięciu': [mv.c, [8, 4]] };
 });
 
+/* ---------- błędy z audytu (listopad 2026) ---------- */
+przypadek('wymiar kątowy w narożniku', 'linie (0;0)–(4;0) i (0;0)–(0;4) ze wspólnym końcem: 90°, nie 180°; także narożnik polilinii (4;0)', () => {
+  const deg = g => +(G.adimGeom({ t: 'adim', k: 'ang', ...g, o: V.add(g.c, [0.3, 0.3]) }, 0.05).value * 180 / Math.PI).toFixed(6);
+  const a = G.angArms({ a: [0, 0], b: [4, 0] }, [2, 0], { a: [0, 0], b: [0, 4] }, [0, 2]);
+  const b = G.angArms({ a: [0, 0], b: [4, 0] }, [3, 0], { a: [4, 0], b: [4, 3] }, [4, 1]);
+  const c = G.angArms({ a: [0, 0], b: [4, 0] }, [0, 0], { a: [0, 0], b: [3, 4] }, [3, 4]);
+  return { 'narożnik ścian': [deg(a), 90], 'ramiona nie w wierzchołku': [[V.dist(a.a, a.c) > 1, V.dist(a.b, a.c) > 1], [true, true]],
+    'narożnik polilinii': [[b.c, deg({ ...b, c: b.c })], [[4, 0], 90]], 'klik w samym wierzchołku': [deg(c), +(Math.atan2(4, 3) * 180 / Math.PI).toFixed(6)],
+    'linie równoległe': [G.angArms({ a: [0, 0], b: [1, 0] }, [0, 0], { a: [0, 1], b: [1, 1] }, [0, 1]), null] };
+});
+przypadek('przyciąganie: środek okręgu w bloku', 'blok z okręgiem r = 0,3 wstawiony w (5; 5) ze skalą 2: kursor przy (5; 5) — środek okręgu', () => {
+  const doc = M.newDoc(), bid = 77;
+  new M.History(doc).edit('blok', tx => { tx.setDoc({ blocks: [{ id: bid, name: 'Umywalka' }] }); tx.add({ t: 'circle', c: [0, 0], r: 0.3, sp: 'b' + bid }); });
+  G.setBlocks(doc);
+  const ins = { t: 'ins', b: bid, p: [5, 5], s: 2, id: 99 };
+  const r = new Snapper().find([5.04, 4.97], { tol: 0.1, ents: [ins] });
+  const far = new Snapper().find([5.04, 4.97], { tol: 0.1, ents: [{ t: 'arc', c: [5, 5], r: 3, a0: 0, a1: 0.5, id: 7 }] });
+  return { 'rodzaj': [r.kind, 'center'], 'punkt': [r.p, [5, 5]], 'środek łuku poza jego obrysem': [far.kind, 'center'] };
+});
+przypadek('zaokrąglij polilinię: klik daleko od narożnika', 'prostokąt 10×2: klik w połowie długiego boku nie zaokrągla, przy narożniku — tak', () => {
+  const e = { t: 'pline', pts: [[0, 0], [10, 0], [10, 2], [0, 2]], closed: true };
+  return { 'w połowie boku': [ED.plineCorner(e, [5, 0.05], 'fillet', 0.5, 0.5, 0.2).error, 'far'], 'przy narożniku': [ED.plineCorner(e, [9.7, 0.05], 'fillet', 0.5, 0.5, 0.2).pts.length, 5],
+    'L: klik przy otwartym końcu — narożnik': [ED.plineCorner({ t: 'pline', pts: [[0, 0], [10, 0], [10, 10]], closed: false }, [1, 0], 'fillet', 0.5, 0.5, 0.3).error || null, null], 'krótki bok — ćwierć długości od narożnika': [ED.plineCorner(e, [10, 1.6], 'fillet', 0.5, 0.5, 0.2).error || null, null] };
+});
+przypadek('przytnij: ślad dwa razy przez jedną linię', 'pozioma (0;0)–(6;0), pionowa (2;−2)–(2;2); ślad przecina pionową nad i pod poziomą — znika cała pionowa', () => {
+  const hz = { ...L([0, 0], [6, 0]), id: 1 }, vt = { ...L([2, -2], [2, 2]), id: 2 };
+  const r = ED.trimMany([{ e: vt, p: [2, 1] }, { e: hz, p: [3, 0] }, { e: vt, p: [2, -1] }], [hz, vt], 'trim');
+  const v = r.find(x => x.id === 2), z = r.find(x => x.id === 1);
+  const ok = { ...L([0, 0], [10, 0]), id: 3 }, cut = [3, 6].map((x, i) => ({ ...L([x, -1], [x, 1]), id: 10 + i }));
+  const r2 = ED.trimMany([{ e: ok, p: [1, 0] }, { e: ok, p: [8, 0] }, { e: ok, p: [9, 0] }], [ok, ...cut], 'trim');
+  const circ = { t: 'circle', c: [0, 0], r: 1, id: 4 }, cl = { ...L([-2, 0], [2, 0]), id: 5 }, cv = { ...L([0, -2], [0, 2]), id: 6 };
+  const r3 = ED.trimMany([{ e: circ, p: [0.7071, 0.7071] }, { e: circ, p: [-0.7071, -0.7071] }], [circ, cl, cv], 'trim');
+  const t1 = ED.trimMany([{ e: ok, p: [-0.05, 0.02] }], [ok, ...cut], 'trim'), arc = { t: 'arc', c: [0, 0], r: 1, a0: 0, a1: Math.PI, id: 7 };
+  const t2 = ED.trimMany([{ e: arc, p: [1, -1e-13] }], [arc, { ...L([0, -2], [0, 2]), id: 8 }], 'trim');
+  const sq = { t: 'pline', pts: [[0, 0], [4, 0], [4, 4], [0, 4]], closed: true, id: 9 }, t3 = ED.trimMany([{ e: sq, p: [2, 0] }, { e: sq, p: [2, 4] }], [sq, { ...L([2, -1], [2, 5]), id: 12 }], 'trim');
+  return { 'klik tuż za końcem linii': [t1[0] && t1[0].replace.map(q => [...q.a, ...q.b]), [[3, 0, 10, 0]]], 'łuk trafiony w samym końcu': [t2[0] && t2[0].replace.length, 1],
+    'trafienie w punkt cięcia — obie strony': [t3.length ? t3[0].replace.length : -1, 0],
+    'pionowa znika': [v && v.replace.length, 0], 'pozioma zostaje do (2;0)': [z && z.replace.map(q => [...q.a, ...q.b]), [[0, 0, 2, 0]]],
+    'linia: zostaje środek 3–6': [r2[0].replace.map(q => [...q.a, ...q.b]), [[3, 0, 6, 0]]], 'okrąg: dwie ćwiartki zostają': [r3[0].replace.length, 2] };
+});
+przypadek('łuk ze środka: kąt 360°', 'wpisany pełny obrót daje okrąg (sprawdzane w narzędziu); łuk z a0 = a1 ma pełną długość', () => ({
+  'długość łuku a0 = a1': [G.lengthOf({ t: 'arc', c: [0, 0], r: 1, a0: 1, a1: 1 }), 2 * Math.PI]
+}));
+przypadek('DXF: kreskowanie „jak warstwa” zostaje', 'kreskowanie bez własnej grubości po zapisie i odczycie dalej bierze grubość z warstwy; z grubością 0,35 — zostaje 0,35', () => {
+  const doc = M.newDoc(); const h = new M.History(doc);
+  const loop = [[0, 0], [2, 0], [2, 2], [0, 2]];
+  h.edit('k', tx => { tx.add({ t: 'hatch', loops: [loop], pat: 'diag', ps: 1, ang: 0 }); tx.add({ t: 'hatch', loops: [loop.map(p => [p[0] + 5, p[1]])], pat: 'diag', ps: 1, ang: 0, w: 0.35 }); });
+  const back = DXF.parseDxf(DXF.writeDxf(doc).text, { scale: 50 }).doc.ents.filter(e => e.t === 'hatch').sort((a, b) => a.loops[0][0][0] - b.loops[0][0][0]);
+  return { 'grubości': [back.map(e => e.w ?? null), [null, 0.35]] };
+});
 /* ---------- biblioteka bloków ---------- */
 const LB = await import(R + 'library.js');
 przypadek('biblioteka: bloki na start', 'pliki DXF bloków startowych wczytane z powrotem: drzwi 90 — zawias w zerze, skrzydło łukiem r = 0,9 m; elementy z warstwy „0” trafiają na bieżącą warstwę rysunku', () => {

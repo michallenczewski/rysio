@@ -14,7 +14,7 @@ import { makeTools } from './tools.js';
 import { setUnit, getUnit, fmtLength } from './units.js';
 import { ACTIONS, loadKeys, saveKeyOverride, keysFor, comboOf, prettyCombo } from './keys.js';
 import { installTestApi } from './testapi.js';
-import { libPack, libGhosts, importLib, libFile, starterFiles, fileSafe } from './library.js';
+import { libPack, libGhosts, importLib, libFile, starterFiles, fileSafe, fold } from './library.js';
 
 const api = window.api;
 const $ = s => document.querySelector(s);
@@ -171,10 +171,18 @@ for (const id of TOOLBAR) {
   toolsBox.append(b);
 }
 function placeInd() {
-  const on = capsEl.querySelector('.ib.on'), ind = capsEl.querySelector('.ind');
+  const on = capsEl.querySelector('.ib.on:not([hidden])'), ind = capsEl.querySelector('.ind');   // ukryty przycisk (Okno w modelu) — bez wskaźnika
   ind.hidden = !on; if (on) ind.style.transform = `translateY(${on.offsetTop}px)`;
+  // w niskim oknie pasek się przewija — wybrane narzędzie (np. ze skrótu) ma być widać, także poza cieniem przy krawędzi
+  if (on) { const t = on.offsetTop + capsEl.offsetTop - toolsEl.offsetTop, pad = 32; if (t < toolsEl.scrollTop + pad) toolsEl.scrollTop = t - pad; else if (t + on.offsetHeight > toolsEl.scrollTop + toolsEl.clientHeight - pad) toolsEl.scrollTop = t + on.offsetHeight - toolsEl.clientHeight + pad; }
+  toolsFade();
   if (ind.classList.contains('still')) requestAnimationFrame(() => ind.classList.remove('still'));   // bez skoku przy starcie
 }
+
+// cień u góry / u dołu paska, gdy są tam narzędzia schowane za krawędzią okna
+function toolsFade() { const t = toolsEl; t.classList.toggle('more-up', t.scrollTop > 1); t.classList.toggle('more-down', t.scrollTop + t.clientHeight < t.scrollHeight - 1); }
+toolsEl.addEventListener('scroll', toolsFade, { passive: true });
+addEventListener('resize', toolsFade);
 
 function setTool(id, opts = {}) {
   if (!app.tools[id]) return;
@@ -506,13 +514,15 @@ function placePop(pop, anchor) {
   pop.hidden = false;
   const r = anchor.getBoundingClientRect(), w = pop.offsetWidth;
   pop.style.left = Math.max(8, Math.min(fromTop(anchor) && r.left + r.width / 2 > innerWidth / 2 ? r.right - w : r.left, innerWidth - w - 8)) + 'px';
-  pop.style.top = belowBar(anchor, r) + 'px';
+  pop.style.top = fitTop(pop, belowBar(anchor, r)) + 'px';
   anchor.classList.add('open');
 }
+// okienko nie może wystawać poza dół okna (niskie okno, przycisk niżej niż górny pasek)
+const fitTop = (pop, top) => Math.max(8, Math.min(top, innerHeight - pop.offsetHeight - 8));
 function closePops() {
   let any = false;
   for (const id of ['#layersPop', '#strokePop', '#menu', '#sheetPop', '#titlePop', '#exportPop', '#blocksPop', '#libSavePop']) { const el = $(id); if (el && !el.hidden) { el.hidden = true; any = true; } }
-  document.querySelectorAll('.pill.open, .tb.open').forEach(b => b.classList.remove('open'));
+  document.querySelectorAll('.pill.open, .tb.open, .tbs.open, .ib.open').forEach(b => b.classList.remove('open'));
   colorFor = null; renaming = null; strokeTarget = 'auto';
   return any;
 }
@@ -523,13 +533,13 @@ function renderLayersPop() {
     const cur = L.id === d.cur.layer, empty = !d.ents.some(e => e.layer === L.id);
     const nm = renaming === L.id ? `<input value="${esc(L.name)}" data-rename="${L.id}" spellcheck="false">` : esc(L.name);
     return `<div class="layer${cur ? ' cur' : ''}${L.visible ? '' : ' off'}" data-id="${L.id}">
-      <button class="swb" data-color="${L.id}" aria-label="${_t('Kolor warstwy')}"><i style="background:${L.color === '#1a1a19' ? 'var(--ink)' : L.color}"></i></button>
-      <span class="nm" translate="no" data-pick="${L.id}" title="${_t('Klik — warstwa dla nowych elementów, dwuklik — zmiana nazwy')}">${nm}</span>
+      <button class="swb" data-color="${L.id}" aria-label="${_t('Kolor warstwy')}" data-tip="${_t('Kolor warstwy')}"><i style="background:${L.color === '#1a1a19' ? 'var(--ink)' : L.color}"></i></button>
+      <span class="nm" translate="no" data-pick="${L.id}" data-tip="${_t('Klik — warstwa dla nowych elementów, dwuklik — zmiana nazwy')}">${nm}</span>
       ${si ? `<button class="mv" data-move="${L.id}">${_t`Przenieś tutaj ${si.n}`}</button>` : ''}
-      ${empty && !cur && d.layers.length > 1 ? `<button class="ic del" data-del="${L.id}" aria-label="${_t('Usuń pustą warstwę')}">${ic('trash', 14)}</button>` : ''}
-      <button class="ls" data-stroke="${L.id}" aria-label="${_t('Kreska warstwy')}">${sample(L.w, L.lt, 28, 4)}<span>${String(L.w).replace('0.', DEC)}</span></button>
-      <button class="ic${L.visible ? ' act' : ''}" data-vis="${L.id}" aria-label="${_t('Widoczność')}">${ic(L.visible ? 'eye' : 'eyeOff', 14)}</button>
-      <button class="ic${L.locked ? ' act' : ''}" data-lock="${L.id}" aria-label="${_t('Blokada')}">${ic(L.locked ? 'lock' : 'unlock', 14)}</button>
+      ${empty && !cur && d.layers.length > 1 ? `<button class="ic del" data-del="${L.id}" aria-label="${_t('Usuń pustą warstwę')}" data-tip="${_t('Usuń pustą warstwę')}">${ic('trash', 14)}</button>` : ''}
+      <button class="ls" data-stroke="${L.id}" aria-label="${_t('Kreska warstwy')}" data-tip="${_t('Kreska warstwy')}">${sample(L.w, L.lt, 28, 4)}<span>${String(L.w).replace('0.', DEC)}</span></button>
+      <button class="ic${L.visible ? ' act' : ''}" data-vis="${L.id}" aria-label="${_t('Widoczność')}" data-tip="${L.visible ? _t('Ukryj warstwę') : _t('Pokaż warstwę')}">${ic(L.visible ? 'eye' : 'eyeOff', 14)}</button>
+      <button class="ic${L.locked ? ' act' : ''}" data-lock="${L.id}" aria-label="${_t('Blokada')}" data-tip="${L.locked ? _t('Odblokuj warstwę') : _t('Zablokuj warstwę')}">${ic(L.locked ? 'lock' : 'unlock', 14)}</button>
     </div>` + (colorFor === L.id ? `<div class="colors">${LAYER_COLORS.map(c => `<button data-setcolor="${c}" data-for="${L.id}" class="${c === L.color ? 'on' : ''}" style="background:${c}" aria-label="${c}"></button>`).join('')}</div>` : '');
   }).join('');
   const note = si ? _t`Zaznaczone: ${si.n}. „Przenieś tutaj” przy warstwie przenosi je na nią; z kreską „jak warstwa” przejmują jej kreskę.` : _t('Klik w nazwę — warstwa dla nowych elementów, dwuklik — zmiana nazwy. Kreska w wierszu zmienia kreskę warstwy.');
@@ -541,7 +551,7 @@ $('#layersPop').addEventListener('click', e => {
   const t = e.target.closest('button, [data-pick]'); if (!t) return;
   const d = app.doc, num = k => +t.dataset[k];
   if (t.id === 'layerAdd') {
-    const n = d.layers.length + 1;
+    let n = d.layers.length + 1; while (d.layers.some(L => L.name === _t`Warstwa ${n}`)) n++;
     const L = app.edit(_t('Nowa warstwa'), tx => { const L = tx.addLayer({ name: _t`Warstwa ${n}`, color: LAYER_COLORS[(n - 1) % LAYER_COLORS.length] }); tx.setDoc({ cur: { ...d.cur, layer: L.id } }); return L; });
     renaming = L.id; renderLayersPop(); return;
   }
@@ -564,6 +574,8 @@ $('#layersPop').addEventListener('keydown', e => {
 $('#layersPop').addEventListener('focusout', e => {
   const inp = e.target.closest('[data-rename]'); if (!inp || renaming === null) return;
   const id = +inp.dataset.rename, v = inp.value.trim(); renaming = null;
+  // dwie warstwy o tej samej nazwie myliłyby się przy wklejaniu, w bibliotece i w DXF (tam bez ogonków i wielkości liter)
+  if (v && app.doc.layers.some(L => L.id !== id && fold(L.name) === fold(v))) { toast(_t`Warstwa „${esc(v)}” już jest.`); renderLayersPop(); return; }
   if (v) app.edit(_t('Nazwa warstwy'), tx => tx.setLayer(id, { name: v })); else renderLayersPop();
 });
 // zaznaczenie nie może trzymać elementów z ukrytych i zablokowanych warstw
@@ -650,10 +662,23 @@ function showBrushBar() {
     <span class="lbl">${_t('Maluje:')}</span>
     <div class="smp">${br.mode !== 'stroke' ? `<i style="background:${L.color === '#1a1a19' ? 'var(--ink)' : L.color}"></i><span translate="no">${esc(L.name)}</span>` : ''}${br.mode === 'both' ? '<span class="lbl">·</span>' : ''}${br.mode !== 'layer' ? `${sample(w, lt, 30)}<span>${wtxt(w)} ${LTYPES[lt].name}${c.w === null && c.lt === null ? ' <span class="lbl">(' + _t('jak warstwa') + ')</span>' : ''}</span>` : ''}</div>
     <span class="lbl">${_t('z pastylek u góry')}</span>
-    <button data-pick class="pick${br.picking ? ' on' : ''}" title="${_t('Pipeta')} (${app.altName} + ${_t('klik')})">${_t('Pipeta')}</button>`);
+    <button data-pick class="pick${br.picking ? ' on' : ''}" data-tip="${_t('Pipeta')} (${app.altName} + ${_t('klik')})">${_t('Pipeta')}</button>`);
   // pastylki, z których maluje pędzel, dostają obwódkę
   $('#layerPill').classList.toggle('src', br.mode !== 'stroke'); $('#strokePill').classList.toggle('src', br.mode !== 'layer');
 }
+// paski narzędzi nad kartką: gdy pasek nie mieści się w wąskim oknie, chowają się podpisy pomocnicze (.lbl)
+// (sprawdzane po każdej zmianie treści paska — bez czekania na klatkę obrazu)
+function fitBar(el) {
+  if (!el.isConnected) return;
+  el.classList.remove('tight');
+  if (el.offsetWidth > view.clientWidth - 24) el.classList.add('tight');
+}
+new MutationObserver(ms => {
+  const bars = new Set();
+  for (const m of ms) { const el = (m.target.nodeType === 1 ? m.target : m.target.parentElement)?.closest('.toolbar') || [...m.addedNodes].find(n => n.classList?.contains('toolbar')); if (el) bars.add(el); }
+  bars.forEach(fitBar);
+}).observe(view, { childList: true, subtree: true, characterData: true });
+addEventListener('resize', () => view.querySelectorAll(':scope > .toolbar').forEach(fitBar));
 function hideBrushBar() { $('#brushBar')?.remove(); $('#layerPill').classList.remove('src'); $('#strokePill').classList.remove('src'); }
 
 /* ---------- tryb minimalny (Tab): sama kartka, plakietka z narzędziem, warstwą i kreską ---------- */
@@ -684,7 +709,7 @@ function renderBadge() {
   $('#miniExit').innerHTML = k ? `<kbd>${esc(k)}</kbd> ${_t('pełny widok')}` : _t('pełny widok: Widok → Tryb minimalny');
   const name = tool.badge?.() || (ACTIONS.find(a => a.id === tool.id) || {}).name || '';
   const spName = app.blockEdit ? _t`Blok „${blockName(app.blockEdit.id)}”` : app.space ? (app.sheet()?.name || _t('Arkusz')) : _t('Model');
-  el.innerHTML = `<span class="click" data-space title="${_t('Następna zakładka')}">${esc(spName)}</span><span class="sep"></span><span class="t">${esc(name)}</span><span class="sep"></span>
+  el.innerHTML = `<span class="click" data-space data-tip="${_t('Następna zakładka')}">${esc(spName)}</span><span class="sep"></span><span class="t">${esc(name)}</span><span class="sep"></span>
     <span class="click" data-open="layer">${$('#layerPill').innerHTML}</span>
     <span class="click" data-open="stroke">${$('#strokePill').innerHTML}</span>`;
 }
@@ -752,13 +777,15 @@ function showHatchBar() {
       const f = e.target.dataset.f; if (!f) return;
       const v = parseFloat(String(e.target.value).replace(',', '.'));
       if (!Number.isFinite(v) || (f === 'ps' && !(v > 0))) { refreshUi(); return; }
+      // gęściej niż 0,1 kreski zlewają się (i przestają się rysować), rzadziej niż 100 — znikają z obszaru
+      if (f === 'ps' && (v < 0.1 || v > 100)) { toast(_t('Skala kreskowania: od 0,1 do 100.'), 2200); refreshUi(); return; }
       setHatch(f === 'ps' ? { ps: v } : { ang: ((v % 360) + 360) % 360 * Math.PI / 180 });
     });
     el.addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); e.stopPropagation(); });
   }
   const o = onSel ? hs[0] : app.tools.hatch.opts;
   const html = `<span class="t">${_t('Kreskowanie')}</span>
-    <div class="pats">${PATTERN_IDS.map(id => `<button data-pat="${id}" class="${o.pat === id ? 'on' : ''}" title="${PATTERNS[id].name}"><svg width="22" height="16" viewBox="0 0 22 16"><defs><clipPath id="cp-${id}"><rect width="22" height="16" rx="2"/></clipPath></defs><g clip-path="url(#cp-${id})">${PAT_SVG[id]}</g></svg></button>`).join('')}</div>
+    <div class="pats">${PATTERN_IDS.map(id => `<button data-pat="${id}" class="${o.pat === id ? 'on' : ''}" aria-label="${PATTERNS[id].name}" data-tip="${PATTERNS[id].name}"><svg width="22" height="16" viewBox="0 0 22 16"><defs><clipPath id="cp-${id}"><rect width="22" height="16" rx="2"/></clipPath></defs><g clip-path="url(#cp-${id})">${PAT_SVG[id]}</g></svg></button>`).join('')}</div>
     <span class="lbl">${PATTERNS[o.pat]?.name || ''}</span>
     <label class="fld"><em>${_t('Skala')}</em><input data-f="ps" value="${fmtNum(o.ps || 1)}" inputmode="decimal"></label>
     <label class="fld"><em>${_t('Kąt')}</em><input data-f="ang" value="${fmtNum(Math.round((o.ang || 0) * 180 / Math.PI * 10) / 10)}" inputmode="decimal">°</label>
@@ -810,8 +837,10 @@ function showBlockBar() {
     el.addEventListener('input', e => { if (e.target.dataset.b === 'newname') app.tools.block.name = e.target.value; });
     el.addEventListener('change', e => {
       if (e.target.dataset.b !== 'rename') return;
-      const ins = selIns(), name = e.target.value.trim(); if (!ins || !name) { refreshUi(); return; }
-      if (app.doc.blocks.some(b => b.name === name && b.id !== ins.b)) { toast(_t`Blok „${esc(name)}” już jest.`); refreshUi(); return; }
+      const ins = selIns(), name = e.target.value.trim(); if (!ins) { refreshUi(); return; }
+      const back = () => { e.target.value = blockName(ins.b); react(e.target.closest('.fld'), 'nie'); };   // odrzucona nazwa nie zostaje w polu
+      if (!name) { back(); return; }
+      if (app.doc.blocks.some(b => b.name === name && b.id !== ins.b)) { toast(_t`Blok „${esc(name)}” już jest.`); back(); return; }
       app.edit(_t('Nazwa bloku'), tx => tx.setDoc({ blocks: app.doc.blocks.map(b => b.id === ins.b ? { ...b, name } : b) }));
     });
   }
@@ -822,7 +851,7 @@ function showBlockBar() {
   else if (bt && bt.mode === 'create') html = `<span class="t">${_t('Nowy blok')}</span><label class="fld"><em>${_t('Nazwa')}</em><input data-b="newname" value="${esc(bt.name)}"></label><span class="lbl">${_t('kliknij punkt wstawienia')}</span>`;
   else if (bt && bt.mode === 'insert') html = `<span class="t">${_t('Bloki')}</span>` + (bt.cur ? `<button class="tbs" data-b="pick">${esc(blockName(bt.cur))} ${chev}</button><span class="lbl">${_t('klik wstawia · cyfry wpisują obrót')}</span>` : `<button class="tbs" data-b="pick">${_t('Wybierz blok')} ${chev}</button><span class="lbl">${_t('w rysunku nie ma jeszcze bloków')}</span>`);
   else if (bt) { el.remove(); return; }
-  else html = `<span class="t">${_t('Blok')}</span><label class="fld"><input data-b="rename" value="${esc(blockName(si.b))}" title="${_t('Nazwa bloku')}"></label><span class="lbl">${_t`${insCount(si.b)} w rysunku`}</span>
+  else html = `<span class="t">${_t('Blok')}</span><label class="fld"><input data-b="rename" value="${esc(blockName(si.b))}" aria-label="${_t('Nazwa bloku')}"></label><span class="lbl">${_t`${insCount(si.b)} w rysunku`}</span>
     <button class="tbs" data-b="edit">${_t('Edytuj w miejscu')}</button><button class="tbs" data-b="explode">${_t('Rozbij')}</button><button class="tbs" data-b="swap">${_t('Zamień na…')} ${chev}</button>
     <button class="tbs" data-b="tolib" data-tip="${_t('Zapisz blok w bibliotece — będzie pod ręką w innych rysunkach')}">${IC_FOLDER}${_t('Do biblioteki')}</button>`;
   if (el._html !== html) { morph(el, html); el._html = html; }
@@ -920,6 +949,14 @@ function openBlocksPop(anchor, onPick, skip = null, tab = null) {
   pop._tab = tab || (app.doc.blocks.some(b => b.id !== skip) ? lib.tab || 'doc' : 'lib');
   renderBlocksPop(pop);
   placePop(pop, anchor);
+  libRefresh(pop);
+}
+// przy każdym otwarciu biblioteki — świeża lista plików (bloki dodane na innym komputerze albo wrzucone ręcznie)
+function libRefresh(pop) {
+  if (!lib.info?.ok || pop._tab !== 'lib') return;
+  const sig = () => JSON.stringify((lib.list || []).map(it => [it.rel, it.mtime]));
+  const was = sig(), ctx = pop._ctx;
+  libLoad(true).then(() => { if (sig() !== was && !pop.hidden && pop._ctx === ctx && pop._tab === 'lib') renderBlocksPop(pop); });
 }
 function renderBlocksPop(pop) {
   const { skip } = pop._ctx, tab = pop._tab;
@@ -953,16 +990,21 @@ function renderBlocksPop(pop) {
   }
   morph(pop, `<div class="row">${tabs}</div>${body}`);
   if (pop.querySelector('[data-grid]')) renderLibGrid(pop);
+  if (!pop.hidden) placePop(pop, pop._ctx.anchor);   // treść zmieniła wysokość — okienko dalej mieści się w oknie
 }
-const libFoot = () => `<div class="libfoot"><span class="path" title="${esc(lib.info.dir || '')}">${IC_FOLDER}<span>${esc(libShort(lib.info.dir))}</span></span>${api.web ? '' : `<button class="tbs" data-lib="show">${libShowLabel()}</button>`}<button class="tbs" data-lib="choose">${_t('Zmień…')}</button></div>`;
+const libFoot = () => `<div class="libfoot"><span class="path" data-tip="${esc(lib.info.dir || '')}">${IC_FOLDER}<span>${esc(libShort(lib.info.dir))}</span></span>${api.web ? '' : `<button class="tbs" data-lib="show">${libShowLabel()}</button>`}<button class="tbs" data-lib="choose">${_t('Zmień…')}</button></div>`;
+// szukanie bez ogonków i wielkości liter; „x” znajduje też „×” (80x160 → 80×160)
+const srch = s => String(s).toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/×/g, 'x');
+// blok z biblioteki już w rysunku: ta sama nazwa albo nazwa, z której powstała nazwa pliku (np. „a/b” → plik „a-b”)
+const libInDoc = it => app.doc.blocks.find(b => b.name === it.name) || app.doc.blocks.find(b => fileSafe(b.name) === it.name);
 function renderLibGrid(pop) {
   const grid = pop.querySelector('[data-grid]'); if (!grid) return;
-  const q = lib.q.trim().toLowerCase();
-  const items = lib.list.filter(it => (!lib.cat || (lib.cat === '~' ? !it.cat : it.cat === lib.cat)) && (!q || it.name.toLowerCase().includes(q))).sort((a, b) => a.cat.localeCompare(b.cat) || a.name.localeCompare(b.name, undefined, { numeric: true }));
+  const q = srch(lib.q.trim());
+  const items = lib.list.filter(it => (!lib.cat || (lib.cat === '~' ? !it.cat : it.cat === lib.cat)) && (!q || srch(it.name + ' ' + it.cat).includes(q))).sort((a, b) => a.cat.localeCompare(b.cat) || a.name.localeCompare(b.name, undefined, { numeric: true }));
   grid.innerHTML = items.map(it => { const c = lib.cache.get(it.rel), ok = libFresh(c, it);
     const sub = ok && c.err ? _t('nie da się odczytać') : !lib.cat && it.cat ? esc(it.cat) : ok && c.size ? c.size : '';
-    const inDoc = app.doc.blocks.some(b => b.name === it.name);
-    return `<button class="blk${ok && c.err ? ' bad' : ''}" data-rel="${esc(it.rel)}" title="${esc(it.name)}"><img ${ok && c.thumb ? `src="${c.thumb}"` : ''} alt=""><b translate="no">${esc(it.name)}</b><span>${sub || '&nbsp;'}</span>${inDoc ? `<i class="indoc" title="${_t('Już jest w rysunku')}"></i>` : ''}</button>`; }).join('')
+    const inDoc = !!libInDoc(it);
+    return `<button class="blk${ok && c.err ? ' bad' : ''}" data-rel="${esc(it.rel)}" data-tip="${esc(it.name)}"><img ${ok && c.thumb ? `src="${c.thumb}"` : ''} alt=""><b translate="no">${esc(it.name)}</b><span>${sub || '&nbsp;'}</span>${inDoc ? `<i class="indoc" data-tip="${_t('Już jest w rysunku')}"></i>` : ''}</button>`; }).join('')
     || `<div class="none">${_t('Nic nie pasuje.')}</div>`;
   // miniatury po kolei, bez blokowania okna
   // jedna kolejka naraz: nowe rysowanie siatki (np. kolejna litera w szukaniu) kończy poprzednią
@@ -980,7 +1022,7 @@ function renderLibGrid(pop) {
 }
 async function onBlocksPopClick(e) {
   const pop = $('#blocksPop'), t = e.target;
-  const tb = t.closest('[data-tab]'); if (tb) { pop._tab = lib.tab = tb.dataset.tab; renderBlocksPop(pop); return; }
+  const tb = t.closest('[data-tab]'); if (tb) { pop._tab = lib.tab = tb.dataset.tab; renderBlocksPop(pop); libRefresh(pop); return; }
   const cb = t.closest('[data-cat]'); if (cb) { lib.cat = cb.dataset.cat; renderBlocksPop(pop); return; }
   const lb = t.closest('[data-lib]');
   if (lb) {
@@ -996,7 +1038,7 @@ async function onBlocksPopClick(e) {
   if (pop.hidden || pop._ctx !== ctx) return;   // w czasie czytania pliku okienko zamknięto
   if (c.err) { react(r, 'nie'); toast(_t`Nie da się odczytać „${esc(it.name)}”: ${esc(c.err)}`, 4000); return; }
   if (app.space) { toast(_t('Bloki wstawia się w modelu — przejdź do zakładki Model.')); return; }
-  const had = app.doc.blocks.find(b => b.name === it.name);
+  const had = libInDoc(it);
   const id = had ? had.id : app.edit(_t('Blok z biblioteki'), tx => importLib(tx, app.doc, c.pack));
   closePops(); ctx.onPick(id);
   if (!had && ctx.onPick === pickForInsert) toast(_t`„${esc(it.name)}” skopiowany z biblioteki do rysunku — kliknij miejsce na kartce.`, 3000);
@@ -1019,7 +1061,7 @@ function openSavePop(anchor, st) {
   pop.hidden = false;
   const r = anchor.getBoundingClientRect();
   pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 8)) + 'px';
-  pop.style.top = (r.bottom + 6) + 'px';
+  pop.style.top = fitTop(pop, r.bottom + 6) + 'px';
   if (!lib.info) libLoad().then(() => { if (lib.info && !pop.hidden && saveSt === st) renderSavePop(pop); });
   pop.querySelector('[data-s=name]')?.select();
 }
@@ -1033,7 +1075,7 @@ function renderSavePop(pop) {
   }
   const cats = lib.list ? [...new Set(lib.list.map(it => it.cat).filter(Boolean))].sort((a, b) => a.localeCompare(b)) : [];
   // kategoria: ta, w której leży plik o tej nazwie (blok przyszedł z biblioteki), inaczej Meble albo pierwsza
-  if (st.cat === null && lib.list) { const same = lib.list.find(it => it.name === st.name); st.cat = same ? same.cat : cats.includes(_t('Meble')) ? _t('Meble') : (cats[0] || ''); }
+  if (st.cat === null && lib.list) { const same = lib.list.find(it => it.name === fileSafe(st.name)); st.cat = same ? same.cat : cats.includes(_t('Meble')) ? _t('Meble') : (cats[0] || ''); }
   const custom = st.newCat;
   pop.innerHTML = `<div class="row"><span class="ttl grow">${_t('Zapisz do biblioteki')}</span></div>
     <label class="fld2"><em>${_t('Nazwa')}</em><input data-s="name" value="${esc(st.name)}" spellcheck="false"></label>
@@ -1346,21 +1388,19 @@ function tipShow(b) {
 }
 // „od razu” na sąsiednim tylko po podpowiedzi, która naprawdę była widoczna (przejechanie przez pasek nie zapala ich)
 function tipHide() { clearTimeout(tipT); if (tipEl) tipLast = Date.now(); tipFor = null; tipEl?.remove(); tipEl = null; }
-function bindTips(root) {
-  root.querySelectorAll('[data-tip]').forEach(b => {
-    if (b._tip) return; b._tip = 1;
-    b.addEventListener('mouseenter', () => {
-      if (tipFor === b) return;
-      tipHide(); tipFor = b;
-      tipT = setTimeout(() => { if (tipFor === b && b.isConnected) tipShow(b); }, Date.now() - tipLast < 400 ? 0 : 1500);
-    });
-    b.addEventListener('mouseleave', () => { if (tipFor === b) tipHide(); });
-  });
-}
+// jedna obsługa dla całego okna — działa też w okienkach i paskach tworzonych później (zamiast systemowego title)
+document.addEventListener('mouseover', e => {
+  const b = e.target.closest && e.target.closest('[data-tip]'); if (!b || tipFor === b || !b.dataset.tip) return;
+  tipHide(); tipFor = b;
+  tipT = setTimeout(() => { if (tipFor === b && b.isConnected) tipShow(b); }, Date.now() - tipLast < 400 ? 0 : 1500);
+});
+document.addEventListener('mouseout', e => {
+  const b = e.target.closest && e.target.closest('[data-tip]'); if (!b || tipFor !== b || (e.relatedTarget && b.contains(e.relatedTarget))) return;
+  tipHide();
+});
 addEventListener('pointerdown', tipHide, true);
 addEventListener('wheel', tipHide, { passive: true, capture: true });
 addEventListener('keydown', tipHide, true);
-bindTips(document.body);
 
 /* ---------- arkusze: zakładki, przełączanie przestrzeni ---------- */
 const viewMemo = {};   // zapamiętany widok każdej przestrzeni
@@ -1387,7 +1427,6 @@ function renderTabs() {
   morph(box, `<button data-sp="0" class="${app.space ? '' : 'on'}">${_t('Model')}</button>` +
     app.doc.sheets.map(sh => `<button data-sp="${sh.id}" class="${app.space === sh.id ? 'on' : ''}" translate="no">${esc(sh.name)}</button>`).join('') +
     `<button class="add" id="tabAdd" data-tip="${_t('Nowy arkusz')}">+</button>`);
-  bindTips(box);
   toolsEl.querySelector('[data-tool=viewport]')?.toggleAttribute('hidden', !app.space);
 }
 $('#tabs').addEventListener('click', e => {
@@ -1594,7 +1633,7 @@ function openExport() {
   const pop = $('#exportPop'), cur = app.sheet(), all = exp.kind === 'pdf' && (exp.all || !cur), pngSheet = cur || app.doc.sheets[0];
   morph(pop, `<div class="row"><span class="ttl grow">${_t('Eksport')}</span></div>
     <div class="seg stretch"><button data-k="pdf" class="${exp.kind === 'pdf' ? 'on' : ''}">${_t('PDF wektorowy')}</button><button data-k="png" class="${exp.kind === 'png' ? 'on' : ''}">PNG</button></div>
-    <div class="row"><span class="lbl w72">${_t('Arkusze')}</span><div class="seg stretch grow"><button data-all="0" class="${all ? '' : 'on'}" ${cur ? '' : 'disabled'}>${_t('Ten')}</button><button data-all="1" class="${all ? 'on' : ''}" ${exp.kind === 'png' ? 'disabled' : ''}>${_t`Wszystkie (${app.doc.sheets.length})`}</button></div></div>
+    <div class="row"><span class="lbl w72">${_t('Arkusze')}</span><div class="seg stretch grow"><button data-all="0" class="${all || !cur ? '' : 'on'}" ${cur ? '' : 'disabled'}>${_t('Ten')}</button><button data-all="1" class="${all ? 'on' : ''}" ${exp.kind === 'png' ? 'disabled' : ''}>${_t`Wszystkie (${app.doc.sheets.length})`}</button></div></div>
     <div class="row"><span class="lbl w72">${_t('Kolory')}</span><div class="seg stretch grow"><button data-mono="0" class="${exp.mono ? '' : 'on'}">${_t('Warstw')}</button><button data-mono="1" class="${exp.mono ? 'on' : ''}">${_t('Czarno-białe')}</button></div></div>
     <div class="hr"></div><p class="note">${exp.kind === 'pdf' ? _t('Kreski w milimetrach jak w pasku kreski, okna w swoich skalach. Wszystkie arkusze trafiają do jednego pliku, każdy na osobnej stronie.') : _t`Obraz arkusza „${esc(pngSheet.name)}” w 200 dpi.`}</p>
     <div class="row" style="justify-content:flex-end;gap:6px"><button class="tbs" id="expPrint">${_t('Drukuj…')}</button><button class="primary" id="expGo">${exp.kind === 'pdf' ? _t('Zapisz PDF…') : _t('Zapisz PNG…')}</button></div>`);
@@ -1700,7 +1739,7 @@ document.addEventListener('click', e => {
 // wciśnięcie przycisku z ikoną (wzorzec_przyciskow.html): :active trwa tyle co kliknięcie (~0,1 s), więc ugięcia prawie
 // nie widać — klasa .wcis od pointerdown do puszczenia, ale co najmniej 90 ms
 // przyciski z ikoną (.ib — ugina się ikona) i z samym tekstem (ugina się cały przycisk, wytyczne §2b)
-const PRESS = '.ib, .tb, .tbs, .pill, .menu button, .seg button, .pop .cats button, #blocksPop .blk, #toast button, .toolbar .pick, .toolbar .pats button, .tabs button, .pop .mv, .primary';
+const PRESS = '.ib, .layer .ic, .layer .ls, .layer .swb, .tb, .tbs, .pill, .menu button, .seg button, .pop .cats button, #blocksPop .blk, #toast button, .toolbar .pick, .toolbar .pats button, .tabs button, .pop .mv, .primary';
 document.addEventListener('pointerdown', e => {
   const b = e.target.closest && e.target.closest(PRESS); if (!b || e.button || b.disabled) return;
   b.classList.add('wcis'); const t0 = performance.now();

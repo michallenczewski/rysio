@@ -4,7 +4,7 @@
 //   śledzenie: poziom i pion od punktów, przy których był kursor — i ich przecięcia.
 // Tolerancja przychodzi w metrach (kilka pikseli przeliczone przez widok), więc działa tak samo przy każdym powiększeniu.
 import { _t } from './i18n.js';
-import { V, bbox, boxGrow, boxHit, endpoints, midpoints, partsOf, nearestOn, intersect, perpFeet, tangentPts, closestOnSeg, lineCircle, onArcAngle, angOf } from './geom.js';
+import { V, centersOf, bbox, boxGrow, boxHit, endpoints, midpoints, partsOf, nearestOn, intersect, perpFeet, tangentPts, closestOnSeg, lineCircle, onArcAngle, angOf } from './geom.js';
 
 export const SNAP = {
   end: { label: _t('Koniec'), pri: 0 },
@@ -45,11 +45,11 @@ export class Snapper {
       const near = [];
       for (const e of o.ents) {
         const b = bbox(e);
-        const cen = (e.t === 'circle' || e.t === 'arc') ? e.c : null;
-        if (!boxHit(boxGrow(b, tol), probe) && !(cen && V.dist(cen, p) <= tol)) continue;
+        const cens = centersOf(e).filter(c => V.dist(c, p) <= tol);   // środek łuku może leżeć poza jego obrysem
+        if (!boxHit(boxGrow(b, tol), probe) && !cens.length) continue;
         const n = nearestOn(e, p);
         if (n && n.d <= tol) near.push({ e, n });
-        if (cen && V.dist(cen, p) <= tol) cands.push({ p: cen, kind: 'center', e });
+        for (const cen of cens) cands.push({ p: cen, kind: 'center', e });
         if (!n || n.d > tol) continue;
         for (const q of endpoints(e)) cands.push({ p: q, kind: 'end', e });
         for (const q of midpoints(e)) cands.push({ p: q, kind: 'mid', e });

@@ -44,6 +44,9 @@ header button,header .seg,header input{-webkit-app-region:no-drag}
 .ib>svg{display:block;transition:transform .35s var(--spring)}
 .ib:hover:not(:disabled)>svg{transform:translateY(-1px)}
 .ib.wcis:not(:disabled)>svg{transform:scale(.84);transition:transform .09s ease-out}
+/* małe przyciski w wierszu warstwy (oko, kłódka, kosz, kreska, kolor) — to samo ugięcie */
+.layer .ic>svg,.layer .ls>svg,.layer .swb>i{transition:transform .35s var(--spring)}
+.layer .ic.wcis>svg,.layer .ls.wcis>svg,.layer .swb.wcis>i{transform:scale(.84);transition:transform .09s ease-out}
 /* przełącznik włączony (§4) — wypełnienie wyrasta od środka, ikona wskakuje; wyłączenie — ikona podskakuje.
    Kolor kreski zamiast akcentu — decyzja Michała */
 .ib[aria-pressed=true],.ib[aria-pressed=true]:hover:not(:disabled){background:transparent;color:var(--card)}
@@ -88,7 +91,12 @@ header button,header .seg,header input{-webkit-app-region:no-drag}
 .pill.src{box-shadow:0 0 0 1.5px var(--snap) inset}
 
 /* --- narzędzia --- */
-#tools{grid-column:1;grid-row:2/4;display:flex;flex-direction:column;align-items:center;gap:2px;padding:0 0 12px;overflow:hidden}   /* kapsuła równo z górną krawędzią kartki (wytyczne-uklad-i-przyciski §1) */
+#tools{grid-column:1;grid-row:2/4;display:flex;flex-direction:column;align-items:center;gap:2px;padding:0 0 12px;overflow:hidden auto;scrollbar-width:none;overscroll-behavior:contain}
+#tools::-webkit-scrollbar{display:none}
+/* niskie okno: pasek przewija się kółkiem; cień przy krawędzi mówi, że dalej są jeszcze narzędzia */
+#tools.more-down{-webkit-mask-image:linear-gradient(#000 calc(100% - 28px),transparent);mask-image:linear-gradient(#000 calc(100% - 28px),transparent)}
+#tools.more-up{-webkit-mask-image:linear-gradient(transparent,#000 28px);mask-image:linear-gradient(transparent,#000 28px)}
+#tools.more-up.more-down{-webkit-mask-image:linear-gradient(transparent,#000 28px,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(transparent,#000 28px,#000 calc(100% - 28px),transparent)}   /* kapsuła równo z górną krawędzią kartki (wytyczne-uklad-i-przyciski §1) */
 /* kapsuła narzędzi z jednym przeskakującym wskaźnikiem (§3) */
 #tools .caps{position:relative;display:flex;flex-direction:column;gap:2px;padding:2px;border-radius:9px;background:var(--soft);flex:none}
 #tools .ind{position:absolute;top:0;left:2px;width:30px;height:28px;border-radius:7px;background:var(--toolon);box-shadow:0 0 0 1px var(--cardline),0 1px 2px rgba(0,0,0,.06);transition:transform .42s var(--spring);pointer-events:none}
@@ -119,6 +127,7 @@ header button,header .seg,header input{-webkit-app-region:no-drag}
 @keyframes wysunP{from{clip-path:inset(-40px -40px -60px 100%)}to{clip-path:inset(-40px -40px -60px -40px)}}
 @keyframes pokaz{from{opacity:0}to{opacity:1}}
 .toolbar .t{font-weight:500}
+.toolbar.tight > .lbl,.toolbar.tight .smp .lbl{display:none}
 .toolbar .smp{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-radius:7px;background:var(--soft);color:var(--text)}
 .toolbar .smp i{width:8px;height:8px;border-radius:2px}
 

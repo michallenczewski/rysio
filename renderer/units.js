@@ -19,7 +19,7 @@ export function setUnit(u, remember = true) {
 
 export function parseLength(s) {
   if (s == null) return null;
-  s = String(s).trim().toLowerCase().replace(/\s+/g, '');
+  s = String(s).trim().toLowerCase().replace(/^([-+])\s+/, '$1').replace(/(\d)\s(?=\d{3}(?!\d))/g, '$1').replace(/\s+(?=[a-z"'])/, '');   // spacja przed jednostką („3,5 m”), po znaku i w tysiącach („1 000”); „3 4” to nie 34
   if (!s) return null;
   const m = s.match(/^([-+]?\d*(?:[.,]\d*)?)(mm|cm|dm|m|km|in|ft|"|')?$/);
   if (!m || m[1] === '' || m[1] === '-' || m[1] === '+' || m[1] === '.' || m[1] === ',') return null;

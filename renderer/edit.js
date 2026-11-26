@@ -225,12 +225,15 @@ function cutAt(e, T, p) {
 
 // Narożnik polilinii: wierzchołek najbliższy kliknięcia (oba sąsiednie kawałki proste).
 // mode 'fillet' — łuk o promieniu r; 'chamfer' — ścięcie w odległościach r i d2. Zwraca nowe pts albo { error }.
-export function plineCorner(e, p, mode, r, d2 = r) {
+// near — zasięg kliknięcia (w metrach): klik dalej od wierzchołka niż near i niż ćwierć klikniętego odcinka to błąd 'far'.
+export function plineCorner(e, p, mode, r, d2 = r, near = Infinity) {
   const n = e.pts.length, parts = plineParts(e); if (!parts.length) return { error: 'noCorner' };
   const np = nearestPart(parts, p), q = np.q, i0 = q.i;
   let vi = V.dist(np.c, q.from) <= V.dist(np.c, q.to) ? i0 : (i0 + 1) % n;
-  if (!e.closed && (vi === 0 || vi === n - 1)) vi = vi === 0 ? 1 : n - 2;   // na końcu otwartej polilinii — najbliższy narożnik
+  const atEnd = !e.closed && (vi === 0 || vi === n - 1);
+  if (atEnd) vi = vi === 0 ? 1 : n - 2;   // na końcu otwartej polilinii — najbliższy narożnik (bez sprawdzania odległości)
   if (!e.closed && (vi <= 0 || vi >= n - 1)) return { error: 'noCorner' };
+  if (!atEnd && V.dist(np.c, pt(e.pts[vi])) > Math.max(near, 0.25 * V.dist(pt(q.from), pt(q.to)))) return { error: 'far' };
   const ip = (vi - 1 + n) % n, inx = (vi + 1) % n;
   if (e.pts[ip][2] || e.pts[vi][2]) return { error: 'arcCorner' };
   const Vx = pt(e.pts[vi]), A = pt(e.pts[ip]), B = pt(e.pts[inx]);
@@ -393,6 +396,45 @@ export function trimOrExtend(e, p, others, endTol = 0) {
   }
   return tr ? { kind: 'trim', replace: tr.replace } : null;
 }
+// Kawałki elementu e między przecięciami z others; usuwa te, w które trafił któryś z punktów ps, sąsiednie pozostałe
+// łączy w jeden element. Wynik: lista nowych elementów (pusta — element znika) albo null, gdy nie ma przecięć.
+function trimPieces(e, ps, others) {
+  const eps = 1e-9, ts = cutParams(e, others), uniq = a => a.sort((x, y) => x - y).filter((t, i, s) => !i || t - s[i - 1] > 1e-12);
+  const cyclic = e.t === 'circle' || (e.t === 'pline' && e.closed);
+  const period = e.t === 'circle' ? TAU : e.t === 'pline' ? plineParts(e).length : 1;
+  const cuts = cyclic ? uniq(ts.map(t => (e.t === 'circle' ? normAng(t) : t >= period - eps ? 0 : Math.max(0, t)))) : uniq(ts.filter(t => t > eps && t < period - eps));
+  if (cyclic ? cuts.length < 2 : !cuts.length) return null;
+  // przedziały [od, do]: przy elemencie zamkniętym ostatni zawija przez początek
+  const iv = cyclic ? cuts.map((t, i) => [t, i + 1 < cuts.length ? cuts[i + 1] : cuts[0] + period]) : [0, ...cuts].map((t, i) => [t, i < cuts.length ? cuts[i] : period]);
+  const hit = new Set();
+  for (const p of ps) {
+    let t = paramOn(e, p);
+    if (cyclic) { t = ((t % period) + period) % period; if (t < cuts[0]) t += period; }
+    else if (e.t === 'arc' && t > 1) { const sw = sweep(e.a0, e.a1), o = t * sw; t = o - sw < TAU - o ? 1 : 0; }   // poza łukiem — do bliższego końca
+    else t = Math.max(0, Math.min(period, t));   // klik tuż za końcem linii
+    // trafienie dokładnie w punkt cięcia — kawałki po obu jego stronach
+    iv.forEach(([a, b], i) => { if (t >= a - eps && t <= b + eps) hit.add(i); });
+    if (cyclic && Math.abs(t - period - cuts[0]) <= eps) hit.add(0);
+  }
+  if (!hit.size) return null;
+  // ciągi sąsiednich zostających przedziałów (przy zamkniętym — zaczynając zaraz po usuniętym)
+  const n = iv.length, first = cyclic ? ([...hit][0] + 1) % n : 0, runs = [];
+  let run = null;
+  for (let k = 0; k < n; k++) {
+    const i = (first + k) % n;
+    if (hit.has(i)) { run = null; continue; }
+    const a = iv[i][0] + (cyclic && i < first ? period : 0), b = iv[i][1] + (cyclic && i < first ? period : 0);
+    if (run) run[1] = b; else runs.push(run = [a, b]);
+  }
+  const out = [];
+  for (const [a, b] of runs) {
+    if (e.t === 'line') out.push({ t: 'line', a: pointAt(e, a), b: pointAt(e, b) });
+    else if (e.t === 'arc') { const sw = sweep(e.a0, e.a1); out.push({ t: 'arc', c: [...e.c], r: e.r, a0: normAng(e.a0 + a * sw), a1: normAng(e.a0 + b * sw) }); }
+    else if (e.t === 'circle') out.push({ t: 'arc', c: [...e.c], r: e.r, a0: normAng(a), a1: normAng(b) });
+    else if (e.t === 'pline') { const q = plineSlice(e, a, b); if (q) out.push(q); }
+  }
+  return out;
+}
 // Przycinanie / wydłużanie kilku kawałków jednym przeciągnięciem: hits — [{ e, p }] (element i punkt, w którym ślad
 // go przeciął; ten sam element może być kilka razy), others — wszystkie elementy tnące (geometria sprzed zmian).
 // mode: 'auto' (jak jedno kliknięcie), 'trim', 'extend'. Wynik: [{ id, kind: 'trim', replace } | { id, kind: 'extend', set }].
@@ -407,17 +449,9 @@ export function trimMany(hits, others, mode = 'auto', endTol = 0) {
       if (r) out.push({ id: e.id, ...r });
       continue;
     }
-    // kolejne przycięcia tego samego elementu: każdy punkt trafia w kawałek, który jeszcze został
-    let pieces = [e], changed = false;
-    for (const p of ps) {
-      let best = null, bd = Infinity;
-      for (const q of pieces) { const n = partsOf(q).reduce((m, part) => { const c = part.k === 'seg' ? closestOnSeg(p, part.a, part.b).p : null; return c ? Math.min(m, V.dist(c, p)) : m; }, Infinity); const d = q.t === 'line' || q.t === 'pline' ? n : Math.abs(V.dist(p, q.c) - q.r); if (d < bd) { bd = d; best = q; } }
-      if (!best || bd > Math.max(endTol, 1e-6)) continue;   // ten kawałek już usunięty — nie tnij sąsiada
-      const r = trimAt(best, p, cut); if (!r) continue;
-      pieces = pieces.filter(q => q !== best).concat(r.replace.map(x => ({ ...x, id: e.id })));
-      changed = true;
-    }
-    if (changed) out.push({ id: e.id, kind: 'trim', replace: pieces.map(({ id, ...x }) => x) });
+    // kilka punktów na jednym elemencie: znikają wszystkie kawałki (między przecięciami), w które trafił ślad
+    const r = trimPieces(e, ps, cut);
+    if (r) out.push({ id: e.id, kind: 'trim', replace: r });
   }
   return out;
 }

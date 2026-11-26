@@ -5,8 +5,7 @@
 //             hint() podpowiedź · down/move/up(p, e) · typed(tekst) → true, gdy zrozumiało · enter() / cancel() → true, gdy coś zrobiło
 //             preview() elementy podglądu · path / box — ślad pędzla i gumki, ramka zaznaczania
 import { _t, DEC } from './i18n.js';
-import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, intersect, lengthOf, dimGeom, adimGeom, partsOf, closestOnSeg } from './geom.js';
-import { lineX } from './snap.js';
+import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, intersect, lengthOf, dimGeom, adimGeom, partsOf, closestOnSeg, angArms } from './geom.js';
 import { parseLength, parseLengths, fmtLength, fmtNum } from './units.js';
 import { isLive, isShown } from './model.js';
 import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, filletCurves, chamferLines, plineCorner, trimMany, gripsOf, gripMove } from './edit.js';
@@ -277,6 +276,7 @@ export function makeTools(app) {
       if (this.pts.length === 1) { const r = parseLength(s); if (!(r > 0)) return false; this.pts.push(V.add(this.pts[0], V.mul(dirOf(this.pts[0], this.cur || V.add(this.pts[0], [1, 0])), r))); return true; }
       const d = parseFloat(String(s).replace(',', '.').replace('°', '')); if (!isFinite(d) || Math.abs(d) < 1e-9) return false;
       const c = this.pts[0], r = V.dist(c, this.pts[1]), a0 = angOf(c, this.pts[1]), a1 = a0 + d * Math.PI / 180;
+      if (Math.abs(d) >= 360 - 1e-9) { this.pts = []; if (r > 1e-9) app.edit(_t('Okrąg'), tx => tx.add({ t: 'circle', c: [...c], r })); return true; }   // pełny obrót — okrąg
       this.make(d > 0 ? { c, r, a0, a1: ((a1 % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) } : { c, r, a0: ((a1 % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI), a1: a0 });
       return true;
     },
@@ -468,10 +468,10 @@ export function makeTools(app) {
     start() { this.first = null; },
     down(p) {
       const s = app.pick(p); if (!s) return;
-      const err = c => app.toast({ parallel: _t('Te elementy nie mają narożnika (są równoległe albo się nie spotkają).'), tooBig: _t('Promień jest za duży dla tego narożnika.'), noCorner: _t('Tu polilinia nie ma narożnika — kliknij blisko wierzchołka.'), arcCorner: _t('Ten narożnik polilinii jest na łuku — zaokrągla się narożniki między prostymi odcinkami.'), zero: _t('Promień 0 — narożnik polilinii jest już ostry.') }[c] || _t('Tego narożnika nie da się zaokrąglić.'));
+      const err = c => app.toast({ parallel: _t('Te elementy nie mają narożnika (są równoległe albo się nie spotkają).'), tooBig: _t('Promień jest za duży dla tego narożnika.'), noCorner: _t('Tu polilinia nie ma narożnika — kliknij blisko wierzchołka.'), far: _t('Kliknij bliżej narożnika, który ma się zaokrąglić.'), arcCorner: _t('Ten narożnik polilinii jest na łuku — zaokrągla się narożniki między prostymi odcinkami.'), zero: _t('Promień 0 — narożnik polilinii jest już ostry.') }[c] || _t('Tego narożnika nie da się zaokrąglić.'));
       if (this.mode === 'chamfer') {
-        const errC = c => app.toast({ parallel: _t('Linie są równoległe — nie mają narożnika.'), tooBig: _t('Odległość jest za duża dla tego narożnika.'), noCorner: _t('Tu polilinia nie ma narożnika — kliknij blisko wierzchołka.'), arcCorner: _t('Ten narożnik polilinii jest na łuku — fazuje się narożniki między prostymi odcinkami.'), zero: _t('Odległość 0 — narożnik zostaje ostry.') }[c] || _t('Tego narożnika nie da się sfazować.'));
-        if (!this.first && s.t === 'pline') { const r = plineCorner(s, p, 'chamfer', this.d1, this.d2); if (r.error) return errC(r.error); app.edit(_t('Fazuj'), tx => tx.set(s.id, { pts: r.pts })); return; }
+        const errC = c => app.toast({ parallel: _t('Linie są równoległe — nie mają narożnika.'), tooBig: _t('Odległość jest za duża dla tego narożnika.'), noCorner: _t('Tu polilinia nie ma narożnika — kliknij blisko wierzchołka.'), far: _t('Kliknij bliżej narożnika, który ma się sfazować.'), arcCorner: _t('Ten narożnik polilinii jest na łuku — fazuje się narożniki między prostymi odcinkami.'), zero: _t('Odległość 0 — narożnik zostaje ostry.') }[c] || _t('Tego narożnika nie da się sfazować.'));
+        if (!this.first && s.t === 'pline') { const r = plineCorner(s, p, 'chamfer', this.d1, this.d2, 20 / app.view.ppm); if (r.error) return errC(r.error); app.edit(_t('Fazuj'), tx => tx.set(s.id, { pts: r.pts })); return; }
         if (s.t !== 'line') { app.toast(_t('Fazuje się linie i narożniki polilinii.')); return; }
         if (!this.first) { this.first = { e: s, p: [...p] }; return; }
         if (s.id === this.first.e.id) return;
@@ -482,7 +482,7 @@ export function makeTools(app) {
         return;
       }
       // polilinia: jedno kliknięcie zaokrągla najbliższy wierzchołek
-      if (!this.first && s.t === 'pline') { const r = plineCorner(s, p, 'fillet', this.r); if (r.error) return err(r.error); app.edit(_t('Zaokrąglij'), tx => tx.set(s.id, { pts: r.pts })); return; }
+      if (!this.first && s.t === 'pline') { const r = plineCorner(s, p, 'fillet', this.r, this.r, 20 / app.view.ppm); if (r.error) return err(r.error); app.edit(_t('Zaokrąglij'), tx => tx.set(s.id, { pts: r.pts })); return; }
       if (!['line', 'arc', 'circle'].includes(s.t)) { app.toast(_t('Zaokrągla się linie, łuki, okręgi i narożniki polilinii.')); return; }
       if (!this.first) { this.first = { e: s, p: [...p] }; return; }
       if (s.id === this.first.e.id) return;
@@ -500,7 +500,7 @@ export function makeTools(app) {
       try {
         if (!this.first) {
           if (s.t !== 'pline') return [];
-          const r = ch ? plineCorner(s, p, 'chamfer', this.d1, this.d2) : plineCorner(s, p, 'fillet', this.r);
+          const r = ch ? plineCorner(s, p, 'chamfer', this.d1, this.d2, 20 / app.view.ppm) : plineCorner(s, p, 'fillet', this.r, this.r, 20 / app.view.ppm);
           return r.error ? [] : [{ ...s, pts: r.pts, _replaces: s.id, _sel: true }];
         }
         const f = this.first; if (s.id === f.e.id) return [];
@@ -632,16 +632,9 @@ export function makeTools(app) {
         const s = this.segAt(p); if (!s) { app.toast(_t('Kliknij linię albo prosty odcinek polilinii.')); return; }
         const q = closestOnSeg(p, s.a, s.b).p;
         if (!this.src) { this.src = { s, a: q }; return; }
-        const c = lineX(this.src.s.a, V.sub(this.src.s.b, this.src.s.a), s.a, V.sub(s.b, s.a));
-        if (!c) { app.toast(_t('Linie są równoległe — nie tworzą kąta.')); return; }
-        // punkt na ramieniu: gdy linie się przecinają — kliknięty (wskazuje stronę); gdy odcinek nie sięga wierzchołka —
-        // jego bliższy koniec (od niego rysuje się linia pomocnicza do łuku)
-        const arm = (pt, seg) => {
-          const d = V.sub(seg.b, seg.a), t = V.dot(V.sub(c, seg.a), d) / V.dot(d, d);
-          if (t > 1e-9 && t < 1 - 1e-9) return V.dist(pt, c) > 1e-9 ? pt : (V.dist(seg.a, c) > V.dist(seg.b, c) ? seg.a : seg.b);
-          return V.dist(seg.a, c) < V.dist(seg.b, c) ? seg.a : seg.b;
-        };
-        this.src = { c, a: arm(this.src.a, this.src.s), b: arm(q, s) };
+        const g = angArms(this.src.s, this.src.a, s, q);
+        if (!g) { app.toast(_t('Linie są równoległe — nie tworzą kąta.')); return; }
+        this.src = g;
         return;
       }
       if (this.kind === 'rad' || this.kind === 'dia') {

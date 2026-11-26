@@ -128,6 +128,23 @@ export function adimGeom(e, k = ANNO) {
   return { lines, arcs, arrows, text: { p: V.add(mid, V.mul(up, 1 * k)), ang: ta, h }, value: dia ? 2 * e.r : e.r, kind: e.k, pts: [E1, E2, e.o] };
 }
 // odcinki grota strzałki (dwa ramiona pod 20°, długość 2,5 mm wydruku)
+// Wymiar kątowy między dwoma odcinkami s1, s2 ({ a, b }) klikniętymi w punktach p1, p2: wierzchołek c i punkty na ramionach.
+// Ramię: gdy odcinek przechodzi przez wierzchołek — punkt kliknięcia (wskazuje stronę); gdy kończy się w wierzchołku
+// (narożnik ściany) — jego drugi koniec; gdy nie sięga wierzchołka — bliższy koniec (od niego idzie linia pomocnicza).
+export function angArms(s1, p1, s2, p2) {
+  const d1 = V.sub(s1.b, s1.a), d2 = V.sub(s2.b, s2.a), den = V.cross(d1, d2);
+  if (Math.abs(den) < 1e-12 * V.len(d1) * V.len(d2)) return null;
+  const c = V.add(s1.a, V.mul(d1, V.cross(V.sub(s2.a, s1.a), d2) / den));
+  const arm = (pt, seg) => {
+    const tol = 1e-9 * Math.max(1, V.dist(seg.a, seg.b));
+    const [near, far] = V.dist(seg.a, c) <= V.dist(seg.b, c) ? [seg.a, seg.b] : [seg.b, seg.a];
+    const d = V.sub(seg.b, seg.a), t = V.dot(V.sub(c, seg.a), d) / V.dot(d, d);
+    if (V.dist(near, c) <= tol) return V.dist(pt, c) > tol ? pt : far;
+    if (t > 0 && t < 1) return V.dist(pt, c) > tol ? pt : far;
+    return near;
+  };
+  return { c, a: arm(p1, s1), b: arm(p2, s2) };
+}
 export function arrowSegs(ar, k = ANNO) {
   const L = 2.5 * k, b = angOf([0, 0], ar.d) + Math.PI;
   return [[ar.p, V.polar(ar.p, L, b + 0.35)], [ar.p, V.polar(ar.p, L, b - 0.35)]];
@@ -167,7 +184,7 @@ const insCache = new WeakMap();
 function insGeo(e) {
   const key = BREV + '|' + e.b + '|' + e.p + '|' + e.rot + '|' + e.s + '|' + e.mx;
   const c = insCache.get(e); if (c && c.key === key) return c;
-  const X = insXf(e), out = { key, parts: [], ends: [], mids: [] };
+  const X = insXf(e), out = { key, parts: [], ends: [], mids: [], cens: [] };
   if (insDepth < 8) {
     insDepth++;
     try {
@@ -177,7 +194,7 @@ function insGeo(e) {
         for (const q of partsOf(ch)) out.parts.push(xfPart(q, X));
         for (const q of endpoints(ch)) out.ends.push(X.f(q));
         for (const q of midpoints(ch)) out.mids.push(X.f(q));
-        if (ch.t === 'circle' || ch.t === 'arc') out.mids.push(X.f(ch.c));
+        for (const q of centersOf(ch)) out.cens.push(X.f(q));
       }
     } finally { insDepth--; }
   }
@@ -269,6 +286,8 @@ export function midpoints(e) {
   return segsOf(e).map(([a, b]) => V.lerp(a, b, 0.5));
 }
 export const centerOf = e => (e.t === 'circle' || e.t === 'arc') ? e.c : null;
+// środki okręgów i łuków — także w bloku (przyciągają, nawet gdy kursor jest daleko od obwodu)
+export const centersOf = e => e.t === 'ins' ? insGeo(e).cens : (e.t === 'circle' || e.t === 'arc') ? [e.c] : [];
 
 // prostokąt obrysu [minX, minY, maxX, maxY]
 export function bbox(e) {

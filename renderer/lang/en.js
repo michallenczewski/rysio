@@ -537,4 +537,8 @@ export default {
   "nie ma takiego pliku albo folderu": "no such file or folder",
   "pamięć przeglądarki jest pełna": "the browser storage is full",
   "niedozwolona nazwa pliku": "file name not allowed",
+  "Warstwa „{0}” już jest.": "Layer “{0}” already exists.",
+  "Skala kreskowania: od 0,1 do 100.": "Hatch scale: from 0.1 to 100.",
+  "Kliknij bliżej narożnika, który ma się zaokrąglić.": "Click closer to the corner you want to fillet.",
+  "Kliknij bliżej narożnika, który ma się sfazować.": "Click closer to the corner you want to chamfer.",
 };

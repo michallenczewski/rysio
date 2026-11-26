@@ -377,7 +377,7 @@ export function parseDxf(input, o = {}) {
           const own = /^RYSIO_([A-Z]+)$/.exec(nm), ownPat = own && ['diag', 'cross', 'conc', 'ins', 'soil'].includes(own[1].toLowerCase()) ? own[1].toLowerCase() : null;
           const pat = solid ? 'solid' : ownPat ? ownPat : /CONC|SAND/.test(nm) ? 'conc' : /EARTH/.test(nm) ? 'soil' : /INSUL/.test(nm) ? 'ins' : /ANSI37|ANSI38|NET|CROSS|SQUARE/.test(nm) ? 'cross' : 'diag';
           const baseAng = /ANSI3[1-8]/.test(nm) ? 45 : 0;
-          add({ t: 'hatch', loops, pat, ps: ownPat && g(41) > 0 ? g(41) : 1, ang: r6(((baseAng + g(52)) % 360 + 360) % 360 * Math.PI / 180) }, { ...base, w: base.w ?? 0.13 });
+          add({ t: 'hatch', loops, pat, ps: ownPat && g(41) > 0 ? g(41) : 1, ang: r6(((baseAng + g(52)) % 360 + 360) % 360 * Math.PI / 180) }, { ...base, w: base.w ?? (gs(370) == null ? 0.13 : null) });   // bez 370 (AutoCAD) — cienka kreska; 370 = −1 (np. z Rysia) — jak warstwa
           break;
         }
         case 'ATTDEF': case 'SEQEND': case 'VERTEX': case 'POINT': case 'VIEWPORT': break;
@@ -539,7 +539,7 @@ export function writeDxf(doc) {
       out.push(0, t, 5, H(), 330, ctx.owner, 100, 'AcDbEntity'); if (ctx.paper) out.push(67, 1);
       out.push(8, e._layerName || names.get(e.layer) || '0');
       if (e.lt) out.push(6, ltName(e.lt));
-      if (e.w != null) out.push(370, lwOf(e.w));
+      if (e.w != null) out.push(370, lwOf(e.w)); else if (e.t === 'hatch') out.push(370, -1);   // kreskowanie bez 370 czyta się jako cienkie
       if (extra) out.push(...extra);
     };
     const line = (e, a, b) => { const A = P(a), B = P(b); head('LINE', e); out.push(100, 'AcDbLine', 10, A[0], 20, A[1], 30, 0, 11, B[0], 21, B[1], 31, 0); };
