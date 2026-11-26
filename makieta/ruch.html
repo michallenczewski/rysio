@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rysio — ruch i ustawienia (makieta)</title>
+<style>
+:root{
+  --bg:#f7f7f5; --text:#1a1a19; --text2:#4a4945; --muted:#706f6a; --muted2:#8f8e89;
+  --soft:#efeeea; --hover:#e6e5e0; --line:#e6e5e1; --card:#fff; --toolon:#fff; --cardline:rgba(0,0,0,.06);
+  --menush:0 0 0 1px rgba(0,0,0,.06),0 10px 30px rgba(0,0,0,.10); --kbd:#f3f2ef;
+  --paper:#fff; --ink:#1a1a19; --sel:#3f63a8; --accent:#3f63a8;
+  --spring:cubic-bezier(.34,1.56,.64,1);
+  color-scheme:light;
+}
+[data-theme=dark]{
+  --bg:#161616; --text:#e9e9e7; --text2:#c4c4c1; --muted:#8d8d89; --muted2:#6f6f6c;
+  --soft:#222221; --hover:#2c2c2b; --line:#2a2a29; --card:#1d1d1c; --toolon:#3a3a38; --cardline:rgba(255,255,255,.06);
+  --menush:0 0 0 1px rgba(255,255,255,.07),0 12px 36px rgba(0,0,0,.5); --kbd:#2e2e2d;
+  --paper:#1d1d1c; --ink:#e4e4e1; --sel:#7d9ad6; --accent:#4f73b8;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;user-select:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+svg{display:block}
+kbd{font:500 11px/1 inherit;background:var(--kbd);border-radius:4px;padding:2px 5px;color:var(--text2)}
+
+/* --- objaśnienia makiety (nie są częścią programu) --- */
+.demo{max-width:1180px;margin:0 auto;padding:22px 20px 40px}
+.demo h1{font-size:17px;font-weight:600;margin:0 0 4px}
+.demo .lead{color:var(--text2);margin:0 0 14px;max-width:820px;line-height:1.5}
+.ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 14px}
+.seg{display:flex;gap:2px;padding:2px;border-radius:8px;background:var(--soft)}
+.seg button{height:26px;padding:0 10px;border-radius:6px;color:var(--muted);font-size:12px}
+.seg button.on{background:var(--toolon);box-shadow:0 0 0 1px var(--cardline),0 1px 2px rgba(0,0,0,.06);color:var(--text)}
+.ctl .lbl{color:var(--muted);font-size:12px}
+.notes{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:16px}
+.notes div{background:var(--soft);border-radius:9px;padding:10px 12px;color:var(--text2);line-height:1.45}
+.notes b{color:var(--text);font-weight:600;display:block;margin-bottom:2px}
+
+/* --- okno Rysia --- */
+.win{display:grid;grid-template-columns:56px minmax(0,1fr);grid-template-rows:52px minmax(0,1fr) 40px;height:760px;border-radius:12px;overflow:hidden;background:var(--bg);box-shadow:var(--menush);position:relative}
+header{grid-column:1/-1;display:flex;align-items:center;gap:6px;padding:0 12px 0 18px;min-width:0}
+.gap{flex:1}
+.sep{width:1px;height:16px;background:var(--line);margin:0 6px;flex:none}
+.file{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+.file .nm{font-weight:500}
+.file .tb{color:var(--text2)}
+.pill{height:30px;padding:0 10px 0 9px;border-radius:7px;background:var(--soft);display:flex;align-items:center;gap:8px;white-space:nowrap;transition:background-color .15s}
+.pill:hover{background:var(--hover)}
+.pill i{width:9px;height:9px;border-radius:2px}
+
+/* przycisk z ikoną — §2 */
+.ib{width:30px;height:28px;border-radius:7px;color:var(--muted);display:flex;align-items:center;justify-content:center;flex:none;position:relative;transition:background-color .15s,color .15s}
+.ib:hover{background:var(--hover);color:var(--text)}
+.ib svg{transition:transform .35s var(--spring)}
+.ib:hover svg{transform:translateY(-1px)}
+.ib:active svg{transform:scale(.86)}
+
+/* przełącznik „włączone” — §4 (cienkie linie) */
+.ib.on-state{background:transparent;color:#fff}
+.ib.on-state::before{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--accent)}
+.ib.on-state svg{position:relative}
+.ib.wlacza::before{animation:wypelnij .42s var(--spring)}
+@keyframes wypelnij{from{transform:scale(.4);opacity:0}to{transform:none;opacity:1}}
+
+/* tak / nie — §5 */
+.ib.nie{animation:nie .38s ease-out}
+@keyframes nie{20%{transform:translateX(-3px)}45%{transform:translateX(3px)}70%{transform:translateX(-2px)}}
+.ib.tak{animation:tak .55s ease-out}
+@keyframes tak{0%{background:var(--hover)}100%{background:transparent}}
+.ib.tak svg>*{animation:wskocz .5s var(--spring) both}
+.ib.tak svg>*:nth-child(2){animation-delay:30ms}
+.ib.tak svg>*:nth-child(3){animation-delay:60ms}
+@keyframes wskocz{from{transform:translateY(2px) rotate(-10deg) scale(.6);opacity:.4}to{transform:none;opacity:1}}
+.ib.tak svg>*{transform-box:fill-box;transform-origin:center}
+
+/* pionowa kapsuła narzędzi z przeskakującym wskaźnikiem — §3 */
+nav{grid-row:2/4;display:flex;justify-content:center;padding:4px 0 12px;overflow:hidden}
+.tools{position:relative;display:flex;flex-direction:column;gap:2px;padding:2px;border-radius:9px;background:var(--soft);align-self:flex-start}
+.tools .ind{position:absolute;top:0;left:2px;width:30px;height:28px;border-radius:7px;background:var(--toolon);box-shadow:0 0 0 1px var(--cardline),0 1px 2px rgba(0,0,0,.06);transition:transform .42s var(--spring);pointer-events:none}
+.tools .ib{z-index:1}
+.tools .ib.on,.tools .ib:hover{background:transparent;color:var(--text)}
+.tools .hsep{height:1px;width:16px;background:var(--line);margin:3px auto;flex:none}
+[data-theme=dark] .tools .hsep{background:#333331}
+
+/* kartka */
+main{position:relative;overflow:hidden;background:var(--soft);margin:0 12px 0 0;border-radius:10px}
+.paper{position:absolute;inset:26px 30px;background:var(--paper);border-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.paper svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* wysuwany pasek opcji narzędzia — §7 */
+.opts{position:absolute;z-index:5;left:12px;top:10px;display:flex;align-items:center;height:40px;border-radius:10px;background:var(--card);box-shadow:var(--menush);font-size:12px;white-space:nowrap;overflow:hidden;max-width:0;opacity:0;padding:0;transition:max-width .42s var(--spring),opacity .2s}
+.opts.open{max-width:640px;opacity:1}
+.opts .in{display:flex;align-items:center;gap:8px;padding:0 6px 0 12px}
+.opts .t{font-weight:500}
+.opts .pats{display:flex;gap:3px;padding:2px;border-radius:8px;background:var(--soft)}
+.opts .pats button{width:30px;height:26px;border-radius:6px;display:grid;place-items:center;color:var(--text2);transition:background-color .15s}
+.opts .pats button.on{background:var(--toolon);color:var(--text);box-shadow:0 0 0 1px var(--cardline),0 1px 2px rgba(0,0,0,.06)}
+.opts .fld{height:28px;border-radius:7px;background:var(--soft);display:flex;align-items:center;gap:6px;padding:0 10px}
+.opts .fld em{font-style:normal;color:var(--muted)}
+
+/* pasek dolny */
+footer{display:flex;align-items:center;gap:8px;padding:0 12px 0 6px;min-width:0}
+#msg{flex:1;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .2s}
+#msg.warn{color:var(--text)}
+.chip{height:26px;font-size:12px;background:var(--soft);color:var(--text2);padding:0 9px;border-radius:7px;display:flex;align-items:center;gap:6px;transition:background-color .15s}
+.chip:hover{background:var(--hover)}
+.chip i{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+
+/* podpowiedź — §6 */
+#hint{position:fixed;z-index:95;display:flex;gap:7px;align-items:center;left:-999px;top:0;background:var(--text);color:var(--bg);font-size:11.5px;line-height:1;padding:5px 8px;border-radius:6px;opacity:0;transform:translateY(-2px);transition:opacity .12s,transform .2s var(--spring);pointer-events:none;white-space:nowrap}
+#hint.side{transform:translateX(-2px)}
+#hint.on{opacity:.94;transform:none}
+#hint kbd{font:inherit;font-size:10.5px;opacity:.6;background:none;padding:0;color:inherit}
+
+/* menu ustawień — §8 */
+.menu{position:absolute;z-index:90;min-width:230px;padding:5px;border-radius:10px;background:var(--card);box-shadow:var(--menush);transform-origin:top right;animation:menu .22s var(--spring)}
+@keyframes menu{from{opacity:0;transform:scale(.96) translateY(-3px)}to{opacity:1;transform:none}}
+.menu button{width:100%;height:28px;display:flex;align-items:center;gap:8px;padding:0 10px 0 8px;border-radius:6px;text-align:left;transition:background-color .15s}
+.menu button:hover{background:var(--hover)}
+.menu .ck{width:14px;color:var(--text);flex:none}
+.menu .grow{flex:1}
+.menu kbd{background:none;padding:0;color:var(--muted2);font-size:12px}
+.menu .hr{height:1px;background:var(--line);margin:5px 6px}
+.menu .lb{font-size:11px;color:var(--muted2);padding:4px 10px 2px 30px}
+.menu .ver{color:var(--muted2);font-size:12px;padding:4px 10px 2px 30px}
+.menu .upd{color:var(--accent);font-weight:500}
+
+/* mniej ruchu — §9 */
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* porównanie: „jak jest dziś” — bez ruchu i bez wspólnego wskaźnika */
+.old *,.old *::before,.old *::after{transition:none!important;animation:none!important}
+.old .tools{background:transparent}
+.old .tools .ind{display:none}
+.old .tools .ib.on{background:var(--toolon);box-shadow:0 0 0 1px var(--cardline),0 1px 2px rgba(0,0,0,.08)}
+.old .ib{width:32px;height:32px}
+</style>
+</head>
+<body>
+<div class="demo">
+  <h1>Ruch i ustawienia według wytycznych interakcji</h1>
+  <p class="lead">Makieta do przeklikania. Wszystko tu działa „na niby”, ale zachowuje się tak, jak będzie w programie: najedź na przyciski, wybieraj narzędzia, otwórz ustawienia w prawym górnym rogu. Przełącznik „Dziś / Po zmianie” pokazuje różnicę.</p>
+  <div class="ctl">
+    <span class="lbl">Porównanie</span>
+    <div class="seg" id="cmp"><button data-v="old">Dziś</button><button data-v="new" class="on">Po zmianie</button></div>
+    <span class="lbl" style="margin-left:10px">Motyw</span>
+    <div class="seg" id="thm"><button data-v="light" class="on">Jasny</button><button data-v="dark">Ciemny</button></div>
+    <span class="lbl" style="margin-left:10px">Skróty jak na</span>
+    <div class="seg" id="os"><button data-v="mac">Mac</button><button data-v="win">Windows</button></div>
+  </div>
+
+  <div class="win" id="win">
+    <header>
+      <div class="file"><span class="tb">Plik ▾</span><span class="nm">Dom jednorodzinny</span></div>
+      <button class="ib" id="undo" title="Cofnij (Mod+Z)"></button>
+      <button class="ib" id="redo" title="Ponów (Mod+Shift+Z)"></button>
+      <div class="gap"></div>
+      <button class="pill"><i style="background:#b8573c"></i>Ściany</button>
+      <button class="pill">0,35 · ciągła</button>
+      <div class="sep"></div>
+      <button class="ib" id="thin" title="Cienkie linie"></button>
+      <button class="ib" id="pdf" title="Eksport PDF i PNG (Mod+P)"></button>
+      <div class="sep"></div>
+      <button class="ib" id="set" title="Ustawienia"></button>
+    </header>
+    <nav><div class="tools" id="tools"><div class="ind"></div></div></nav>
+    <main>
+      <div class="opts" id="opts"><div class="in" id="optsIn"></div></div>
+      <div class="paper"><svg viewBox="0 0 800 560" preserveAspectRatio="xMidYMid meet" fill="none" stroke="var(--ink)" stroke-linecap="round">
+        <path d="M160 140h480v300H160z" stroke-width="3"/><path d="M380 140v170M380 360v80M160 290h120M330 290h50" stroke-width="2"/>
+        <path d="M470 440a60 60 0 0 1 60-60" stroke-width="1"/><path d="M470 440v-60" stroke-width="1"/>
+        <path d="M160 480h480M160 472v16M640 472v16" stroke-width=".8"/><text x="400" y="474" fill="var(--ink)" stroke="none" font-size="13" text-anchor="middle">12,00</text>
+      </svg></div>
+    </main>
+    <footer>
+      <span id="msg">Wybierz narzędzie albo kliknij element, żeby go zaznaczyć.</span>
+      <button class="chip"><i></i>Przyciąganie</button>
+      <button class="chip">1:100</button>
+    </footer>
+  </div>
+
+  <div class="notes">
+    <div><b>Najechanie i kliknięcie</b>Tło przycisku przenika łagodnie, ikona unosi się o piksel i ugina przy wciśnięciu. Przyciski mają 30 × 28 zamiast 32 × 32.</div>
+    <div><b>Wybrane narzędzie</b>Narzędzia leżą w jednej szarej kapsule, a jeden biały wskaźnik przeskakuje do wybranego, ze sprężyną. Działa też z klawiatury (Q, W, E, R, A, S, D, Z…).</div>
+    <div><b>Pasek opcji</b>Kreskowanie (H), wymiar (U) i zaokrąglanie (G) wysuwają swój pasek nad kartką; po zmianie narzędzia chowa się.</div>
+    <div><b>Podpowiedź</b>Pojawia się po 1,5 s bez ruchu; na sąsiednim przycisku od razu. Znika przy kliknięciu i kółku. Przy pasku narzędzi stoi z boku, w górnym pasku — pod przyciskiem.</div>
+    <div><b>„Tak” i „nie”</b>Eksport (ikona strzałki) mrugnie, że się udało. Cofnij bez historii potrząśnie się i powie na dole, dlaczego nic się nie stało.</div>
+    <div><b>Cienkie linie</b>Włączone wypełniają się kolorem od środka — od razu widać, że są włączone.</div>
+    <div><b>Ustawienia</b>Ikona suwaków, menu pod nią wyrównane do prawej: motyw (z „jak w systemie”), skróty, potem opcje Rysia (język), na dole wersja i aktualizacje.</div>
+    <div><b>Mniej ruchu</b>Gdy system ma włączone ograniczenie ruchu, wszystkie animacje znikają, a zmiany są natychmiastowe.</div>
+  </div>
+</div>
+
+<div id="hint" role="tooltip"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const IC = {
+  select: '<path d="M4 2.5v10.2l2.9-2.5 1.9 4.1 1.7-.8-1.9-4h3.9z"/>',
+  eraser: '<path d="M9.6 2.6 13.4 6.4 7 12.8H4.2L2.6 11.2z"/><path d="M6 6.2l3.8 3.8M7 12.8h6.5"/>',
+  brush: '<path d="M13.5 2.5 8 9.2 6.8 8 13.5 2.5z"/><path d="M6.6 8.4c-1.6-.4-3 .5-3.2 2.2-.1 1.2-.6 2-1.4 2.6 2.2.5 4.5.1 5.3-1.6.4-.9.3-1.8-.7-3.2z"/>',
+  line: '<path d="M4 12 12 4"/><circle cx="3.2" cy="12.8" r="1.2"/><circle cx="12.8" cy="3.2" r="1.2"/>',
+  pline: '<path d="M3 12.5 5.5 5.5l4.5 4.5 3-6.5"/><circle cx="3" cy="12.5" r="1.1"/><circle cx="13" cy="3.5" r="1.1"/>',
+  rect: '<rect x="2.5" y="4" width="11" height="8" rx=".5"/>',
+  circle: '<circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r=".6"/>',
+  arc: '<path d="M2.5 12.5a6.5 6.5 0 0 1 11 0"/><circle cx="2.5" cy="12.5" r="1"/><circle cx="13.5" cy="12.5" r="1"/>',
+  move: '<path d="M8 2v12M2 8h12"/><path d="M6.2 3.8 8 2l1.8 1.8M6.2 12.2 8 14l1.8-1.8M3.8 6.2 2 8l1.8 1.8M12.2 6.2 14 8l-1.8 1.8"/>',
+  copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.2"/><path d="M10.5 5.5V3.7a1.2 1.2 0 0 0-1.2-1.2H3.7a1.2 1.2 0 0 0-1.2 1.2v5.6a1.2 1.2 0 0 0 1.2 1.2h1.8"/>',
+  rotate: '<path d="M13.2 8.5A5.3 5.3 0 1 1 11.6 4"/><path d="M12.2 1.8v2.7H9.5"/>',
+  mirror: '<path d="M8 2v12" stroke-dasharray="1.6 1.8"/><path d="M6 4.5 2.5 12H6zM10 4.5l3.5 7.5H10z"/>',
+  scale: '<rect x="2.5" y="6.5" width="7" height="7" rx=".5"/><path d="M9 2.5h4.5V7M13.5 2.5 8 8"/>',
+  offset: '<rect x="2.5" y="2.5" width="11" height="11" rx="1"/><rect x="5.5" y="5.5" width="5" height="5" rx=".5"/>',
+  fillet: '<path d="M3 13.5V9.5A6.5 6.5 0 0 1 9.5 3h4"/><path d="M3 6.5V3h3.5" stroke-dasharray="1.3 1.6"/>',
+  trim: '<circle cx="4" cy="11.5" r="1.8"/><circle cx="12" cy="11.5" r="1.8"/><path d="M5.2 10.2 12.5 2.5M10.8 10.2 3.5 2.5"/>',
+  extend: '<path d="M13.5 2.5v11"/><path d="M2.5 8h8.5"/><path d="M8.5 5.5 11 8l-2.5 2.5"/>',
+  hatch: '<rect x="2.5" y="2.5" width="11" height="11" rx="1"/><path d="M2.8 7.2 7.2 2.8M2.8 12.2l9.4-9.4M7.2 13.2l6-6"/>',
+  block: '<rect x="2.5" y="2.5" width="5" height="5" rx=".6"/><rect x="8.5" y="8.5" width="5" height="5" rx=".6"/>',
+  text: '<path d="M3.5 4h9M8 4v8.5"/>',
+  dim: '<path d="M2.5 5v7M13.5 5v7M2.5 9.5h11"/>',
+  measure: '<path d="M2 11.5 11.5 2 14 4.5 4.5 14z"/><path d="M5 8.5l1.3 1.3M7 6.5l1.3 1.3M9 4.5l1.3 1.3"/>',
+  viewport: '<rect x="2" y="3" width="12" height="10" rx="1"/><path d="M4.5 10.5 7 7.5l2 2 1.5-1.5 1.5 2.5"/>',
+  extents: '<path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/><rect x="5.5" y="5.5" width="5" height="5" rx=".5"/>',
+  undo: '<path d="M5.5 3 2.5 6l3 3"/><path d="M2.5 6h7a4 4 0 0 1 0 8H6"/>',
+  redo: '<path d="M10.5 3l3 3-3 3"/><path d="M13.5 6h-7a4 4 0 0 0 0 8H10"/>',
+  thin: '<path d="M2.5 5h11" stroke-width="2.6"/><path d="M2.5 11h11" stroke-width=".8"/>',
+  pdf: '<path d="M8 2.5v8"/><path d="M5 7.5l3 3 3-3"/><path d="M2.5 11v2.5h11V11"/>',
+  sliders: '<path d="M2.5 5.5h11M2.5 10.5h11"/><circle cx="6" cy="5.5" r="1.8" fill="var(--bg)"/><circle cx="10.5" cy="10.5" r="1.8" fill="var(--bg)"/>',
+  gear: '<path d="M2.5 4.5h4M9.5 4.5h4M2.5 11.5h7M12.5 11.5h1"/><circle cx="8" cy="4.5" r="1.5"/><circle cx="11" cy="11.5" r="1.5"/>'
+};
+const ic = (n, w = 1.3, s = 15) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
+const TOOLS = [['select','Zaznacz','Q'],['eraser','Usuń (gumka)','S'],['brush','Pędzel','M'],null,['line','Linia','A'],['pline','Polilinia','F'],['rect','Prostokąt','D'],['circle','Okrąg','V'],['arc','Łuk przez trzy punkty','B'],null,
+  ['move','Przesuń','W'],['copy','Kopiuj','C'],['rotate','Obróć','E'],['mirror','Odbij','Shift+E'],['scale','Skaluj','R'],null,['offset','Odsunięcie','T'],['fillet','Zaokrąglij narożnik','G'],['trim','Przytnij','X'],['extend','Wydłuż','Shift+X'],null,
+  ['hatch','Kreskowanie','H'],['block','Bloki','K'],['text','Tekst','Y'],['dim','Wymiar','U'],['measure','Mierz odległość i pole','L'],['viewport','Okno na arkuszu','O'],null,['extents','Pokaż wszystko','Z']];
+let mac = /Mac/.test(navigator.platform), modern = true;
+
+/* skróty zgodne z systemem */
+const pretty = k => k.split('+').map(p => mac ? ({ Mod: '⌘', Shift: '⇧', Alt: '⌥' }[p] || p) : ({ Mod: 'Ctrl' }[p] || p)).join(mac ? '' : '+');
+
+/* --- narzędzia --- */
+const tools = $('#tools'), ind = tools.querySelector('.ind');
+for (const t of TOOLS) {
+  if (!t) { tools.insertAdjacentHTML('beforeend', '<div class="hsep"></div>'); continue; }
+  const b = document.createElement('button'); b.className = 'ib'; b.dataset.tool = t[0]; b.dataset.key = t[2];
+  b.title = `${t[1]} (${t[2]})`; b.innerHTML = ic(t[0]); b.onclick = () => pick(t[0]); tools.append(b);
+}
+function placeInd() { const on = tools.querySelector('.ib.on'); if (on) ind.style.transform = `translateY(${on.offsetTop}px)`; }
+const OPTS = {
+  hatch: `<span class="t">Kreskowanie</span><div class="pats">${['M3 13 13 3','M3 13 13 3M3 3l10 10','M3 8h10M3 12h10M3 4h10'].map((d, i) => `<button class="${i ? '' : 'on'}"><svg width="14" height="14" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.2"><path d="${d}"/></svg></button>`).join('')}</div><span class="fld"><em>skala</em>1,0</span><span class="fld"><em>kąt</em>0°</span>`,
+  dim: `<span class="t">Wymiar</span><div class="pats"><button class="on" style="width:auto;padding:0 9px">liniowy</button><button style="width:auto;padding:0 9px">kątowy</button><button style="width:auto;padding:0 9px">promień</button></div>`,
+  fillet: `<span class="t">Narożnik</span><div class="pats"><button class="on" style="width:auto;padding:0 9px">łuk</button><button style="width:auto;padding:0 9px">faza</button></div><span class="fld"><em>promień</em>0,30 m</span>`
+};
+let cur = null;
+function pick(id) {
+  cur = id;
+  tools.querySelectorAll('.ib').forEach(b => b.classList.toggle('on', b.dataset.tool === id));
+  placeInd();
+  const o = $('#opts');
+  if (OPTS[id]) {
+    if (o.classList.contains('open')) { o.classList.remove('open'); setTimeout(() => { $('#optsIn').innerHTML = OPTS[id]; o.classList.add('open'); }, modern ? 140 : 0); }
+    else { $('#optsIn').innerHTML = OPTS[id]; void o.offsetWidth; o.classList.add('open'); }
+  } else o.classList.remove('open');
+  say(TOOLS.find(t => t && t[0] === id)[1] + ' — kliknij na kartce.');
+}
+addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = (e.shiftKey ? 'Shift+' : '') + e.key.toUpperCase();
+  const t = TOOLS.find(t => t && t[2] === k); if (t) { pick(t[0]); hintHide(); }
+});
+
+/* --- górny pasek --- */
+$('#undo').innerHTML = ic('undo'); $('#redo').innerHTML = ic('redo'); $('#thin').innerHTML = ic('thin'); $('#pdf').innerHTML = ic('pdf');
+const setIcon = () => { $('#set').innerHTML = ic(modern ? 'sliders' : 'gear', modern ? 1.3 : 1.4); };
+function say(t, warn) { const m = $('#msg'); m.textContent = t; m.classList.toggle('warn', !!warn); }
+function react(b, cls) { if (!modern) return; b.classList.remove('tak', 'nie'); void b.offsetWidth; b.classList.add(cls); }
+$('#undo').onclick = e => { react(e.currentTarget, 'nie'); say('Nie ma czego cofnąć — to pierwszy krok tego rysunku.', true); };
+$('#redo').onclick = e => { react(e.currentTarget, 'nie'); say('Nie ma czego ponowić.', true); };
+$('#pdf').onclick = e => { react(e.currentTarget, 'tak'); say('Zapisano „Dom jednorodzinny — Rzut parteru.pdf”.'); };
+$('#thin').onclick = e => {
+  const b = e.currentTarget, on = !b.classList.contains('on-state');
+  b.classList.toggle('on-state', on); b.classList.remove('wlacza'); if (on && modern) { void b.offsetWidth; b.classList.add('wlacza'); }
+  say(on ? 'Cienkie linie włączone — wszystkie kreski jednakowo cienkie.' : 'Cienkie linie wyłączone.');
+};
+
+/* --- menu ustawień --- */
+let theme = 'auto', newer = false, menuEl = null;
+function closeMenu() { menuEl?.remove(); menuEl = null; }
+$('#set').onclick = e => {
+  e.stopPropagation(); if (menuEl) return closeMenu(); hintHide();
+  const ck = on => `<span class="ck">${on ? '✓' : ''}</span>`;
+  const items = modern ? `
+    <button data-th="light">${ck(theme === 'light')}<span class="grow">Jasny motyw</span></button>
+    <button data-th="dark">${ck(theme === 'dark')}<span class="grow">Ciemny motyw</span></button>
+    <button data-th="auto">${ck(theme === 'auto')}<span class="grow">Motyw jak w systemie</span></button>
+    <div class="hr"></div>
+    <button>${ck()}<span class="grow">Skróty klawiszowe</span><kbd>?</kbd></button>
+    <div class="hr"></div>
+    <div class="lb">Język</div>
+    <button>${ck(true)}<span class="grow">Polski</span></button>
+    <button>${ck()}<span class="grow">English</span></button>
+    <div class="hr"></div>
+    <div class="ver">Rysio 0.4.0</div>
+    <button id="updItem">${ck()}<span class="grow${newer ? ' upd' : ''}">${newer ? 'Zainstaluj wersję 0.4.1' : 'Sprawdź aktualizacje'}</span></button>`
+  : `<div class="lb">Wygląd</div>
+    <button data-th="auto">${ck(theme === 'auto')}<span class="grow">Automatyczny</span></button>
+    <button data-th="light">${ck(theme === 'light')}<span class="grow">Jasny</span></button>
+    <button data-th="dark">${ck(theme === 'dark')}<span class="grow">Ciemny</span></button>
+    <div class="hr"></div><div class="lb">Język</div>
+    <button>${ck(true)}<span class="grow">Polski</span></button><button>${ck()}<span class="grow">English</span></button>
+    <div class="hr"></div>
+    <button>${ck()}<span class="grow">Skróty klawiszowe</span><kbd>?</kbd></button>
+    <button>${ck()}<span class="grow">Sprawdź aktualizacje</span></button>`;
+  menuEl = document.createElement('div'); menuEl.className = 'menu'; menuEl.innerHTML = items;
+  const win = $('#win'), r = e.currentTarget.getBoundingClientRect(), w = win.getBoundingClientRect();
+  menuEl.style.top = (r.bottom - w.top + 6) + 'px'; menuEl.style.right = (w.right - r.right) + 'px';
+  win.append(menuEl);
+  menuEl.onclick = ev => {
+    ev.stopPropagation();
+    const b = ev.target.closest('button'); if (!b) return;
+    if (b.dataset.th) { theme = b.dataset.th; applyTheme(); closeMenu(); return; }
+    if (b.id === 'updItem') { if (!newer) { newer = true; closeMenu(); say('Jest nowa wersja 0.4.1 — w ustawieniach pojawiło się „Zainstaluj wersję 0.4.1”.'); } else { closeMenu(); say('Pobieram wersję 0.4.1…'); } return; }
+    closeMenu();
+  };
+};
+addEventListener('pointerdown', e => { if (menuEl && !e.target.closest('.menu, #set')) closeMenu(); });
+
+/* motyw: przełącznik makiety albo menu */
+const mq = matchMedia('(prefers-color-scheme: dark)');
+function applyTheme() {
+  const dark = theme === 'dark' || (theme === 'auto' && mq.matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.querySelectorAll('#thm button').forEach(b => b.classList.toggle('on', b.dataset.v === (dark ? 'dark' : 'light')));
+}
+mq.addEventListener('change', applyTheme);
+document.querySelectorAll('#thm button').forEach(b => b.onclick = () => { theme = b.dataset.v; applyTheme(); });
+document.querySelectorAll('#os button').forEach(b => b.onclick = () => { mac = b.dataset.v === 'mac'; document.querySelectorAll('#os button').forEach(x => x.classList.toggle('on', x === b)); });
+document.querySelectorAll('#os button').forEach(x => x.classList.toggle('on', (x.dataset.v === 'mac') === mac));
+document.querySelectorAll('#cmp button').forEach(b => b.onclick = () => {
+  modern = b.dataset.v === 'new';
+  document.querySelectorAll('#cmp button').forEach(x => x.classList.toggle('on', x === b));
+  $('#win').classList.toggle('old', !modern); setIcon(); closeMenu(); requestAnimationFrame(placeInd);
+});
+
+/* --- podpowiedź: 1,5 s bez ruchu, na sąsiednim od razu --- */
+let hintT = 0, hintEl = null, hintLast = 0;
+function hintShow(el) {
+  const h = $('#hint'), t = el.dataset.tip || ''; if (!t) return;
+  const m = t.match(/^(.*?)\s*\(([^)]+)\)$/);
+  h.innerHTML = ''; const n = document.createElement('span'); n.textContent = m ? m[1] : t; h.append(n);
+  if (m) { const k = document.createElement('kbd'); k.textContent = pretty(m[2]); h.append(k); }
+  const side = !!el.closest('.tools'); h.classList.toggle('side', side);
+  const r = el.getBoundingClientRect(), w = h.offsetWidth, hh = h.offsetHeight;
+  if (side) { h.style.left = (r.right + 8) + 'px'; h.style.top = (r.top + r.height / 2 - hh / 2) + 'px'; }
+  else {
+    const below = r.bottom + 8 + hh < innerHeight;
+    h.style.left = Math.max(6, Math.min(innerWidth - w - 6, r.left + r.width / 2 - w / 2)) + 'px';
+    h.style.top = (below ? r.bottom + 6 : r.top - hh - 6) + 'px';
+  }
+  h.classList.add('on');
+}
+function hintHide() { clearTimeout(hintT); if (hintEl) hintLast = Date.now(); hintEl = null; $('#hint').classList.remove('on'); }
+document.addEventListener('pointerover', e => {
+  const el = e.target.closest && e.target.closest('.ib'); if (!el || el === hintEl) return;
+  if (el.title) { el.dataset.tip = el.title; el.removeAttribute('title'); }
+  hintHide(); hintEl = el;
+  const wait = !modern ? 0 : Date.now() - hintLast < 400 ? 0 : 1500;
+  hintT = setTimeout(() => { if (hintEl === el && !menuEl) hintShow(el); }, wait);
+});
+document.addEventListener('pointerout', e => { const el = e.target.closest && e.target.closest('.ib'); if (el && el === hintEl && !el.contains(e.relatedTarget)) hintHide(); });
+addEventListener('pointerdown', hintHide, true); addEventListener('wheel', hintHide, { passive: true });
+
+setIcon(); applyTheme(); pick('select'); say('Wybierz narzędzie albo kliknij element, żeby go zaznaczyć.');
+</script>
+</body>
+</html>
