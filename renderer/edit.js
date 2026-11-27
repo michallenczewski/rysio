@@ -256,7 +256,7 @@ export function plineCorner(e, p, mode, r, d2 = r, near = Infinity) {
   pts.splice(vi, 1, bulge ? [T1[0], T1[1], bulge] : [T1[0], T1[1]], [T2[0], T2[1]]);
   // ścięcie / łuk dokładnie do sąsiedniego wierzchołka — bez punktu o zerowej długości
   const clean = pts.filter((q, k) => (!e.closed && k === pts.length - 1) || V.dist(q, pts[(k + 1) % pts.length]) > 1e-12);
-  return { pts: clean, vertex: Vx };
+  return { pts: clean, vertex: Vx, A, B, T1, T2, bulge };   // A, B — sąsiednie wierzchołki; T1, T2 — początek i koniec łuku / ścięcia
 }
 
 /* ---------- przycinanie i wydłużanie ---------- */
@@ -397,7 +397,7 @@ export function trimOrExtend(e, p, others, endTol = 0) {
   return tr ? { kind: 'trim', replace: tr.replace } : null;
 }
 // Kawałki elementu e między przecięciami z others; usuwa te, w które trafił któryś z punktów ps, sąsiednie pozostałe
-// łączy w jeden element. Wynik: lista nowych elementów (pusta — element znika) albo null, gdy nie ma przecięć.
+// łączy w jeden element. Wynik: { keep: nowe elementy (pusta — element znika), gone: usunięte kawałki } albo null, gdy nie ma przecięć.
 function trimPieces(e, ps, others) {
   const eps = 1e-9, ts = cutParams(e, others), uniq = a => a.sort((x, y) => x - y).filter((t, i, s) => !i || t - s[i - 1] > 1e-12);
   const cyclic = e.t === 'circle' || (e.t === 'pline' && e.closed);
@@ -426,18 +426,19 @@ function trimPieces(e, ps, others) {
     const a = iv[i][0] + (cyclic && i < first ? period : 0), b = iv[i][1] + (cyclic && i < first ? period : 0);
     if (run) run[1] = b; else runs.push(run = [a, b]);
   }
-  const out = [];
-  for (const [a, b] of runs) {
-    if (e.t === 'line') out.push({ t: 'line', a: pointAt(e, a), b: pointAt(e, b) });
-    else if (e.t === 'arc') { const sw = sweep(e.a0, e.a1); out.push({ t: 'arc', c: [...e.c], r: e.r, a0: normAng(e.a0 + a * sw), a1: normAng(e.a0 + b * sw) }); }
-    else if (e.t === 'circle') out.push({ t: 'arc', c: [...e.c], r: e.r, a0: normAng(a), a1: normAng(b) });
-    else if (e.t === 'pline') { const q = plineSlice(e, a, b); if (q) out.push(q); }
-  }
-  return out;
+  const slice = (a, b) => {
+    if (e.t === 'line') return { t: 'line', a: pointAt(e, a), b: pointAt(e, b) };
+    if (e.t === 'arc') { const sw = sweep(e.a0, e.a1); return { t: 'arc', c: [...e.c], r: e.r, a0: normAng(e.a0 + a * sw), a1: normAng(e.a0 + b * sw) }; }
+    if (e.t === 'circle') return { t: 'arc', c: [...e.c], r: e.r, a0: normAng(a), a1: normAng(b) };
+    return plineSlice(e, a, b);
+  };
+  // znikające kawałki — do podglądu (całe usunięte przedziały)
+  const gone = [...hit].map(i => slice(iv[i][0], iv[i][1])).filter(Boolean);
+  return { keep: runs.map(([a, b]) => slice(a, b)).filter(Boolean), gone };
 }
 // Przycinanie / wydłużanie kilku kawałków jednym przeciągnięciem: hits — [{ e, p }] (element i punkt, w którym ślad
 // go przeciął; ten sam element może być kilka razy), others — wszystkie elementy tnące (geometria sprzed zmian).
-// mode: 'auto' (jak jedno kliknięcie), 'trim', 'extend'. Wynik: [{ id, kind: 'trim', replace } | { id, kind: 'extend', set }].
+// mode: 'auto' (jak jedno kliknięcie), 'trim', 'extend'. Wynik: [{ id, kind: 'trim', replace, gone? } | { id, kind: 'extend', set }].
 export function trimMany(hits, others, mode = 'auto', endTol = 0) {
   const byId = new Map();
   for (const h of hits) { if (!byId.has(h.e.id)) byId.set(h.e.id, { e: h.e, ps: [] }); byId.get(h.e.id).ps.push(h.p); }
@@ -451,7 +452,7 @@ export function trimMany(hits, others, mode = 'auto', endTol = 0) {
     }
     // kilka punktów na jednym elemencie: znikają wszystkie kawałki (między przecięciami), w które trafił ślad
     const r = trimPieces(e, ps, cut);
-    if (r) out.push({ id: e.id, kind: 'trim', replace: r });
+    if (r) out.push({ id: e.id, kind: 'trim', replace: r.keep, gone: r.gone });
   }
   return out;
 }

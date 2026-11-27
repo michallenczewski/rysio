@@ -117,6 +117,8 @@ header button,header .seg,header input{-webkit-app-region:no-drag}
 #view.c-none{cursor:none}
 .snapLbl{position:absolute;z-index:5;height:22px;padding:0 8px;border-radius:6px;background:var(--snap);color:#fff;font-size:11.5px;display:flex;align-items:center;pointer-events:none;white-space:nowrap}
 [data-theme=dark] .snapLbl{color:#161616}
+.snapLbl.note{background:var(--card);color:var(--text);box-shadow:var(--menush)}
+[data-theme=dark] .snapLbl.note{color:var(--text)}
 .reading{position:absolute;z-index:5;height:20px;padding:0 6px;border-radius:5px;background:var(--card);box-shadow:var(--pillsh),0 0 0 1px var(--line);font-size:11px;color:var(--text);display:flex;align-items:center;font-variant-numeric:tabular-nums;pointer-events:none;white-space:nowrap}
 .toolbar{position:absolute;z-index:6;left:12px;top:10px;display:flex;align-items:center;gap:8px;height:40px;padding:0 6px 0 12px;border-radius:10px;background:var(--card);box-shadow:var(--menush);font-size:12px;white-space:nowrap}
 /* pasek opcji narzędzia wysuwa się, gdy się pojawia (§7) */

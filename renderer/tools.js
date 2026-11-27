@@ -3,14 +3,17 @@
 //
 // Narzędzie:  base() punkt bazowy do kierunków · label() podpis pola wymiaru (null = bez wpisywania) · reading() bieżąca wartość
 //             hint() podpowiedź · down/move/up(p, e) · typed(tekst) → true, gdy zrozumiało · enter() / cancel() → true, gdy coś zrobiło
-//             preview() elementy podglądu · path / box — ślad pędzla i gumki, ramka zaznaczania
+//             preview() elementy podglądu (_replaces — zastępuje element, _sel — w kolorze zaznaczenia, _ghost — przygaszony,
+//             _gone — znika: czerwona przerywana, _dash — powstanie: przerywana w kolorze zaznaczenia)
+//             halo() → kawałki do podświetlenia zamiast całego elementu pod kursorem (null — cały element) · note() napis przy kursorze
+//             path / box — ślad pędzla i gumki, ramka zaznaczania
 import { _t, DEC } from './i18n.js';
 import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, intersect, lengthOf, dimGeom, adimGeom, partsOf, closestOnSeg, angArms } from './geom.js';
 import { parseLength, parseLengths, fmtLength, fmtNum } from './units.js';
 import { isLive, isShown } from './model.js';
 import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, filletCurves, chamferLines, plineCorner, trimMany, gripsOf, gripMove } from './edit.js';
 import { buildFaces, regionAt } from './hatch.js';
-import { blockEnts } from './geom.js';
+import { blockEnts, bbox, boxGrow, boxHit } from './geom.js';
 import { clipGhosts, clipBase, pasteClip } from './clip.js';
 
 const dirOf = (from, to) => { const d = V.norm(V.sub(to, from)); return d[0] || d[1] ? d : [1, 0]; };
@@ -436,7 +439,8 @@ export function makeTools(app) {
     id: 'offset', draw: false, src: null, cur: null, d: 0.5, typeAnytime: true,
     base: () => null, label() { return _t('Odległość'); }, reading() { return fmtLength(this.d); },
     hint() { return this.src ? _t('<b>Odsunięcie:</b> kliknij, po której stronie ma powstać kopia. Wpisz odległość, żeby ją zmienić.') : _t`<b>Odsunięcie:</b> kliknij linię, łuk, okrąg albo polilinię. Odległość: ${fmtLength(this.d)} — wpisz, żeby zmienić.`; },
-    start() { this.src = null; },
+    start() { this.src = null; this.cur = null; },
+    leave() { this.cur = null; },
     down(p) {
       if (!this.src) { const s = app.pick(p); if (s && ['line', 'arc', 'circle', 'pline'].includes(s.t)) this.src = s; else if (s) app.toast(_t('Odsunięcie działa na liniach, łukach, okręgach i poliliniach.')); return; }
       const r = offsetEnt(this.src, this.d, p);
@@ -448,7 +452,13 @@ export function makeTools(app) {
     move(p) { this.cur = p; },
     typed(s) { const v = parseLength(s); if (!(v > 0)) return false; this.d = v; return true; },
     highlight() { return this.src ? new Set([this.src.id]) : new Set(); },
-    preview() { if (!this.src || !this.cur) return []; const r = offsetEnt(this.src, this.d, this.cur); return r.error ? [] : [{ ...r, layer: this.src.layer, w: this.src.w, lt: this.src.lt, _ghost: true }]; },
+    // kopia po stronie kursora — po wskazaniu elementu i już wcześniej, dla elementu pod kursorem
+    preview() {
+      if (!this.cur) return [];
+      const h = this.src ? null : app.pick(this.cur), src = this.src || (h && ['line', 'arc', 'circle', 'pline'].includes(h.t) ? h : null);
+      if (!src) return [];
+      const r = offsetEnt(src, this.d, this.cur); return r.error ? [] : [{ ...r, _dash: true }];
+    },
     enter: () => false, cancel() { if (this.src) { this.src = null; return true; } return false; }
   };
 
@@ -465,8 +475,9 @@ export function makeTools(app) {
     hint() {
       if (this.mode === 'chamfer') return this.first ? _t('<b>Fazuj:</b> kliknij drugą linię (po stronie, która ma zostać).') : _t`<b>Fazuj:</b> kliknij pierwszą linię — albo polilinię blisko narożnika. Odległość ${this.dText()} — wpisz, żeby zmienić (dwie po średniku: 0,3;0,5). ${app.againName('fillet')} jeszcze raz — zaokrąglanie.`;
       return this.first ? _t('<b>Zaokrąglij:</b> kliknij drugi element (po stronie, która ma zostać).') : _t`<b>Zaokrąglij:</b> kliknij pierwszą linię albo łuk — albo polilinię blisko narożnika. Promień ${fmtLength(this.r)} — wpisz, żeby zmienić (0 — ostry narożnik).`; },
-    start() { this.first = null; },
+    start() { this.first = null; this.pv = []; this.hl = null; this.nt = null; },
     down(p) {
+      this.pv = []; this.hl = null; this.nt = null;
       const s = app.pick(p); if (!s) return;
       const err = c => app.toast({ parallel: _t('Te elementy nie mają narożnika (są równoległe albo się nie spotkają).'), tooBig: _t('Promień jest za duży dla tego narożnika.'), noCorner: _t('Tu polilinia nie ma narożnika — kliknij blisko wierzchołka.'), far: _t('Kliknij bliżej narożnika, który ma się zaokrąglić.'), arcCorner: _t('Ten narożnik polilinii jest na łuku — zaokrągla się narożniki między prostymi odcinkami.'), zero: _t('Promień 0 — narożnik polilinii jest już ostry.') }[c] || _t('Tego narożnika nie da się zaokrąglić.'));
       if (this.mode === 'chamfer') {
@@ -492,26 +503,39 @@ export function makeTools(app) {
       app.edit(_t('Zaokrąglij'), tx => { tx.set(f.e.id, r.l1); tx.set(s.id, r.l2); if (r.arc) tx.add({ ...r.arc, layer: f.e.layer, w: f.e.w, lt: f.e.lt }); });
     },
     move(p) { this.cur = p; },
-    // podgląd wyniku pod kursorem: po pierwszym kliknięciu — narożnik z elementem pod kursorem; bez niego — narożnik polilinii
-    preview() {
-      const p = this.cur; if (!p) return [];
-      const s = app.pick(p); if (!s) return [];
+    // podgląd wyniku pod kursorem: po pierwszym kliknięciu — narożnik z elementem pod kursorem; bez niego — narożnik polilinii.
+    // Podświetlają się tylko krawędzie, które się zmienią; nowy łuk / ścięcie w kolorze zaznaczenia, odcinany róg — przerywany.
+    calc(p) {
+      this.pv = []; this.hl = null; this.nt = null;
+      const s = app.pick(p); if (!s) return;
       const ch = this.mode === 'chamfer', st = e => ({ layer: e.layer, w: e.w, lt: e.lt });
       try {
         if (!this.first) {
-          if (s.t !== 'pline') return [];
+          if (s.t !== 'pline') return;
           const r = ch ? plineCorner(s, p, 'chamfer', this.d1, this.d2, 20 / app.view.ppm) : plineCorner(s, p, 'fillet', this.r, this.r, 20 / app.view.ppm);
-          return r.error ? [] : [{ ...s, pts: r.pts, _replaces: s.id, _sel: true }];
+          this.hl = [];
+          if (r.error) { if (r.error === 'far') this.nt = _t('Bliżej narożnika'); return; }
+          const mid = r.bulge ? { t: 'pline', pts: [[...r.T1, r.bulge], [...r.T2]], closed: false } : { t: 'line', a: r.T1, b: r.T2 };
+          this.pv = [{ ...s, pts: r.pts, _replaces: s.id }, { ...mid, ...st(s), _sel: true }, { t: 'pline', pts: [r.T1, r.vertex, r.T2], closed: false, _gone: true }];
+          this.hl = [{ t: 'line', a: r.A, b: r.vertex }, { t: 'line', a: r.vertex, b: r.B }];
+          return;
         }
-        const f = this.first; if (s.id === f.e.id) return [];
-        if (ch ? s.t !== 'line' : !['line', 'arc', 'circle'].includes(s.t)) return [];
+        const f = this.first; if (s.id === f.e.id) return;
+        if (ch ? s.t !== 'line' : !['line', 'arc', 'circle'].includes(s.t)) return;
         const r = ch ? chamferLines(f.e, f.p, s, p, this.d1, this.d2) : filletCurves(f.e, f.p, s, p, this.r);
-        if (r.error) return [];
-        const extra = r.arc ? [{ ...r.arc, ...st(f.e) }] : r.line ? [{ ...r.line, ...st(f.e) }] : [];
-        // oba elementy po zmianie w kolorze zaznaczenia (zamiast oryginałów), nowy łuk / odcinek zwykłą kreską
-        return [{ ...f.e, ...r.l1, _replaces: f.e.id, _sel: true }, { ...s, ...r.l2, _replaces: s.id, _sel: true }, ...extra];
-      } catch (err) { return []; }
+        if (r.error) return;
+        const extra = r.arc ? [{ ...r.arc, ...st(f.e), _sel: true }] : r.line ? [{ ...r.line, ...st(f.e), _sel: true }] : [];
+        // oba elementy po zmianie zwykłą kreską (zamiast oryginałów), nowy łuk / odcinek w kolorze zaznaczenia; poświata na obu
+        // odcinane końce linii — czerwoną przerywaną, jak róg polilinii
+        const cut = (o, n) => o.t !== 'line' ? [] : ['a', 'b'].filter(k => n[k] && !V.eq(n[k], o[k], 1e-9) && V.dot(V.sub(n[k], o.a), V.sub(n[k], o.b)) < 0).map(k => ({ t: 'line', a: n[k], b: o[k], _gone: true }));
+        this.pv = [{ ...f.e, ...r.l1, _replaces: f.e.id }, { ...s, ...r.l2, _replaces: s.id }, ...extra, ...cut(f.e, r.l1), ...cut(s, r.l2)];
+        this.hl = [f.e, s];
+      } catch (err) { this.pv = []; this.hl = null; }
     },
+    preview() { if (!this.cur) return []; this.calc(this.cur); return this.pv; },   // liczone przy każdej klatce: wpisany promień i zmiana trybu widać od razu
+    halo() { return this.cur ? this.hl : null; },
+    leave() { this.cur = null; },
+    note() { return this.cur ? this.nt : null; },
     // pierwszy wskazany element rysuje się jak zaznaczony
     picked() { return this.first ? [this.first.e.id] : []; },
     typed(s) {
@@ -522,15 +546,65 @@ export function makeTools(app) {
     enter: () => false, cancel() { if (this.first) { this.first = null; return true; } return false; }
   };
 
+  // podgląd wyniku przycinania / wydłużania: res — wynik trimMany
+  const entById = id => app.doc.ents.find(x => x.id === id);
+  const stOf = e => ({ layer: e.layer, w: e.w, lt: e.lt });
+  // przedłużenie: od starego do nowego końca
+  const extension = (e, set) => {
+    if (e.t === 'line') return set.b ? { t: 'line', a: e.b, b: set.b } : set.a ? { t: 'line', a: set.a, b: e.a } : null;
+    if (e.t === 'arc') return set.a1 !== undefined ? { t: 'arc', c: e.c, r: e.r, a0: e.a1, a1: set.a1 } : { t: 'arc', c: e.c, r: e.r, a0: set.a0, a1: e.a0 };
+    if (e.t === 'pline' && set.pts) {
+      const n = e.pts.length, last = !V.eq(e.pts[n - 1], set.pts[n - 1], 1e-12);
+      return last ? { t: 'line', a: e.pts[n - 1].slice(0, 2), b: set.pts[n - 1].slice(0, 2) } : { t: 'line', a: set.pts[0].slice(0, 2), b: e.pts[0].slice(0, 2) };
+    }
+    return null;
+  };
+  // wydłużany koniec: połowa linii, skrajny odcinek polilinii, cały łuk
+  const extEnd = (e, set) => {
+    if (e.t === 'line') { const m = V.lerp(e.a, e.b, 0.5); return set.b ? { t: 'line', a: m, b: e.b } : { t: 'line', a: e.a, b: m }; }
+    if (e.t === 'pline' && set.pts) { const n = e.pts.length, last = !V.eq(e.pts[n - 1], set.pts[n - 1], 1e-12); return last ? { t: 'line', a: e.pts[n - 2], b: e.pts[n - 1] } : { t: 'line', a: e.pts[0], b: e.pts[1] }; }
+    return e;
+  };
+  function changePreview(res) {
+    const out = [];
+    for (const r of res) {
+      const e = entById(r.id); if (!e) continue;
+      if (r.kind === 'trim') {
+        if (!r.gone) out.push({ ...e, _replaces: e.id, _gone: true });
+        for (const g of r.gone || []) out.push({ ...g, _replaces: e.id, _gone: true });
+        for (const n of r.replace) out.push({ ...n, ...stOf(e), _replaces: e.id });
+      } else {
+        // element zostaje jak jest, przedłużenie przerywaną (bez niego — podgląd całego wydłużonego elementu)
+        const x = extension(e, r.set); out.push(x ? { ...x, _dash: true } : { ...e, ...r.set, _replaces: e.id });
+      }
+    }
+    return out;
+  }
+  function changeHalo(res) {
+    const out = [];
+    for (const r of res) { const e = entById(r.id); if (!e) continue; if (r.kind === 'trim') out.push(...(r.gone || [e])); else out.push(extEnd(e, r.set)); }
+    return out;
+  }
+
   /* ---------- przytnij (X) i wydłuż (⇧X): klik albo przeciągnięcie przez kilka kawałków, jak gumka ---------- */
   const CUTS = ['line', 'arc', 'circle', 'pline'];
   T.trim = {
-    id: 'trim', draw: false, path: null, hits: [], marked: new Set(), mode: 'trim',
+    id: 'trim', draw: false, path: null, hits: [], marked: new Set(), mode: 'trim', hov: null, hp: null,
     base: () => null, label: () => null, reading: () => null,
     hint() {
       return this.mode === 'extend' ? _t('<b>Wydłuż:</b> kliknij linię blisko końca albo przeciągnij przez końce kilku — dosuną się do najbliższego elementu.')
         : _t('<b>Przytnij:</b> kliknij kawałek między przecięciami albo przeciągnij przez kilka — znikną wszystkie przecięte kawałki.');
     },
+    // wynik dla trafień (bez zmiany rysunku) — do podglądu i do wykonania
+    result(hits) {
+      if (!hits.length) return [];
+      let others = app.ents().filter(o => isShown(app.doc, o) && !['text', 'vp'].includes(o.t));
+      // przycinanie potrzebuje tylko elementów, które mogą przeciąć trafione (obrysy się stykają) — szybko także przy dużym podkładzie
+      if (this.mode === 'trim') { const bs = hits.map(h => boxGrow(bbox(h.e), 1e-6)); others = others.filter(o => { const b = bbox(o); return bs.some(x => boxHit(x, b)); }); }
+      return trimMany(hits, others, this.mode, 14 / app.view.ppm);
+    },
+    start() { this.hp = null; this.hov = null; },
+    leave() { if (!this.path) { this.hp = null; this.hov = null; } },
     down(p) {
       this.path = [p]; this.hits = []; this.marked = new Set();
       const e = app.pick(p);
@@ -538,7 +612,8 @@ export function makeTools(app) {
       else if (e) app.toast(_t('Przycinać i wydłużać można linie, łuki, okręgi i polilinie.'));
     },
     move(p) {
-      if (!this.path) return;
+      // bez przeciągania: podgląd tego, co zrobi kliknięcie w element pod kursorem
+      if (!this.path) { this.hp = p; return; }
       const last = this.path[this.path.length - 1]; this.path.push(p);
       const seg = { t: 'line', a: last, b: p };
       for (const e of app.ents()) {
@@ -547,10 +622,9 @@ export function makeTools(app) {
       }
     },
     up() {
-      const hits = this.hits; this.path = null; this.hits = []; this.marked = new Set();
+      const hits = this.hits; this.path = null; this.hits = []; this.marked = new Set(); this.hov = null;
       if (!hits.length) return;
-      const others = app.ents().filter(o => isShown(app.doc, o) && !['text', 'vp'].includes(o.t));
-      const res = trimMany(hits, others, this.mode, 14 / app.view.ppm);
+      const res = this.result(hits);
       if (!res.length) {
         app.toast(this.mode === 'extend' ? _t('Nic do wydłużenia — na przedłużeniu nie ma żadnego elementu.') : this.mode === 'trim' ? _t('Nic do przycięcia — brak przecięć.') : _t('Nic do przycięcia ani wydłużenia — brak przecięć i nic na przedłużeniu.'));
         return;
@@ -565,12 +639,26 @@ export function makeTools(app) {
         }
       });
     },
-    highlight() { return this.marked; },
-    cancel() { if (this.path) { this.path = null; this.hits = []; this.marked = new Set(); return true; } return false; },
-    typed: () => false, preview: () => [], enter: () => false
+    highlight() { return new Set(); },
+    // podgląd: znikające kawałki czerwoną przerywaną, wydłużenie przerywaną w kolorze zaznaczenia.
+    // Liczony przy każdej klatce z bieżącego rysunku — po cofnięciu albo zmianie elementu nie zostaje stary.
+    preview() {
+      if (this.path) this.hov = this.hits.length ? this.result(this.hits) : null;
+      else { const e = this.hp && app.pick(this.hp); this.hov = e && CUTS.includes(e.t) ? this.result([{ e, p: this.hp }]) : null; }
+      return this.hov ? changePreview(this.hov) : [];
+    },
+    halo() {
+      if (!this.hov) return null;
+      const out = changeHalo(this.hov);
+      // przeciągnięte elementy, z którymi nic się nie stanie — też podświetlone (ślad je złapał)
+      if (this.path) { const done = new Set(this.hov.map(r => r.id)); for (const id of this.marked) if (!done.has(id)) { const e = entById(id); if (e) out.push(e); } }
+      return out;
+    },
+    cancel() { if (this.path) { this.path = null; this.hits = []; this.marked = new Set(); this.hov = null; return true; } return false; },
+    typed: () => false, enter: () => false
   };
   // wydłuż (⇧X): to samo narzędzie w trybie „tylko wydłuż”
-  T.extend = { ...T.trim, id: 'extend', mode: 'extend', path: null, hits: [], marked: new Set() };
+  T.extend = { ...T.trim, id: 'extend', mode: 'extend', path: null, hits: [], marked: new Set(), hov: null, hp: null };
 
   /* ---------- tekst (Y): klik i pisanie wprost na rysunku ---------- */
   T.text = {

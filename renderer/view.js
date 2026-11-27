@@ -115,7 +115,13 @@ export class View {
     // punkty śledzenia
     for (const p of s.marks || []) { const q = this.toScreen(p); c.globalAlpha = 0.9; c.strokeStyle = t.snap; c.lineWidth = 1; c.setLineDash([]); c.beginPath(); c.moveTo(q[0] - 4, q[1]); c.lineTo(q[0] + 4, q[1]); c.moveTo(q[0], q[1] - 4); c.lineTo(q[0], q[1] + 4); c.stroke(); }
     // 4) podgląd narzędzia
-    for (const e of s.preview || []) { if (e.t === 'vp') { pen.style({ width: 1, dash: [4, 3], color: t.sel }); traceEnt(pen, e); continue; } drawEnt(pen, d, e, { ...o, alpha: e._ghost ? 0.45 : 1, ...(e._sel ? { color: t.sel } : {}) }); }
+    for (const e of s.preview || []) {
+      if (e.t === 'vp') { pen.style({ width: 1, dash: [4, 3], color: t.sel }); traceEnt(pen, e); continue; }
+      // znika — czerwona przerywana; powstanie — przerywana w kolorze zaznaczenia
+      if (e._gone) { pen.style({ width: 1.4, dash: [3, 4], color: '#c0533f' }); traceEnt(pen, e); continue; }
+      if (e._dash) { pen.style({ width: 1.4, dash: [5, 4], color: t.sel }); traceEnt(pen, e); continue; }
+      drawEnt(pen, d, e, { ...o, alpha: e._ghost ? 0.45 : 1, ...(e._sel ? { color: t.sel } : {}) });
+    }
     if (s.path) { pen.style({ width: 9, color: t.snap, alpha: 0.3, cap: 'round' }); this.ctx.lineJoin = 'round'; pen.poly(s.path, false); }
     // 5) ramka zaznaczania: w prawo ciągła (całe w ramce), w lewo przerywana (dotknięte)
     if (s.box) {

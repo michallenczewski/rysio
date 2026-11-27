@@ -402,6 +402,15 @@ przypadek('ten sam element przecięty dwa razy', 'ślad przecina linię w dwóch
   const r = ED.trimMany([{ e, p: [1.5, 0] }, { e, p: [8, 0] }], [e, ...cut], 'trim');
   return { 'zostaje jeden kawałek': [r[0].replace.length, 1], 'środek 3–6': [[...r[0].replace[0].a, ...r[0].replace[0].b], [3, 0, 6, 0]] };
 });
+przypadek('podgląd przycinania: znikające kawałki', 'do podświetlenia idą tylko kawałki, które znikną (0–3 i 6–10), nie cała linia', () => {
+  const e = { ...L([0, 0], [10, 0]), id: 1 }, cut = [3, 6].map((x, i) => ({ ...L([x, -1], [x, 1]), id: 10 + i }));
+  const r = ED.trimMany([{ e, p: [1.5, 0] }, { e, p: [8, 0] }], [e, ...cut], 'trim'), g = r[0].gone;
+  return { 'ile kawałków znika': [g.length, 2], 'pierwszy': [[...g[0].a, ...g[0].b], [0, 0, 3, 0]], 'drugi': [[...g[1].a, ...g[1].b], [6, 0, 10, 0]] };
+});
+przypadek('podgląd zaokrąglenia polilinii: krawędzie narożnika', 'narożnik (4,0) prostokąta — sąsiednie wierzchołki i początek / koniec łuku', () => {
+  const r = ED.plineCorner({ t: 'pline', pts: [[0, 0], [4, 0], [4, 3], [0, 3]], closed: true }, [3.9, 0.05], 'fillet', 1, 1);
+  return { 'narożnik': [r.vertex, [4, 0]], 'sąsiednie wierzchołki': [[...r.A, ...r.B], [0, 0, 4, 3]], 'łuk od–do': [[...r.T1, ...r.T2], [3, 0, 4, 1]] };
+});
 przypadek('wydłuż kilka linii jednym przeciągnięciem', 'trzy krótkie linie wydłużone do ściany x=8', () => {
   const sciana = { ...L([8, -1], [8, 5]), id: 100 }, hs = [0, 2, 4].map((y, i) => ({ ...L([0, y], [5, y]), id: i + 1 }));
   const r = ED.trimMany(hs.map(e => ({ e, p: [4.9, e.a[1]] })), [...hs, sciana], 'extend');

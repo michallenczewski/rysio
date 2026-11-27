@@ -328,7 +328,7 @@ view.addEventListener('pointerup', e => {
   if (e.button === 0 && downBtn === 0) { tool.up?.(cursorModel || app.view.toModel(x, y), e); refreshUi(); redraw(); }
   downBtn = -1;
 });
-view.addEventListener('pointerleave', () => { cursorScreen = null; snapRes = null; hoverEnt = null; $('#snapLbl')?.remove(); $('#reading')?.remove(); redraw(); });
+view.addEventListener('pointerleave', () => { tool.leave?.(); cursorScreen = null; snapRes = null; hoverEnt = null; $('#snapLbl')?.remove(); $('#reading')?.remove(); redraw(); });
 const pointInBox = (p, b) => p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3];
 // dwuklik: w tekst — poprawka tekstu; w okno na arkuszu — przesuwanie modelu w oknie
 view.addEventListener('dblclick', e => {
@@ -422,7 +422,8 @@ function frame() {
   app.view.render({
     doc: app.doc, sel: tool.picked ? new Set([...app.sel, ...tool.picked()]) : app.sel, thin: app.thin, grid: app.grid, ents: app.hideEnt || app.dragEnt || hid.size ? app.ents().filter(e => e.id !== app.hideEnt && e.id !== app.dragEnt && !hid.has(e.id)) : app.ents(), scale: app.spaceScale(), sheet: app.sheet(), vpEdit: app.vpEdit,
     fmt: app.space ? app.fmtSheet : app.fmtModel, fmtModel: app.fmtModel,
-    hover: [...hi, ...(hoverEnt && !app.sel.has(hoverEnt.id) && !hid.has(hoverEnt.id) ? [hoverEnt] : [])], hoverColor: tool.id === 'eraser' || tool.id === 'trim' ? '#c0533f' : null,
+    // halo — tylko krawędzie, które narzędzie zmieni (zamiast całego elementu pod kursorem)
+    hover: [...hi, ...(tool.halo?.() ?? (hoverEnt && !app.sel.has(hoverEnt.id) && !hid.has(hoverEnt.id) ? [hoverEnt] : []))], hoverColor: tool.id === 'eraser' || tool.id === 'trim' ? '#c0533f' : null,
     guides: snapRes ? snapRes.guides : [], snap: snapRes, marks: tool.draw ? app.snapper.refPts : [],
     ghost: blockGhost(),
     preview: pv, grips: tool.grips ? tool.grips() : null, box: tool.box, path: tool.path && tool.path.length > 1 ? tool.path : null
@@ -431,10 +432,12 @@ function frame() {
 }
 function showSnapLabel() {
   let el = $('#snapLbl');
-  if (!snapRes || !snapRes.label || !cursorScreen) { el?.remove(); return; }
+  // napis przyciągania albo podpowiedź narzędzia przy kursorze (np. „Bliżej narożnika”)
+  const note = !snapRes?.label && cursorScreen && tool.note ? tool.note() : null;
+  if (!cursorScreen || !(snapRes?.label || note)) { el?.remove(); return; }
   if (!el) { el = document.createElement('div'); el.id = 'snapLbl'; el.className = 'snapLbl'; view.append(el); }
-  el.textContent = snapRes.label;
-  const s = app.view.toScreen(snapRes.p);
+  el.textContent = note || snapRes.label; el.classList.toggle('note', !!note);
+  const s = note ? cursorScreen : app.view.toScreen(snapRes.p);
   el.style.left = (s[0] + 12) + 'px'; el.style.top = (s[1] + 10) + 'px';
 }
 function showReading() {
