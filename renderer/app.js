@@ -9,7 +9,7 @@ import { CanvasPen, drawEnt } from './draw.js';
 import { vpMap, titleScales, drawSheet } from './sheet.js';
 import { makePdf } from './pdf.js';
 import { View } from './view.js';
-import { Snapper, gridStep } from './snap.js';
+import { Snapper, gridStep, SNAP_KINDS, SNAP_DEFAULT } from './snap.js';
 import { makeTools } from './tools.js';
 import { setUnit, getUnit, fmtLength } from './units.js';
 import { ACTIONS, loadKeys, saveKeyOverride, keysFor, comboOf, prettyCombo } from './keys.js';
@@ -86,6 +86,17 @@ app.hist = new History(app.doc, info => afterChange(info));
 app.rev = 0; setBlocks(app.doc);
 app.view = new View($('#view'));
 app.snapper = new Snapper();
+// menu przyciągania: rodzaj ze znaczkiem, który pokazuje się na rysunku; kliknięcie przełącza i menu zostaje otwarte
+const SNAP_MENU_NAME = { end: _t('Koniec'), mid: _t('Środek'), int: _t('Przecięcie'), center: _t('Środek okręgu'), perp: _t('Prostopadle'), tan: _t('Styczna'),
+  near: _t('Najbliższy punkt na linii'), hv: _t('Poziomo i pionowo'), track: _t('Śledzenie od punktów'), par: _t('Równolegle do linii') };
+const SNAP_MENU_ICON = {
+  end: '<rect x="4" y="4" width="10" height="10"/>', mid: '<path d="M9 3L15 14H3Z"/>', int: '<path d="M4 4L14 14M14 4L4 14"/>',
+  center: '<circle cx="9" cy="9" r="5"/><path d="M7 9h4M9 7v4"/>', perp: '<path d="M4 4V14H14M4 9H9V14"/>', tan: '<circle cx="9" cy="10" r="4"/><path d="M2 5H16"/>',
+  near: '<path d="M4 4H14L4 14H14Z"/>', hv: '<path d="M2 9H16M9 2V16" stroke-dasharray="2.5 2"/>',
+  track: '<path d="M2 12H16M6 2V16" stroke-dasharray="2.5 2"/><path d="M4 10L8 14M8 10L4 14"/>', par: '<path d="M3 15L15 3M3 9L9 3" stroke-dasharray="2.5 2"/>'
+};
+// rodzaje przyciągania z menu — zapamiętane w programie (jak motyw i siatka), nie w rysunku
+try { const k = JSON.parse(localStorage.getItem('rysio.snapKinds') || 'null'); if (k) for (const n of SNAP_KINDS) if (typeof k[n] === 'boolean') app.snapper.kinds[n] = k[n]; } catch (e) {}
 app.tools = makeTools(app);
 let tool = app.tools.select;
 let snapRes = null, cursorModel = null, cursorScreen = null, hoverEnt = null, lockDir = null;
@@ -468,7 +479,9 @@ function refreshUi() {
   if (typing !== null && !app.mini) $('#reading')?.remove();
   if (app.mini) showReading();
   $('#undoBtn').disabled = !app.hist.canUndo; $('#redoBtn').disabled = !app.hist.canRedo;
-  $('#snapChip').classList.toggle('off', !app.snapper.enabled);
+  $('#snapChip').classList.toggle('off', !app.snapper.enabled); $('#snapSplit').classList.toggle('off', !app.snapper.enabled);
+  const snapOff = SNAP_KINDS.filter(k => SNAP_DEFAULT[k] && !app.snapper.kinds[k]).map(k => SNAP_MENU_NAME[k]);   // tylko różnice od początkowych
+  $('#snapChip').dataset.tip = _t('Przyciąganie do końców, środków, przecięć, okręgów i linii prowadzących') + (snapOff.length ? ' — ' + _t('wyłączone:') + ' ' + snapOff.join(', ') : '');
   $('#orthoChip').classList.toggle('off', !app.ortho);
   $('#gridChip').classList.toggle('off', !app.grid); $('#gridChip').lastChild.textContent = app.grid === 'lines' ? _t('Siatka: linie') : app.grid === 'dots' ? _t('Siatka: kropki') : _t('Siatka');
   const sh = app.sheet();
@@ -623,7 +636,7 @@ $('#strokePop').addEventListener('click', e => {
   else if (s.kind === 'sel') { const ids = s.si.ents.map(e => e.id); app.edit(_t('Kreska'), tx => ids.forEach(id => tx.set(id, patch))); }
   else { app.edit(_t('Kreska'), tx => tx.setDoc({ cur: { ...d.cur, ...patch } })); refreshUi(); }
 });
-document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop, .menu, .pill, #miniBadge, #status .unit, #status .chip, #fileBtn, #setBtn, #pdfBtn, .toolbar')) closePops(); });
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop, .menu, .pill, #miniBadge, #status .unit, #status .chip, #status .arr, #fileBtn, #setBtn, #pdfBtn, .toolbar')) closePops(); });
 
 // przebudowa paska albo okienka „w miejscu”: te same elementy zostają (zmieniają się tylko napisy i atrybuty),
 // więc kliknięty przycisk nie znika i jego animacja wciśnięcia / „tak” się odgrywa; pole z kursorem zostaje nietknięte
@@ -1197,6 +1210,28 @@ $('#scaleBtn').addEventListener('click', e => {
     'sep', { html: `<input class="fld grow" id="scaleOwn" placeholder="${_t('własna, np. 1:25')}" spellcheck="false">`, bind: d => { const i = d.querySelector('input'); i.addEventListener('keydown', ev => { ev.stopPropagation(); if (ev.key === 'Enter') { const m = /^\s*(?:1\s*:\s*)?(\d+(?:[.,]\d+)?)\s*$/.exec(i.value); if (m && +m[1].replace(',', '.') > 0) { closePops(); setScale(+m[1].replace(',', '.')); } else toast(_t('Wpisz skalę jak 1:25.')); } if (ev.key === 'Escape') closePops(); }); } }], { up: true });
   setTimeout(() => $('#scaleOwn')?.focus(), 0);
 });
+function setSnapKinds(k) {
+  Object.assign(app.snapper.kinds, k); app.snapper.clearRefs();
+  try { localStorage.setItem('rysio.snapKinds', JSON.stringify(app.snapper.kinds)); } catch (e) {}
+  refreshUi(); redraw();
+}
+function showSnapMenu() {
+  const m = $('#menu'), a = $('#snapArr'); m.innerHTML = '';
+  const row = k => `<button class="sw${app.snapper.kinds[k] ? '' : ' off'}" data-k="${k}"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="var(--snap)" stroke-width="1.5">${SNAP_MENU_ICON[k]}</svg><span>${SNAP_MENU_NAME[k]}</span><i class="tgl${app.snapper.kinds[k] ? ' on' : ''}"></i></button>`;
+  m.innerHTML = `<div class="mlbl">${_t('Punkty')}</div>${['end', 'mid', 'int', 'center', 'perp', 'tan', 'near'].map(row).join('')}<div class="msep"></div>
+    <div class="mlbl">${_t('Kierunki')}</div>${['hv', 'track', 'par'].map(row).join('')}<div class="msep"></div>
+    <div class="mfoot"><button data-all>${_t('Wszystkie')}</button><button data-def>${_t('Jak na początku')}</button></div>`;
+  const sync = () => m.querySelectorAll('button.sw').forEach(b => { const on = app.snapper.kinds[b.dataset.k]; b.classList.toggle('off', !on); b.querySelector('.tgl').classList.toggle('on', on); });
+  m.querySelectorAll('button.sw').forEach(b => b.addEventListener('click', () => { setSnapKinds({ [b.dataset.k]: !app.snapper.kinds[b.dataset.k] }); sync(); }));
+  m.querySelector('[data-all]').addEventListener('click', () => { setSnapKinds(Object.fromEntries(SNAP_KINDS.map(k => [k, true]))); sync(); });
+  m.querySelector('[data-def]').addEventListener('click', () => { setSnapKinds({ ...SNAP_DEFAULT }); sync(); });
+  m.hidden = false;
+  const r = a.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8)) + 'px';
+  m.style.transformOrigin = 'bottom right';
+  m.style.top = (r.top - m.offsetHeight - 6) + 'px';
+  a.classList.add('open');
+}
 function setScale(s) { app.edit(_t('Skala'), tx => tx.setDoc({ scale: s })); }
 
 /* ---------- plik ---------- */
@@ -1313,6 +1348,7 @@ $('#thinBtn').addEventListener('click', () => runAction('thin'));
 $('#undoBtn').addEventListener('click', () => runAction('undo'));
 $('#redoBtn').addEventListener('click', () => runAction('redo'));
 $('#snapChip').addEventListener('click', () => runAction('snapToggle'));
+$('#snapArr').addEventListener('click', e => { e.stopPropagation(); const was = $('#snapArr').classList.contains('open'); closePops(); if (!was) showSnapMenu(); });
 $('#orthoChip').addEventListener('click', () => runAction('ortho'));
 $('#gridChip').addEventListener('click', () => runAction('grid'));
 // stan aktualizacji: pozycja w menu ustawień; o nowej wersji mówi raz krótki komunikat, postęp pobierania i jego wynik — komunikaty na dole

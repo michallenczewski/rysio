@@ -25,10 +25,14 @@ const GUIDE_NAME = { h: _t('Poziomo'), v: _t('Pionowo'), par: _t('Równolegle'),
 // odstęp siatki: potęga dziesięciu (1 cm, 10 cm, 1 m, 10 m…), tak żeby oczka miały na ekranie co najmniej ~14 px
 export const gridStep = ppm => Math.pow(10, Math.ceil(Math.log10(14 / ppm)));
 
+// rodzaje, które można wyłączyć w menu przyciągania; „Najbliższy” domyślnie wyłączony jak w AutoCAD-zie (łapie wszędzie)
+export const SNAP_KINDS = ['end', 'mid', 'int', 'center', 'perp', 'tan', 'near', 'hv', 'track', 'par'];
+export const SNAP_DEFAULT = { end: true, mid: true, int: true, center: true, perp: true, tan: true, near: false, hv: true, track: true, par: true };
+
 const projOnLine = (p, o, d) => V.add(o, V.mul(d, V.dot(V.sub(p, o), d)));
 
 export class Snapper {
-  constructor() { this.refPts = []; this.refSegs = []; this.enabled = true; }
+  constructor() { this.refPts = []; this.refSegs = []; this.enabled = true; this.kinds = { ...SNAP_DEFAULT }; }
   clearRefs() { this.refPts = []; this.refSegs = []; }
   // zapamiętuje punkt do śledzenia (najwyżej dwa ostatnie)
   addRefPt(p) { if (this.refPts.some(q => V.eq(q, p, 1e-9))) return; this.refPts.push([...p]); if (this.refPts.length > 2) this.refPts.shift(); }
@@ -65,7 +69,8 @@ export class Snapper {
       if (o.grid) { const g = o.grid, q = [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g]; if (V.dist(q, p) <= tol) cands.push({ p: q, kind: 'grid', e: null }); }
     }
     // punkt elementu: jak w AutoCAD-zie wygrywa najbliższy kursora; rodzaj rozstrzyga dopiero przy tej samej odległości
-    const pointHit = cands.filter(c => SNAP[c.kind].pri <= SNAP.tan.pri && V.dist(c.p, p) <= tol)
+    const K = this.kinds;
+    const pointHit = cands.filter(c => SNAP[c.kind].pri <= SNAP.tan.pri && K[c.kind] !== false && V.dist(c.p, p) <= tol)
       .sort((a, b) => { const d = V.dist(a.p, p) - V.dist(b.p, p); return Math.abs(d) > 1e-9 ? d : SNAP[a.kind].pri - SNAP[b.kind].pri; })[0];
     const gridC = cands.find(c => c.kind === 'grid') || null;
     const nears = cands.filter(c => c.kind === 'near');
@@ -74,13 +79,14 @@ export class Snapper {
     const guides = [];
     if (base && o.lockDir) guides.push({ o: base, d: o.lockDir, kind: 'lock', from: 'base' });
     else if (base) {
-      guides.push({ o: base, d: [1, 0], kind: 'h', from: 'base' }, { o: base, d: [0, 1], kind: 'v', from: 'base' });
-      if (!o.ortho) for (const [a, b] of this.refSegs) {
+      // w trybie kątów prostych poziom i pion od bazy są zawsze (to inny przycisk niż menu)
+      if (K.hv !== false || o.ortho) guides.push({ o: base, d: [1, 0], kind: 'h', from: 'base' }, { o: base, d: [0, 1], kind: 'v', from: 'base' });
+      if (!o.ortho && K.par !== false) for (const [a, b] of this.refSegs) {
         const d = V.norm(V.sub(b, a)); if (Math.abs(d[0]) > 0.9999 || Math.abs(d[1]) > 0.9999) continue;
         guides.push({ o: base, d, kind: 'par', from: 'base', ref: [a, b] }, { o: base, d: V.perp(d), kind: 'perp', from: 'base', ref: [a, b] });
       }
     }
-    if (this.enabled && !o.noSnap && !o.lockDir) for (const r of this.refPts) {
+    if (this.enabled && !o.noSnap && !o.lockDir && K.track !== false) for (const r of this.refPts) {
       if (base && V.eq(r, base, 1e-9)) continue;
       guides.push({ o: r, d: [1, 0], kind: 'h', from: 'ref' }, { o: r, d: [0, 1], kind: 'v', from: 'ref' });
     }
@@ -111,7 +117,7 @@ export class Snapper {
 
     // tryb „tylko kąty proste” i zablokowany kierunek: punkt zawsze leży na kierunku od bazy
     if (base && (o.ortho || o.lockDir)) {
-      const g = guides.filter(g => g.from === 'base').sort((a, b) => gd(a) - gd(b))[0];
+      const g = guides.filter(g => g.from === 'base' && ['h', 'v', 'lock'].includes(g.kind)).sort((a, b) => gd(a) - gd(b))[0];
       out.guides = [g];
       if (pointHit) return Object.assign(out, { p: projOnLine(pointHit.p, g.o, g.d), kind: pointHit.kind, label: SNAP[pointHit.kind].label, ent: pointHit.e });
       const gi = guideHit([g], g => projOnLine(p, g.o, g.d));
@@ -125,7 +131,7 @@ export class Snapper {
       Object.assign(out, { p: [...pointHit.p], kind: pointHit.kind, label: SNAP[pointHit.kind].label, ent: pointHit.e });
       // kierunek, na którym ten punkt akurat leży, też pokazujemy
       out.guides = guides.filter(g => g.from === 'base' && V.dist(out.p, g.o) > 1e-9 && V.dist(projOnLine(out.p, g.o, g.d), out.p) < 1e-7);
-      if (['end', 'mid', 'center', 'int'].includes(pointHit.kind)) this.addRefPt(pointHit.p);
+      if (K.track !== false && ['end', 'mid', 'center', 'int'].includes(pointHit.kind)) this.addRefPt(pointHit.p);
       return out;
     }
     // 3) przecięcia dwóch kierunków w pobliżu kursora
@@ -139,7 +145,8 @@ export class Snapper {
     }
     // 4) kursor bliżej elementu niż kierunków: przyciąganie do elementu ma pierwszeństwo (jak w AutoCAD-zie);
     //    kursor bliżej kierunku: kierunek, z przecięciem z elementem albo węzłem siatki na nim
-    const dN = nears.length ? Math.min(...nears.map(c => V.dist(c.p, p))) : Infinity;
+    // „Najbliższy” wyłączony: element nie trzyma kursora (przecięcia kierunku z nim i węzły siatki na nim zostają)
+    const dN = nears.length && K.near !== false ? Math.min(...nears.map(c => V.dist(c.p, p))) : Infinity;
     const elemFirst = dN < Math.min(close.length ? gd(close[0]) : Infinity, best ? V.dist(best.p, p) : Infinity);
     if (best && (!elemFirst || nears.some(c => onEnt(best.p, c.e)))) return Object.assign(out, { p: best.p, kind: 'track', label: SNAP.track.label, guides: best.guides });
     const gi = guideHit(close);

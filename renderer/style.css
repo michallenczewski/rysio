@@ -147,6 +147,21 @@ header button,header .seg,header input{-webkit-app-region:no-drag}
 .chip.off:hover{background:var(--hover)}
 .chip i{width:7px;height:7px;border-radius:50%;background:var(--text2)}
 .chip.off i{background:none;box-shadow:0 0 0 1.2px var(--muted2) inset}
+/* przyciąganie: napis włącza i wyłącza, strzałka obok otwiera menu rodzajów */
+.split{display:flex;border-radius:7px;background:var(--soft);flex:none}
+.split .chip{background:none;border-radius:7px 0 0 7px;padding-right:6px}
+.split .arr{width:20px;height:26px;padding:0;gap:0;justify-content:center;border-radius:0 7px 7px 0;color:var(--muted)}
+.split .arr:hover,.split .arr.open{background:var(--hover);color:var(--text)}
+.split .arr svg{color:inherit}
+.split.off{background:none}
+.menu button.sw{gap:10px;padding:0 8px}
+.menu button.sw svg{flex:none}
+.menu button.sw span{white-space:nowrap;margin-right:6px}
+.menu button.sw.off span{color:var(--muted)}
+.menu button.sw.off svg{opacity:.45}
+.menu .mfoot{display:flex;gap:6px;padding:4px 4px 2px}
+.menu .mfoot button{flex:1;height:28px;justify-content:center;white-space:nowrap;padding:0 10px;background:var(--soft);font-size:12px;color:var(--text2)}
+.menu .mfoot button:hover{background:var(--hover)}
 #vcbWrap{display:flex;align-items:center;gap:8px;flex:none}
 #vcb{width:110px;height:26px;border-radius:7px;background:var(--card);box-shadow:0 0 0 1px var(--line) inset;padding:0 10px;font-variant-numeric:tabular-nums;text-align:right;color:var(--muted);display:flex;align-items:center;justify-content:flex-end;white-space:nowrap;overflow:hidden}
 #vcb.typing{box-shadow:0 0 0 1.5px var(--text) inset;color:var(--text)}

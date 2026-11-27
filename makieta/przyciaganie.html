@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rysio — menu przyciągania (makieta)</title>
+<style>
+:root{
+  --bg:#f7f7f5; --text:#1a1a19; --text2:#4a4945; --muted:#706f6a; --muted2:#8f8e89;
+  --soft:#efeeea; --hover:#e6e5e0; --card:#fff; --toolon:#fff; --cardline:rgba(0,0,0,.06);
+  --menush:0 0 0 1px rgba(0,0,0,.06),0 10px 30px rgba(0,0,0,.10);
+  --paper:#fff; --ink:#1a1a19; --snap:#b0489e; --accent:#1a1a19; --spring:cubic-bezier(.34,1.56,.64,1);
+  color-scheme:light;
+}
+[data-theme=dark]{
+  --bg:#161616; --text:#e9e9e7; --text2:#c4c4c1; --muted:#8d8d89; --muted2:#6f6f6c;
+  --soft:#222221; --hover:#2c2c2b; --card:#1d1d1c; --toolon:#3a3a38; --cardline:rgba(255,255,255,.06);
+  --menush:0 0 0 1px rgba(255,255,255,.07),0 12px 36px rgba(0,0,0,.5);
+  --paper:#1d1d1c; --ink:#e4e4e1; --snap:#d48bc6; --accent:#e9e9e7;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.demo{max-width:1000px;margin:0 auto;padding:22px 16px 40px}
+h1{font-size:17px;font-weight:600;margin:0 0 4px}
+.lead{color:var(--text2);margin:0 0 14px;max-width:780px}
+.ctl{display:flex;gap:10px;align-items:center;margin:0 0 16px}
+.seg{display:flex;gap:2px;padding:2px;border-radius:8px;background:var(--soft)}
+.seg button{height:26px;padding:0 10px;border-radius:6px;color:var(--muted);font-size:12px}
+.seg button.on{background:var(--toolon);box-shadow:0 0 0 1px var(--cardline),0 1px 2px rgba(0,0,0,.06);color:var(--text)}
+
+/* okno programu (wycinek) */
+.win{position:relative;background:var(--bg);border-radius:12px;box-shadow:0 0 0 1px var(--cardline);height:470px;overflow:hidden}
+.paper{position:absolute;left:12px;right:12px;top:12px;bottom:48px;background:var(--paper);border-radius:10px;box-shadow:0 0 0 1px var(--cardline)}
+#status{position:absolute;left:12px;right:12px;bottom:8px;height:32px;display:flex;align-items:center;gap:10px}
+.tabs{display:flex;gap:2px}.tabs span{height:26px;padding:0 10px;display:flex;align-items:center;border-radius:6px;font-size:12px;color:var(--muted)}
+.tabs span.on{background:var(--card);box-shadow:0 0 0 1px var(--cardline);color:var(--text)}
+#hint{flex:1;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hint b{color:var(--text2);font-weight:600}
+.chip{height:26px;font-size:12px;background:var(--soft);color:var(--text2);padding:0 9px;border-radius:7px;display:flex;align-items:center;gap:6px}
+.chip.off{background:none;color:var(--muted)}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--text2)}
+.chip.off i{background:none;box-shadow:0 0 0 1.2px var(--muted2) inset}
+/* nowe: dzielony przycisk — napis włącza/wyłącza, strzałka otwiera menu */
+.split{display:flex;border-radius:7px;background:var(--soft)}
+.split .chip{background:none;border-radius:7px 0 0 7px;padding-right:6px}
+.split .arr{width:20px;height:26px;border-radius:0 7px 7px 0;color:var(--muted);display:grid;place-items:center;box-shadow:-1px 0 0 var(--cardline)}
+.split .arr:hover,.split .arr.open{background:var(--hover);color:var(--text)}
+.split.off{background:none;box-shadow:0 0 0 1px var(--cardline) inset}
+.num{width:96px;height:26px;border-radius:7px;background:var(--card);box-shadow:0 0 0 1px var(--cardline);display:flex;align-items:center;justify-content:flex-end;padding:0 8px;font-size:12px}
+.lbl{color:var(--muted);font-size:12px}
+
+/* menu */
+.pop{position:absolute;width:236px;background:var(--card);border-radius:12px;box-shadow:var(--menush);padding:6px}
+.pop h3{margin:6px 8px 4px;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+.row{display:flex;align-items:center;gap:10px;height:30px;padding:0 8px;border-radius:7px;cursor:pointer;user-select:none}
+.row:hover{background:var(--hover)}
+.row svg{flex:none}
+.row .nm{flex:1}
+.row.off .nm{color:var(--muted)}
+.row.off svg{opacity:.45}
+.tg{width:26px;height:16px;border-radius:8px;background:var(--muted2);position:relative;transition:background .2s;flex:none}
+.tg::after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff;transition:transform .35s var(--spring)}
+.row:not(.off) .tg{background:var(--accent)}
+[data-theme=dark] .row:not(.off) .tg::after{background:#161616}
+.row:not(.off) .tg::after{transform:translateX(10px)}
+.sepl{height:1px;background:var(--cardline);margin:6px 8px}
+.foot{display:flex;gap:6px;padding:4px 4px 2px}
+.foot button{flex:1;height:28px;border-radius:7px;background:var(--soft);font-size:12px;color:var(--text2)}
+.foot button:hover{background:var(--hover)}
+
+.notes{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.note{background:var(--card);border-radius:10px;box-shadow:0 0 0 1px var(--cardline);padding:10px 12px;color:var(--text2);font-size:12.5px}
+.note b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="demo">
+  <h1>Menu przyciągania</h1>
+  <p class="lead">Kliknięcie w napis „Przyciąganie” dalej włącza i wyłącza całe przyciąganie. Mała strzałka obok otwiera menu, w którym włącza się i wyłącza poszczególne rodzaje — każdy z tym samym znaczkiem, który pokazuje się na rysunku. Kliknij w wiersz, żeby przełączyć.</p>
+  <div class="ctl"><span class="lbl">Motyw</span>
+    <div class="seg" id="theme"><button class="on" data-t="light">Jasny</button><button data-t="dark">Ciemny</button></div></div>
+
+  <div class="win">
+    <div class="paper"></div>
+    <div id="status">
+      <div class="tabs"><span class="on">Model</span><span>+</span></div>
+      <div id="hint"><b>Linia:</b> kliknij punkt początkowy.</div>
+      <div class="split" id="split"><button class="chip" id="chip"><i></i>Przyciąganie</button><button class="arr open" id="arr" title="Do czego przyciągać">
+        <svg width="9" height="6" viewBox="0 0 9 6"><path d="M1 1.5l3.5 3 3.5-3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+      <button class="chip off"><i></i>Siatka</button>
+      <button class="chip off"><i></i>Kąty proste</button>
+      <span class="lbl">Długość</span><span class="num"></span>
+      <span class="lbl" style="margin-left:4px">m</span><span class="lbl">1:50</span>
+    </div>
+    <div class="pop" id="pop" style="right:300px;bottom:52px">
+      <h3>Punkty</h3>
+      <div id="pts"></div>
+      <div class="sepl"></div>
+      <h3>Kierunki</h3>
+      <div id="dirs"></div>
+      <div class="sepl"></div>
+      <div class="foot"><button id="all">Wszystkie</button><button id="def">Jak na początku</button></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><b>Zapamiętane w programie</b>, nie w rysunku — tak jak motyw i siatka. Każdy komputer (biuro, dom) pamięta swoje.</div>
+    <div class="note"><b>Na początku wszystko włączone</b> oprócz „Najbliższy” — tak jak w AutoCAD-zie, gdzie „Najbliższy” domyślnie jest wyłączony, bo łapie wszędzie. (Do decyzji — dziś jest włączony.)</div>
+    <div class="note"><b>Wyłączone wszystko w menu</b> = przyciąganie praktycznie wyłączone, ale napis na pasku zostaje włączony; podpowiedź przy napisie pokazuje, co jest włączone.</div>
+    <div class="note"><b>Siatka i Kąty proste</b> zostają osobnymi przyciskami jak dziś — nie przenoszę ich do menu.</div>
+  </div>
+</div>
+<script>
+const M = {
+  end: '<rect x="4" y="4" width="10" height="10"/>',
+  mid: '<path d="M9 3L15 14H3Z"/>',
+  int: '<path d="M4 4L14 14M14 4L4 14"/>',
+  center: '<circle cx="9" cy="9" r="5"/><path d="M7 9h4M9 7v4"/>',
+  perp: '<path d="M4 4V14H14M4 9H9V14"/>',
+  tan: '<circle cx="9" cy="10" r="4"/><path d="M2 5H16"/>',
+  near: '<path d="M4 4H14L4 14H14Z"/>',
+  hv: '<path d="M2 9H16M9 2V16" stroke-dasharray="2.5 2"/>',
+  track: '<path d="M2 12H16M6 2V16" stroke-dasharray="2.5 2"/><path d="M4 10L8 14M8 10L4 14"/>',
+  par: '<path d="M3 15L15 3M3 9L9 3" stroke-dasharray="2.5 2"/>'
+};
+const PTS = [['end','Koniec',1],['mid','Środek',1],['int','Przecięcie',1],['center','Środek okręgu',1],['perp','Prostopadle',1],['tan','Styczna',1],['near','Najbliższy punkt na linii',0]];
+const DIRS = [['hv','Poziomo i pionowo',1],['track','Śledzenie od punktów',1],['par','Równolegle do linii',1]];
+const icon = k => `<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="var(--snap)" stroke-width="1.5" stroke-linejoin="miter">${M[k]}</svg>`;
+function fill(id, list) {
+  document.getElementById(id).innerHTML = list.map(([k, n, on]) => `<div class="row${on ? '' : ' off'}" data-k="${k}">${icon(k)}<span class="nm">${n}</span><span class="tg"></span></div>`).join('');
+}
+fill('pts', PTS); fill('dirs', DIRS);
+document.getElementById('pop').addEventListener('click', e => { const r = e.target.closest('.row'); if (r) r.classList.toggle('off'); });
+document.getElementById('all').onclick = () => document.querySelectorAll('.row').forEach(r => r.classList.remove('off'));
+document.getElementById('def').onclick = () => document.querySelectorAll('.row').forEach(r => r.classList.toggle('off', r.dataset.k === 'near'));
+document.getElementById('chip').onclick = () => { const s = document.getElementById('split'), c = document.getElementById('chip'); c.classList.toggle('off'); s.classList.toggle('off'); };
+document.getElementById('arr').onclick = () => { const p = document.getElementById('pop'), a = document.getElementById('arr'); p.hidden = !p.hidden; a.classList.toggle('open', !p.hidden); };
+document.getElementById('theme').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  for (const x of b.parentNode.children) x.classList.toggle('on', x === b);
+  document.documentElement.dataset.theme = b.dataset.t;
+});
+// menu nad strzałką
+(() => { const a = document.getElementById('arr').getBoundingClientRect(), w = document.querySelector('.win').getBoundingClientRect(), p = document.getElementById('pop');
+  p.style.right = 'auto'; p.style.left = (a.right - w.left - p.offsetWidth + 6) + 'px'; })();
+</script>
+</body>
+</html>

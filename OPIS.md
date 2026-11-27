@@ -29,7 +29,7 @@ Porządek:
 - ramka (border): obrys arkusza z tabelką rysunkową do wypełnienia
 
 Pomoc w rysowaniu:
-- przyciąganie (osnap): koniec, środek, przecięcie, prostopadle, środek okręgu, styczna, najbliższy punkt na linii — z czytelnym znaczkiem i podpisem
+- przyciąganie (osnap): koniec, środek, przecięcie, prostopadle, środek okręgu, styczna, najbliższy punkt na linii — z czytelnym znaczkiem i podpisem; strzałka obok przycisku „Przyciąganie” otwiera menu, w którym każdy rodzaj (i kierunki) włącza się osobno — „najbliższy” na początku wyłączony, jak w AutoCAD-zie
 - siatka (wyłączona / kropki / linie) z przyciąganiem do węzłów — tylko w modelu, nie na wydruku
 - uchwyty zaznaczonych elementów: przeciągnięcie końca, wierzchołka, środka albo kwadrantu okręgu
 - kierunki i śledzenie (ortho + tracking): linie prowadzące w poziomie i w pionie, od wskazanego punktu, wzdłuż i prostopadle do istniejącej linii; przełącznik „tylko kąty proste”
