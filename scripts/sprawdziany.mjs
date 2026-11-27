@@ -429,7 +429,7 @@ przypadek('przyciąganie do siatki', 'kursor obok węzła siatki co 1 m trafia w
   const c = new Snapper().find([2.5, 0.5], { tol: 0.05, ents: [], grid: 1 });
   return { 'węzeł': [[...a.p, a.kind], [2, 1, 'grid']], 'koniec wygrywa': [b.kind, 'end'], 'z dala od węzła': [c.kind, null],
     'odstęp przy 60 px/m': [gridStep(60), 1],
-    'poziom od punktu wygrywa z siatką': [(() => { const r = new Snapper().find([3.04, 0.07], { tol: 0.08, ents: [], base: [0, 0.037], grid: 1 }); return [r.kind, +r.p[1].toFixed(3)]; })(), ['guide', 0.037]],
+    'poziom od punktu: na poziomie, w kolumnie siatki': [(() => { const r = new Snapper().find([3.04, 0.07], { tol: 0.08, ents: [], base: [0, 0.037], grid: 1 }); return [r.kind, +r.p[0].toFixed(3), +r.p[1].toFixed(3)]; })(), ['grid', 3, 0.037]],
     'punkt na linii wygrywa z siatką': [new Snapper().find([2.02, 0.97], { tol: 0.05, ents: [{ ...L([0, 0.95], [5, 0.95]), id: 1 }], grid: 1 }).kind, 'near'], 'przy 600 px/m': [gridStep(600), 0.1] };
 });
 // konflikty przyciągania (zgłoszenie z 26.11.2026 i przegląd) — w razie wątpliwości jak AutoCAD:
@@ -454,10 +454,11 @@ przypadek('konflikt: śledzenie obok ściany', 'dwa kierunki krzyżują się 6 c
   const r = s.find([3.01, 2.03], { tol: 0.1, ents: [{ ...L([2.25, -1], [3.5, 4]), id: 1 }], base: [0, 2] });
   return { 'punkt': [[r.kind, ...r3(r.p)], ['guideInt', 3, 2]] };
 });
-przypadek('konflikt: podpis siatki przy kątach prostych', 'węzeł obok poziomu — punkt na poziomie, podpis „Poziomo”, nie „Siatka”', () => {
-  const r = new Snapper().find([3.02, 0.06], { tol: 0.1, ents: [], base: [0, 0.04], ortho: true, grid: 1 });
+przypadek('konflikt: podpis siatki przy kątach prostych', 'węzeł obok poziomu — punkt na poziomie w kolumnie siatki; z dala od kolumn podpis „Poziomo”', () => {
+  const r = new Snapper().find([3.42, 0.06], { tol: 0.1, ents: [], base: [0, 0.04], ortho: true, grid: 1 });
   const k = new Snapper().find([2.97, 0.03], { tol: 0.1, ents: [], base: [0, 0], ortho: true, grid: 1 });
-  return { 'obok węzła': [[r.kind, ...r3(r.p)], ['guide', 3, 0.04]], 'węzeł na poziomie': [[k.kind, ...r3(k.p)], ['grid', 3, 0]] };
+  const c = new Snapper().find([3.02, 0.06], { tol: 0.1, ents: [], base: [0, 0.04], ortho: true, grid: 1 });
+  return { 'z dala od kolumny': [[r.kind, ...r3(r.p)], ['guide', 3.42, 0.04]], 'przy kolumnie': [[c.kind, ...r3(c.p)], ['grid', 3, 0.04]], 'węzeł na poziomie': [[k.kind, ...r3(k.p)], ['grid', 3, 0]] };
 });
 przypadek('konflikt: koniec czy przecięcie', 'przecięcie pod kursorem, koniec 8 cm dalej — wygrywa bliższe (jak w AutoCAD-zie)', () => {
   const ents = [{ ...L([0, 0], [4, 0]), id: 1 }, { ...L([0.08, -1], [0.08, 1]), id: 2 }];
@@ -467,6 +468,12 @@ przypadek('konflikt: koniec czy przecięcie', 'przecięcie pod kursorem, koniec 
 przypadek('konflikt: kierunek wzdłuż ściany', 'kursor na ścianie, poziom od bazy 5 cm obok — punkt na ścianie (jak w AutoCAD-zie)', () => {
   const r = new Snapper().find([3, 1.01], { tol: 0.1, ents: [{ ...L([0, 1], [5, 1]), id: 1 }], base: [-1, 1.05] });
   return { 'punkt': [[r.kind, ...r3(r.p)], ['near', 3, 1]] };
+});
+przypadek('przesuwanie kreski w poziomie do siatki', 'prawa krawędź prostokąta złapana w połowie (6; 2,5) i przesuwana w bok — ląduje w kolumnie siatki, nie obok', () => {
+  const rect = [[[2, 1], [6, 1]], [[6, 1], [6, 4]], [[6, 4], [2, 4]], [[2, 4], [2, 1]]].map(([a, b], i) => ({ ...L(a, b), id: i + 1 }));
+  const s = new Snapper(), o = { tol: 0.15, ents: rect, base: [6, 2.5], grid: 1 };
+  const r = s.find([7.97, 2.53], o), l = s.find([4.02, 2.51], o), f = s.find([8.45, 2.52], o);
+  return { 'w prawo': [[r.kind, ...r3(r.p)], ['grid', 8, 2.5]], 'w lewo': [[l.kind, ...r3(l.p)], ['grid', 4, 2.5]], 'między kolumnami': [[f.kind, ...r3(f.p)], ['guide', 8.45, 2.5]] };
 });
 przypadek('konflikt: kierunek bliżej niż kreska', 'kursor bliżej kierunku niż sąsiedniej kreski — wygrywa kierunek, śledzenie albo węzeł na kierunku', () => {
   const s = new Snapper(); s.addRefPt([3, -5]);
