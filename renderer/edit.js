@@ -476,6 +476,18 @@ export function gripsOf(e) {
   }
   return [];
 }
+// Uchwyty leżące w tym samym miejscu (np. wspólny koniec dwóch osobnych kresek): grips — [{ e, k, p }] uchwyty zaznaczonych elementów.
+export function sharedGrips(grips, p) { return grips.filter(g => V.dist(g.p, p) < 1e-9); }
+// Przeciągnięcie kilku uchwytów naraz z punktu from do p. Wynik: [{ id, patch }] — po jednym na element.
+export function gripMoveMany(list, p, from) {
+  const by = new Map();
+  for (const { e, k } of list) {
+    const cur = by.get(e.id) || { e, patch: {} };
+    const pm = gripMove({ ...e, ...cur.patch }, k, p, from); if (pm) Object.assign(cur.patch, pm);
+    by.set(e.id, cur);
+  }
+  return [...by.values()].filter(x => Object.keys(x.patch).length).map(x => ({ id: x.e.id, patch: x.patch }));
+}
 export function gripMove(e, k, p, from) {
   p = [p[0], p[1]];
   if (k === 'mv') { const o = from || gripsOf(e).find(x => x.k === 'mv').p; return moved(e, V.sub(p, o)); }

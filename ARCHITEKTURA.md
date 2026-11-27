@@ -186,7 +186,7 @@ PDF powstaje bez biblioteki (zob. wyżej).
 - **Kreskowanie nie jest skojarzone** z obrysem — po zmianie ścian trzeba je narysować na nowo. Szukanie obszaru bierze pod uwagę widoczną część rysunku (z zapasem 15%).
 - **Biblioteka czyta tylko DXF** (bez DWG) i tylko do trzech poziomów podfolderów; folder w chmurze, który nie jest pobrany na dysk (pliki „na żądanie”), może czytać się wolno przy pierwszym otwarciu.
 - **Wstawienie bloku ma jedną skalę** (bez osobnej X i Y); takie wstawienia z DXF są rozbijane.
-- **Uchwyty** nie mają wpisywania długości z klawiatury — tylko przeciąganie albo klik w nowe miejsce, z przyciąganiem i kierunkami.
+- **Uchwyty** nie mają wpisywania długości z klawiatury — tylko przeciąganie albo klik w nowe miejsce, z przyciąganiem i kierunkami. Uchwyty kilku zaznaczonych elementów leżące w jednym punkcie (np. wspólny koniec dwóch osobnych kresek) przesuwają się razem, jednym krokiem cofania (`sharedGrips` / `gripMoveMany` w `edit.js`; przeciągane elementy są w `app.dragIds`).
 - **Zaokrąglanie działa na dwóch pojedynczych liniach** — nie na wierzchołkach polilinii ani na łukach. Polilinię trzeba by najpierw rozbić (polecenie, którego jeszcze nie ma).
 - **Odsunięcie polilinii** łączy części przez przecięcie ich przedłużeń (ostre narożniki); gdy przedłużenia się nie przecinają (np. łuk i odcinek, które się rozjechały), oba odsunięte końce łączy prosty odcinek. Odsunięcie, przy którym któraś część zmieniłaby kierunek (figura by się wywinęła), program odrzuca.
 - **Wydłużanie polilinii** działa tylko wtedy, gdy kończy się ona odcinkiem (nie łukiem).

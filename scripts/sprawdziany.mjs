@@ -489,6 +489,13 @@ przypadek('konflikt: kierunek bliżej niż kreska', 'kursor bliżej kierunku ni�
   return { 'śledzenie pod kursorem': [[t.kind, ...r3(t.p)], ['track', 3, 0]], 'poziom obok kreski': [[h.kind, ...r3(h.p)], ['guide', 3, 0]], 'węzeł na poziomie': [[g.kind, ...r3(g.p)], ['grid', 3, 0]] };
 });
 
+przypadek('wspólny uchwyt dwóch kresek', 'dwie osobne kreski stykające się w (2,0) — przeciągnięcie wspólnego punktu przesuwa koniec obu, jednym krokiem', () => {
+  const a = { ...L([0, 0], [2, 0]), id: 1 }, b = { ...L([2, 0], [2, 3]), id: 2 }, c = { ...L([5, 5], [6, 6]), id: 3 };
+  const all = [a, b, c].flatMap(e => ED.gripsOf(e).map(g => ({ e, ...g })));
+  const at = ED.sharedGrips(all, [2, 0]);
+  const r = ED.gripMoveMany(at, [3, 1], [2, 0]), byId = Object.fromEntries(r.map(x => [x.id, x.patch]));
+  return { 'uchwyty w punkcie': [at.map(g => g.e.id + g.k).sort(), ['1b', '2a']], 'pierwsza kreska': [byId[1].b, [3, 1]], 'druga kreska': [byId[2].a, [3, 1]], 'zmienione elementy': [r.length, 2] };
+});
 przypadek('uchwyty: koniec, środek, wierzchołek, promień', 'przeciąganie uchwytów zmienia tylko to, co trzeba', () => {
   const ln = L([0, 0], [4, 0]);
   const mid = ED.gripMove(ln, 'mv', [2, 1]);

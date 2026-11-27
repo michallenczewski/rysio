@@ -286,7 +286,7 @@ function updateCursor(sx, sy, e) {
   cursorScreen = [sx, sy];
   const raw = app.view.toModel(sx, sy);
   if (tool.draw) {
-    const shown = app.ents().filter(x => isShown(app.doc, x) && x.t !== 'text' && x.t !== 'hatch' && x.id !== app.hideEnt && x.id !== app.dragEnt).concat(tool.snapEnts?.() || []);
+    const shown = app.ents().filter(x => isShown(app.doc, x) && x.t !== 'text' && x.t !== 'hatch' && x.id !== app.hideEnt && x.id !== app.dragEnt && !app.dragIds?.has(x.id)).concat(tool.snapEnts?.() || []);
     snapRes = app.snapper.find(raw, { tol: app.tol(), ents: shown, base: tool.base(), lockDir, ortho: app.ortho, noSnap: false, grid: app.grid && !app.sheet() ? gridStep(app.view.ppm) : 0 });
     cursorModel = snapRes.p; hoverEnt = null;
   } else {
@@ -420,7 +420,7 @@ function frame() {
   const hi = tool.highlight ? [...tool.highlight()].map(id => app.doc.ents.find(e => e.id === id)).filter(Boolean) : [];
   const pv = cursorScreen || !tool.draw ? tool.preview() : [], hid = new Set(pv.filter(e => e._replaces).map(e => e._replaces));   // podgląd zastępuje element (np. zaokrąglanie)
   app.view.render({
-    doc: app.doc, sel: tool.picked ? new Set([...app.sel, ...tool.picked()]) : app.sel, thin: app.thin, grid: app.grid, ents: app.hideEnt || app.dragEnt || hid.size ? app.ents().filter(e => e.id !== app.hideEnt && e.id !== app.dragEnt && !hid.has(e.id)) : app.ents(), scale: app.spaceScale(), sheet: app.sheet(), vpEdit: app.vpEdit,
+    doc: app.doc, sel: tool.picked ? new Set([...app.sel, ...tool.picked()]) : app.sel, thin: app.thin, grid: app.grid, ents: app.hideEnt || app.dragEnt || hid.size ? app.ents().filter(e => e.id !== app.hideEnt && e.id !== app.dragEnt && !app.dragIds?.has(e.id) && !hid.has(e.id)) : app.ents(), scale: app.spaceScale(), sheet: app.sheet(), vpEdit: app.vpEdit,
     fmt: app.space ? app.fmtSheet : app.fmtModel, fmtModel: app.fmtModel,
     // halo — tylko krawędzie, które narzędzie zmieni (zamiast całego elementu pod kursorem)
     hover: [...hi, ...(tool.halo?.() ?? (hoverEnt && !app.sel.has(hoverEnt.id) && !hid.has(hoverEnt.id) ? [hoverEnt] : []))], hoverColor: tool.id === 'eraser' || tool.id === 'trim' ? '#c0533f' : null,

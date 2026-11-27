@@ -11,7 +11,7 @@ import { _t, DEC } from './i18n.js';
 import { V, arc3, arcCSE, angOf, sweep, moved, touchesRect, insideRect, crossesSeg, intersect, lengthOf, dimGeom, adimGeom, partsOf, closestOnSeg, angArms } from './geom.js';
 import { parseLength, parseLengths, fmtLength, fmtNum } from './units.js';
 import { isLive, isShown } from './model.js';
-import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, filletCurves, chamferLines, plineCorner, trimMany, gripsOf, gripMove } from './edit.js';
+import { rotation, mirroring, scaling, transformed, offsetEnt, filletLines, filletCurves, chamferLines, plineCorner, trimMany, gripsOf, sharedGrips, gripMoveMany } from './edit.js';
 import { buildFaces, regionAt } from './hatch.js';
 import { blockEnts, bbox, boxGrow, boxHit } from './geom.js';
 import { clipGhosts, clipBase, pasteClip } from './clip.js';
@@ -38,11 +38,12 @@ export function makeTools(app) {
       return out;
     },
     gripAt(p) { const tol = 7 / app.view.ppm; let best = null, bd = tol; for (const g of this.grips()) { const d = V.dist(g.p, p); if (d <= bd) { bd = d; best = g; } } return best; },
+    // wszystkie uchwyty w chwytanym punkcie (wspólny koniec kilku zaznaczonych kresek) przesuwają się razem
     finishGrip(p) {
-      const { e, k, from } = this.grip; this.grip = null; app.dragEnt = null;
-      const patch = gripMove(e, k, p, from);
+      const { list, from } = this.grip; this.grip = null; app.dragEnt = null; app.dragIds = null;
+      const r = gripMoveMany(list, p, from);
       app.cursorClass?.();
-      if (patch && V.dist(p, from) > 1e-9) app.edit(_t('Uchwyt'), tx => tx.set(e.id, patch));
+      if (r.length && V.dist(p, from) > 1e-9) app.edit(_t('Uchwyt'), tx => r.forEach(x => tx.set(x.id, x.patch)));
     },
     hint() {
       if (this.grip) return _t('<b>Uchwyt:</b> przeciągnij albo kliknij nowe miejsce — przyciąganie i kierunki działają jak przy rysowaniu. Esc przerywa.');
@@ -53,10 +54,13 @@ export function makeTools(app) {
         this.finishGrip(p); return;
       }
       const g = !e.shiftKey && this.gripAt(p);
-      if (g) { this.grip = { e: g.e, k: g.k, from: g.p, p: g.p, moved: false }; app.dragEnt = g.e.id; app.cursorClass?.(); return; }
+      if (g) {
+        const list = sharedGrips(this.grips(), g.p).map(x => ({ e: x.e, k: x.k }));
+        this.grip = { e: g.e, k: g.k, list, from: g.p, p: g.p, moved: false }; app.dragEnt = g.e.id; app.dragIds = new Set(list.map(x => x.e.id)); app.cursorClass?.(); return;
+      }
       // tekst chwyta się w dowolnym miejscu napisu: przeciągnięcie go przesuwa, samo kliknięcie zaznacza
       const hit = !e.shiftKey && app.pick(p);
-      if (hit && hit.t === 'text') { this.grip = { e: hit, k: 'mv', from: [...p], p: [...p], moved: false, body: true }; return; }
+      if (hit && hit.t === 'text') { this.grip = { e: hit, k: 'mv', list: [{ e: hit, k: 'mv' }], from: [...p], p: [...p], moved: false, body: true }; return; }
       this._down = p; this.box = null; this._shift = e.shiftKey;
     },
     move(p) {
@@ -69,13 +73,13 @@ export function makeTools(app) {
     },
     preview() {
       if (!this.grip) return [];
-      const { e, k, from, p } = this.grip, patch = gripMove(e, k, p, from);
-      return patch ? [{ ...e, ...patch }] : [{ ...e }];
+      const { list, from, p } = this.grip, r = new Map(gripMoveMany(list, p, from).map(x => [x.id, x.patch]));
+      return [...new Map(list.map(x => [x.e.id, x.e])).values()].map(e => ({ ...e, ...(r.get(e.id) || {}) }));
     },
     up(p) {
       if (this.grip && this.grip.body) {   // tekst: przeciągnięty — przesuwamy i zaznaczamy; kliknięty — tylko zaznaczamy
         const t = this.grip.e;
-        if (this.grip.moved) this.finishGrip(p); else { this.grip = null; app.dragEnt = null; }
+        if (this.grip.moved) this.finishGrip(p); else { this.grip = null; app.dragEnt = null; app.dragIds = null; }
         app.sel.clear(); app.sel.add(t.id); app.selectionChanged(); return;
       }
       if (this.grip) { if (this.grip.moved) this.finishGrip(p); else this.grip.armedAt = performance.now(); return; }   // bez ruchu: czekamy na klik w nowe miejsce
@@ -93,7 +97,7 @@ export function makeTools(app) {
       this._down = null; this.box = null; app.selectionChanged();
     },
     cancel() {
-      if (this.grip) { this.grip = null; app.dragEnt = null; app.cursorClass?.(); return true; }
+      if (this.grip) { this.grip = null; app.dragEnt = null; app.dragIds = null; app.cursorClass?.(); return true; }
       if (this._down) { this._down = null; this.box = null; return true; }
       if (app.sel.size) { app.sel.clear(); app.selectionChanged(); return true; }
       return false;
