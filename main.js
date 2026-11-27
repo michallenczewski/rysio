@@ -65,7 +65,7 @@ function createWindow(openPath) {
     remember(); saveSettings();
     if (!dirty.get(win)) return;
     const r = dialog.showMessageBoxSync(win, {
-      type: 'question', buttons: [_t('Zapisz'), _t('Nie zapisuj'), _t('Anuluj')], defaultId: 0, cancelId: 2,
+      type: process.platform === 'win32' ? 'none' : 'question', buttons: [_t('Zapisz'), _t('Nie zapisuj'), _t('Anuluj')], defaultId: 0, cancelId: 2, noLink: true,   // noLink — w Windows zwykłe przyciski zamiast „linków poleceń” ze strzałkami
       message: _t('Zapisać zmiany w rysunku?'), detail: _t('Jeśli nie zapiszesz, zmiany przepadną.')
     });
     if (r === 2) { e.preventDefault(); return; }
