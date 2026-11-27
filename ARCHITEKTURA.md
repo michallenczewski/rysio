@@ -136,7 +136,7 @@ Te same pliki z `renderer/` działają w przeglądarce. Zamiast mostu Electrona 
 | `wzorzec_przyciskow.html` | wzorzec reakcji przycisków całej rodziny programów (źródło prawdy; otwiera się w przeglądarce) |
 | `WYTYCZNE_INTERAKCJE.md` | wspólny język interakcji całej rodziny programów (wzór: Blat); w Rysiu wprowadzony 26.11.2026 według makiety `makieta/ruch.html` |
 | `.github/workflows/build.yml` | instalatory Windows i Mac, uruchamiane ręcznie |
-| `build/icon.svg` → `build/icon.png` | ikona programu: miękka czarna pętla z kwadracikiem na złamanej bieli (wybór 23.11.2026, `makieta/znak.html`); PNG 1024 px z przezroczystym marginesem robi `scripts/ikona.js` (Electronem; `qlmanage` wypełniał margines na biało i macOS pokazywał białą ramkę) |
+| `build/icon.svg` → `build/icon-win.png`, `build/icon.png` | ikona programu: miękka czarna pętla z kwadracikiem na złamanej bieli (wybór 23.11.2026, `makieta/znak.html`). Jedno źródło 160 × 160 według wytycznych ikon rodziny (tło rx 38, znak w polu 26–134, bez cienia). `scripts/ikona.js` (Electronem) robi dwa PNG 1024 px: dla Windows tło na całe płótno (`build.win.icon`; wcześniej Windows dostawał wersję z marginesem i ikona była mniejsza od innych), dla Maca 824 px z przezroczystym marginesem 100 px (`build.mac.icon`; `qlmanage` wypełniał margines na biało) |
 
 ## Ruch i podpowiedzi (wytyczne interakcji)
 

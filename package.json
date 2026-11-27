@@ -53,7 +53,8 @@
       "identity": null,
       "extendInfo": {
         "CFBundleDisplayName": "Rysio"
-      }
+      },
+      "icon": "build/icon.png"
     },
     "dmg": {
       "title": "Rysio ${version}"
@@ -67,7 +68,8 @@
           ]
         }
       ],
-      "executableName": "Rysio"
+      "executableName": "Rysio",
+      "icon": "build/icon-win.png"
     },
     "nsis": {
       "oneClick": false,
