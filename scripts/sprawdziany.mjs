@@ -469,6 +469,12 @@ przypadek('konflikt: kierunek wzdłuż ściany', 'kursor na ścianie, poziom od 
   const r = new Snapper().find([3, 1.01], { tol: 0.1, ents: [{ ...L([0, 1], [5, 1]), id: 1 }], base: [-1, 1.05] });
   return { 'punkt': [[r.kind, ...r3(r.p)], ['near', 3, 1]] };
 });
+przypadek('litera Z: dolna kreska do siatki', 'Z polilinią (2,4)→(6,4)→(2,1), dolna kreska w prawo — punkt w węzłach siatki, nie obok (w 0.5.1 wygrywał poziom)', () => {
+  const s = new Snapper(); s.addRefPt([6, 4]);
+  const ents = [{ ...L([2, 4], [6, 4]), id: 1 }, { ...L([6, 4], [2, 1]), id: 2 }];
+  const at = x => { const r = s.find([x + 0.03, 1.04], { tol: 0.15, ents, base: [2, 1], grid: 1 }); return [r.kind, ...r3(r.p)]; };
+  return { 'x = 3': [at(3), ['grid', 3, 1]], 'x = 5': [at(5), ['grid', 5, 1]], 'pod narożnikiem': [at(6), ['track', 6, 1]] };
+});
 przypadek('przesuwanie kreski w poziomie do siatki', 'prawa krawędź prostokąta złapana w połowie (6; 2,5) i przesuwana w bok — ląduje w kolumnie siatki, nie obok', () => {
   const rect = [[[2, 1], [6, 1]], [[6, 1], [6, 4]], [[6, 4], [2, 4]], [[2, 4], [2, 1]]].map(([a, b], i) => ({ ...L(a, b), id: i + 1 }));
   const s = new Snapper(), o = { tol: 0.15, ents: rect, base: [6, 2.5], grid: 1 };
