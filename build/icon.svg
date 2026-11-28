@@ -4,7 +4,7 @@
        PNG robi scripts/ikona.js: build/icon-win.png (Windows, na całe płótno) i build/icon.png (Mac, 824 px na 1024 z marginesem 100). -->
   <rect width="160" height="160" rx="38" fill="#F1ECE1"/>
   <g transform="translate(80 80) scale(0.817) translate(-79.3 -80.55)">
-    <path d="M26 124C40 60 62 28 92 34C128 42 122 98 88 104C56 110 52 70 80 62C104 56 126 74 136 128" fill="none" stroke="#161616" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M26 124C40 60 62 28 92 34C128 42 122 98 88 104C56 110 52 70 80 62C104 56 126 74 136 128" fill="none" stroke="#161616" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
     <rect x="16" y="114" width="20" height="20" fill="#FFFFFF" stroke="#161616" stroke-width="5.5"/>
   </g>
 </svg>
