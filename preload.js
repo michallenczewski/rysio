@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('api', {
   setTheme: dark => ipcRenderer.send('theme', dark),
   onSaveThenClose: on('save-then-close'),
   onFullscreen: on('fullscreen'),
+  winCtl: c => ipcRenderer.send('win-ctl', c),
+  onWinMax: on('win-max'),
   updateGet: () => ipcRenderer.invoke('update-get'),
   updateCheck: () => ipcRenderer.invoke('update-check'),
   updateInstall: () => ipcRenderer.invoke('update-install'),

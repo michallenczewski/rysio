@@ -170,6 +170,14 @@ Z Modo 0.4.2 (commit `591d8d9`, 24.11.2026), etap 5:
 | `renderer/vendor/libredwg/` | bez zmian (z plikiem `COPYING`) |
 | `renderer/dxf.js` | z Modo tylko rozkład pliku na sekcje, tabelę warstw i bloki; zamiana na elementy Rysia (linie, polilinie z łukami, okręgi, łuki, teksty i MTEXT, elipsy i splajny jako polilinie, bloki i wymiary rozbite) oraz zapis DXF R2000 — nowe |
 
+## Skopiowane z Blatu
+
+Z Blatu (`michallenczewski/blat-app`, 28.11.2026):
+
+| co | zmiany |
+|---|---|
+| własne przyciski okna na Windows (`win-ctl`, `win-max` w `main.js` i `preload.js`; ikony `wmin`, `wmax`, `wrest`, `wclose` i `winBtnsHtml` w `app.js`; czerwone „zamknij” w `style.css`) | w Rysiu zawsze włączone na Windows, bez opcji w ustawieniach (Rysio ma wiele okien, a zmiana wymagałaby ponownego uruchomienia). Okno bez systemowej nakładki (`titleBarStyle: 'hidden'`). Przyciski stoją na końcu górnego paska za ustawieniami, w trybie minimalnym w pastylce `#winPill` w prawym górnym rogu. „Zamknij” woła `win.close()`, więc pyta o zapis jak zwykle. W przeglądarce widać je z `?okno` w adresie. Bez systemowych przycisków znika menu układów okien Windows 11 po najechaniu na „maksymalizuj” (zostają Win+strzałki i przeciąganie do krawędzi ekranu). |
+
 ## Biblioteki zewnętrzne
 
 | biblioteka | wersja, skąd | jak odświeżyć |

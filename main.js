@@ -46,10 +46,10 @@ function createWindow(openPath) {
   const win = new BrowserWindow({
     ...b, minWidth: 900, minHeight: 560, show: false,
     title: 'Rysio', backgroundColor: '#f7f7f5', autoHideMenuBar: true,
-    // pasek tytułu schowany — przyciski okna rysuje system w górnym pasku programu (jak w Modo i Gapie)
+    // pasek tytułu schowany — na Macu przyciski okna rysuje system, na Windows Rysio na końcu górnego paska
     ...(isMac
       ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 19 } }
-      : { titleBarStyle: 'hidden', titleBarOverlay: { color: '#f7f7f5', symbolColor: '#4a4945', height: 52 } }),
+      : { titleBarStyle: 'hidden' }),   // Windows: przyciski okna rysuje Rysio (jak w Blacie, wytyczne rodziny §8a)
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false }
   });
   wins.add(win);
@@ -58,6 +58,8 @@ function createWindow(openPath) {
   win.loadURL('rysio://app/index.html' + (openPath ? '?p=' + encodeURIComponent(openPath) : ''));
   const remember = () => { if (!win.isMaximized() && !win.isMinimized() && !win.isFullScreen()) settings.bounds = win.getBounds(); settings.maximized = win.isMaximized(); };
   win.on('resize', remember); win.on('move', remember);
+  const maxState = () => { if (!win.isDestroyed()) win.webContents.send('win-max', win.isMaximized()); };
+  win.on('maximize', maxState); win.on('unmaximize', maxState); win.webContents.on('did-finish-load', maxState);
   win.on('enter-full-screen', () => win.webContents.send('fullscreen', true));
   win.on('leave-full-screen', () => win.webContents.send('fullscreen', false));
   // niezapisane zmiany: pytamy przed zamknięciem
@@ -84,11 +86,17 @@ function createWindow(openPath) {
 ipcMain.on('dirty', (e, v) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) { dirty.set(w, !!v); if (isMac) w.setDocumentEdited(!!v); } });
 ipcMain.on('close-now', e => { const w = BrowserWindow.fromWebContents(e.sender); if (w) { dirty.set(w, false); w.close(); } });
 ipcMain.on('new-window', () => createWindow(null));
-// tryb ciemny: kolor tła okna i przycisków okna na Windows
+// tryb ciemny: kolor tła okna
 ipcMain.on('theme', (e, dark) => {
   const w = BrowserWindow.fromWebContents(e.sender); if (!w) return;
   w.setBackgroundColor(dark ? '#161616' : '#f7f7f5');
-  if (isWin) try { w.setTitleBarOverlay({ color: dark ? '#161616' : '#f7f7f5', symbolColor: dark ? '#c4c4c1' : '#4a4945' }); } catch (err) {}
+});
+// własne przyciski okna na Windows (skopiowane z Blatu): zamknięcie idzie przez zwykłe pytanie o zapis
+ipcMain.on('win-ctl', (e, cmd) => {
+  const w = BrowserWindow.fromWebContents(e.sender); if (!w) return;
+  if (cmd === 'min') w.minimize();
+  else if (cmd === 'max') w.isMaximized() ? w.unmaximize() : w.maximize();
+  else if (cmd === 'close') w.close();
 });
 ipcMain.handle('set-lang', (e, l) => { if (l === 'en' || l === 'pl') { settings.lang = l; saveSettings(); } return true; });
 

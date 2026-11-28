@@ -25,6 +25,10 @@ translateDom();
 
 /* ---------- ikony (jak w Modo: 16×16, kreska 1,4) ---------- */
 const IC = {
+  wmin: '<path d="M3.5 8.5h9"/>',
+  wmax: '<rect x="3.5" y="3.5" width="9" height="9" rx="1"/>',
+  wrest: '<rect x="3.5" y="5.5" width="7" height="7" rx="1"/><path d="M5.5 5.5v-1a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-1"/>',
+  wclose: '<path d="M4 4l8 8M12 4l-8 8"/>',
   select: '<path d="M4 2.5v10.2l2.9-2.5 1.9 4.1 1.7-.8-1.9-4h3.9z"/>',
   eraser: '<path d="M9.6 2.6 13.4 6.4 7 12.8H4.2L2.6 11.2z"/><path d="M6 6.2l3.8 3.8M7 12.8h6.5"/>',
   brush: '<path d="M13.5 2.5 8 9.2 6.8 8 13.5 2.5z"/><path d="M6.6 8.4c-1.6-.4-3 .5-3.2 2.2-.1 1.2-.6 2-1.4 2.6 2.2.5 4.5.1 5.3-1.6.4-.9.3-1.8-.7-3.2z"/>',
@@ -1345,6 +1349,25 @@ function setTheme(p) { themePref = p; try { localStorage.setItem('rysio.theme', 
 mq.addEventListener('change', applyTheme);
 applyTheme();
 // Ustawienia jak w całej rodzinie programów (wytyczne interakcji §8): motyw, skróty, opcje Rysia (język), na dole wersja i aktualizacje
+/* ---------- własne przyciski okna (Windows; skopiowane z Blatu, wytyczne rodziny §8a) ---------- */
+// Na końcu górnego paska za ustawieniami; w trybie minimalnym w pastylce w prawym górnym rogu.
+// W przeglądarce widać je z parametrem ?okno w adresie (do sprawdzania wyglądu).
+const ownWinBtns = (!isMac && !api.web) || (api.web && new URLSearchParams(location.search).has('okno'));
+let winMax = false;
+function winBtnsHtml() {
+  const b = (w, n, t) => `<button class="ib wb" data-w="${w}" aria-label="${t}" data-tip="${t}">${ic(n)}</button>`;
+  return b('min', 'wmin', _t('Minimalizuj') + ' (Win+↓)') + b('max', winMax ? 'wrest' : 'wmax', (winMax ? _t('Przywróć') + ' (Win+↓)' : _t('Maksymalizuj') + ' (Win+↑)')) + b('close', 'wclose', _t('Zamknij') + ' (Alt+F4)');
+}
+function renderWinBtns() {
+  if (!ownWinBtns) return;
+  let h = $('#winBtns'); if (!h) { h = document.createElement('div'); h.id = 'winBtns'; h.className = 'wbs'; $('#top').append(h); }
+  h.innerHTML = '<div class="sep"></div>' + winBtnsHtml();
+  let p = $('#winPill'); if (!p) { p = document.createElement('div'); p.id = 'winPill'; p.className = 'wbs'; document.body.append(p); }
+  p.innerHTML = winBtnsHtml();
+  for (const el of document.querySelectorAll('.wbs .wb')) el.onclick = e => { e.stopPropagation(); api.winCtl?.(el.dataset.w); };
+}
+renderWinBtns();
+api.onWinMax?.(v => { winMax = !!v; renderWinBtns(); });
 $('#setBtn').addEventListener('click', e => {
   e.stopPropagation(); if (!$('#menu').hidden) return closePops();
   const u = updState, busy = u && (u.state === 'downloading' || u.state === 'ready');
