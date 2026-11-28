@@ -50,7 +50,7 @@ function ltIn(name) {
 }
 function wIn(v) {   // 370: setne części milimetra; ujemne — „jak warstwa / blok / domyślna”
   if (!(v > 0)) return null;
-  const mm = v / 100; return WEIGHTS.reduce((a, b) => Math.abs(b - mm) < Math.abs(a - mm) ? b : a);
+  return Math.round(v) / 100;   // grubość z pliku bez zaokrąglania do listy (np. 0,15 albo 0,53 zostaje)
 }
 
 /* ---------- tekst: kody formatowania AutoCAD-a ---------- */

@@ -1,6 +1,6 @@
 // Rysio — okno programu: stan, mysz i klawiatura, paski, okienka warstw i kreski, zapis. Opis: ARCHITEKTURA.md.
 import { _t, translateDom, lang, LANGS, setLang, DEC } from './i18n.js';
-import { newDoc, fixDoc, History, serialize, strokeOf, layerOf, isLive, isShown, WEIGHTS, LTYPES, LTYPE_IDS, LAYER_COLORS, SCALES, spaceOf, newSheet, sheetSize, PAPER } from './model.js';
+import { newDoc, fixDoc, History, serialize, strokeOf, layerOf, isLive, isShown, WEIGHTS, W_MIN, W_MAX, LTYPES, LTYPE_IDS, LAYER_COLORS, SCALES, spaceOf, newSheet, sheetSize, PAPER } from './model.js';
 import { V, bbox, boxHit, boxGrow, boxUnion, nearestOn, setAnno, vpBox, textBox, setBlocks, blockEnts, insXf } from './geom.js';
 import { explodeIns } from './edit.js';
 import { packClip, readClip, clipFactor } from './clip.js';
@@ -614,28 +614,45 @@ function renderStrokePop() {
   const head = s.kind === 'layer' ? `<span class="ttl grow">${_t`Kreska warstwy ${esc(s.L.name)}`}</span>`
     : `<span class="ttl grow">${_t('Jak warstwa')}${s.L ? ` <span class="lbl" style="font-weight:400">· ${esc(s.L.name)}: ${wtxt(s.L.w)} ${LTYPES[s.L.lt].name}</span>` : ''}</span><button class="tgl${byLayer ? ' on' : ''}" id="byLayerTgl" role="switch" aria-checked="${byLayer}" aria-label="${_t('Jak warstwa')}"></button>`;
   const fromLayer = k => s.kind !== 'layer' && s.own[k] === null;
-  const ws = WEIGHTS.map(w => `<button class="krow${w === s.w ? (fromLayer('w') ? ' lay' : ' on') : ''}" data-w="${w}">${sample(w, 'solid', 96)}<span>${wtxt(w)}</span></button>`).join('');
+  // grubość spoza listy (wpisana albo z pliku) stoi na liście w swoim miejscu, zaznaczona
+  const wl = WEIGHTS.includes(s.w) || !(s.w > 0) ? WEIGHTS : [...WEIGHTS, s.w].sort((a, b) => a - b);
+  const ws = wl.map(w => `<button class="krow${w === s.w ? (fromLayer('w') ? ' lay' : ' on') : ''}" data-w="${w}">${sample(w, 'solid', 96)}<span>${wtxt(w)}</span></button>`).join('')
+    + `<input class="fld wown" id="wOwn" inputmode="decimal" placeholder="${_t('własna, np. 0,15')}" spellcheck="false" aria-label="${_t('Własna grubość, mm')}">`;
   const ts = LTYPE_IDS.map(id => `<button class="krow${id === s.lt ? (fromLayer('lt') ? ' lay' : ' on') : ''}" data-lt="${id}">${sample(0.25, id, 96)}<span>${LTYPES[id].name}</span></button>`).join('');
   const note = s.kind === 'layer' ? _t('Zmiana dotyczy wszystkich elementów tej warstwy z kreską „jak warstwa”.')
     : s.kind === 'sel' ? _t`Zmiana dotyczy zaznaczonych elementów (${s.si.n}). Obwódka — kreska z warstwy.`
     : _t`Dotyczy następnych elementów. Obwódka — kreska z warstwy. Istniejące linie najszybciej przemalujesz pędzlem (${prettyCombo(keysFor('brush', app.keys.over)[0] || 'M', isMac)}).`;
   morph(pop, `<div class="row" style="height:28px">${head}</div><div class="hr"></div>
-    <div class="kcols"><div class="kcol"><div class="h">${_t('Grubość, mm')}</div>${ws}</div><div class="kcol"><div class="h">${_t('Rodzaj')}</div>${ts}</div></div>
+    <div class="kcols"><div class="kcol ws"><div class="h">${_t('Grubość, mm')}</div>${ws}</div><div class="kcol"><div class="h">${_t('Rodzaj')}</div>${ts}</div></div>
     <div class="hr"></div><p class="note">${note}</p>`);
 }
 $('#strokePop').addEventListener('click', e => {
   e.stopPropagation();
   const t = e.target.closest('button'); if (!t) return;
-  const s = strokeState(), d = app.doc;
+  const s = strokeState();
   let patch = null;
   if (t.id === 'byLayerTgl') patch = (s.own.w === null && s.own.lt === null) ? { w: s.w, lt: s.lt } : { w: null, lt: null };
   else if (t.dataset.w) patch = { w: +t.dataset.w };
   else if (t.dataset.lt) patch = { lt: t.dataset.lt };
-  if (!patch) return;
+  if (patch) applyStroke(s, patch);
+});
+// własna grubość: wpisana liczba w mm i Enter
+$('#strokePop').addEventListener('keydown', e => {
+  if (e.target.id !== 'wOwn') return;
+  e.stopPropagation();
+  if (e.key === 'Escape') { closePops(); return; }
+  if (e.key !== 'Enter') return;
+  const v = parseFloat(e.target.value.replace(',', '.').replace(/mm\s*$/i, ''));
+  if (!(v >= W_MIN && v <= W_MAX)) { toast(_t`Wpisz grubość od ${wtxt(W_MIN)} do ${W_MAX} mm.`); return; }
+  e.target.value = '';
+  applyStroke(strokeState(), { w: Math.round(v * 100) / 100 });
+});
+function applyStroke(s, patch) {
+  const d = app.doc;
   if (s.kind === 'layer') app.edit(_t('Kreska warstwy'), tx => tx.setLayer(s.L.id, patch));
   else if (s.kind === 'sel') { const ids = s.si.ents.map(e => e.id); app.edit(_t('Kreska'), tx => ids.forEach(id => tx.set(id, patch))); }
   else { app.edit(_t('Kreska'), tx => tx.setDoc({ cur: { ...d.cur, ...patch } })); refreshUi(); }
-});
+}
 document.addEventListener('pointerdown', e => { if (!e.target.closest('.pop, .menu, .pill, #miniBadge, #status .unit, #status .chip, #status .arr, #fileBtn, #setBtn, #pdfBtn, .toolbar')) closePops(); });
 
 // przebudowa paska albo okienka „w miejscu”: te same elementy zostają (zmieniają się tylko napisy i atrybuty),

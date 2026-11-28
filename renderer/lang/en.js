@@ -551,4 +551,7 @@ export default {
   "Punkty": "Points",
   "Kierunki": "Directions",
   "Jak na początku": "Defaults",
+  "własna, np. 0,15": "custom, e.g. 0.15",
+  "Własna grubość, mm": "Custom lineweight, mm",
+  "Wpisz grubość od {0} do {1} mm.": "Enter a lineweight from {0} to {1} mm.",
 };

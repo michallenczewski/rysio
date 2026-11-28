@@ -275,7 +275,11 @@ przypadek('numer po arkuszu', 'plik z zaniżonym „next” nie daje elementu o 
 
 /* ---------- zmienianie (etap 3) ---------- */
 const r6 = p => p.map(v => +v.toFixed(6));
-przypadek('grubości ISO do 2 mm', 'pasek grubości ma pełny szereg 0,13–2,0', () => ({ 'grubości': [M.WEIGHTS, [0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1, 1.4, 2]] }));
+// 28.11.2026: więcej grubości (także cieńsze i pośrednie jak w AutoCAD-zie) i własna wpisana; z DXF grubość bez zaokrąglania do listy
+przypadek('grubości kresek', 'lista 0,05–2,0 zawiera pełny szereg ISO 0,13–2,0; własną można wpisać od 0,01 do 10 mm', () => ({
+  'grubości': [M.WEIGHTS, [0.05, 0.09, 0.13, 0.18, 0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.7, 1, 1.4, 2]],
+  'szereg ISO w liście': [[0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1, 1.4, 2].every(w => M.WEIGHTS.includes(w)), true],
+  'zakres własnej': [[M.W_MIN, M.W_MAX], [0.01, 10]] }));
 przypadek('polilinia z łukiem', 'wybrzuszenie 1 między (0,0) a (2,0) to półokrąg pod spodem, środek (1,0)', () => {
   const e = { t: 'pline', pts: [[0, 0, 1], [2, 0]], closed: false }, q = G.plineParts(e)[0];
   return { 'część': [q.k, 'arc'], 'środek': [q.c, [1, 0]], 'promień': [q.r, 1], 'środek łuku': [G.midpoints(e)[0], [1, -1]], 'długość': [G.lengthOf(e), Math.PI] };
@@ -523,6 +527,11 @@ przypadek('DXF: warstwy, jednostki, polilinia z łukiem, okrąg', 'plik w milime
   return { 'jednostki': [doc.units, 'mm'], 'wierzchołki w metrach': [pl.pts, [[0, 0, 1], [2, 0], [2, 1]]], 'zamknięta': [pl.closed, true],
     'okrąg': [[...ci.c, ci.r], [1, 0.5, 0.25]], 'warstwa zablokowana, kolor': [[L('Ściany').locked, L('Ściany').color, L('Ściany').w], [true, '#ff0000', 0.5]],
     'warstwa wyłączona, osiowa': [[L('Osie').visible, L('Osie').lt], [false, 'center']], 'kreska linii': [[ln.lt, ln.w], ['dash', 0.35]], 'nowa warstwa z encji': [!!L('Nowa'), true] };
+});
+przypadek('DXF: grubość spoza listy', 'linia z grubością 0,15 mm (370 = 15) zostaje 0,15, a nie najbliższą z listy', () => {
+  const t = dxfOf(['9', '$INSUNITS', '70', '6'], ['0', 'LINE', '8', 'Ściany', '370', '15', '10', '0', '20', '0', '11', '1', '21', '0', '0', 'LINE', '8', 'Ściany', '370', '53', '10', '0', '20', '1', '11', '1', '21', '1']);
+  const { doc } = DXF.parseDxf(t, { scale: 50 });
+  return { 'grubości': [doc.ents.map(e => e.w), [0.15, 0.53]] };
 });
 przypadek('DXF: blok obrócony i odbity, tekst', 'wstawienie z obrotem 90° i skalą X −1 rozbite na elementy; łuk zachowuje kształt', () => {
   const blk = ['0', 'BLOCK', '2', 'B1', '10', '0', '20', '0', '0', 'LINE', '8', '0', '10', '0', '20', '0', '11', '1', '21', '0', '0', 'ARC', '8', '0', '10', '0', '20', '0', '40', '1', '50', '0', '51', '90', '0', 'ENDBLK'];

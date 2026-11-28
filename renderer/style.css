@@ -213,6 +213,8 @@ header button,header .seg,header input{-webkit-app-region:no-drag}
 .kcol .h{font-size:11px;color:var(--muted2);padding:2px 8px 4px}
 .krow{height:30px;border-radius:7px;display:flex;align-items:center;gap:10px;padding:0 8px;color:var(--text);width:100%}
 .krow:hover{background:var(--hover)}
+.kcol.ws .krow{height:26px}
+.kcol .wown{margin:4px 0 0;width:100%;height:28px;font-size:12px}
 .krow.on{background:var(--pill);box-shadow:var(--pillsh),0 0 0 1px var(--line)}
 .krow.lay{box-shadow:0 0 0 1.2px var(--muted2) inset}
 .krow span{font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums}

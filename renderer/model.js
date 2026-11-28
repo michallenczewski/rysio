@@ -4,7 +4,9 @@ import { _t } from './i18n.js';
 
 export const FORMAT_VERSION = 1;
 // grubości z szeregu ISO 128 (mm)
-export const WEIGHTS = [0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1.0, 1.4, 2.0];
+// grubości do wyboru (mm na papierze); dowolną inną można wpisać w okienku „Kreska” (W_MIN–W_MAX)
+export const WEIGHTS = [0.05, 0.09, 0.13, 0.18, 0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.7, 1.0, 1.4, 2.0];
+export const W_MIN = 0.01, W_MAX = 10;
 // rodzaje linii: wzór kresek w milimetrach papieru (kreska, przerwa, …); pusty = ciągła
 export const LTYPES = {
   solid: { name: _t('ciągła'), dash: [] },
